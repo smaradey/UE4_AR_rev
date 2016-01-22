@@ -28,12 +28,21 @@ public:
 	void PostInitProperties();
 	void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent);
 
+	/** StaticMesh component that will be the visuals for the missile */
+	UPROPERTY(Category = Mesh, VisibleDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
+	class UStaticMeshComponent* MissileMesh;
 
+	UPROPERTY(Category = ParticleSystem, BlueprintReadWrite, EditAnywhere, meta = (AllowPrivateAccess = "true"))
+	class UParticleSystem* SmokeTrail;
 
+	UPROPERTY(Category = ParticleSystem, BlueprintReadWrite, EditAnywhere, meta = (AllowPrivateAccess = "true"))
+	class UParticleSystem* Explosion;
 
-	/**	 return current lifetime of the missile in seconds*/
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Missile")
-		float GetMissileLifetime();
+	// Sets default values for this actor's properties
+	AMissile(const FObjectInitializer& ObjectInitializer);
+
+	/** Returns PlaneMesh subobject **/
+	FORCEINLINE class UStaticMeshComponent* GetPlaneMesh() const { return MissileMesh; }
 
 	/**	 Perform target location prediction*/
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Missile")
@@ -69,12 +78,12 @@ public:
 
 	/** missile explosionradius in cm */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile")
-		float ExplosionRadius = 500.0f;	
+		float ExplosionRadius = 500.0f;
 
 	///** missile explosioneffect */
 	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile")
 	//	class UParticleSystemComponent* ExplosionEffect;
-	
+
 	/** the current target (scenecpmponent) the missile is homing towards */
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Missile")
 	class USceneComponent* CurrentTarget;
@@ -105,7 +114,7 @@ public:
 		void Server_RunsOnServer();
 
 	UPROPERTY()
-	APlayerState* State;
+		APlayerState* State;
 
 	UFUNCTION(NetMulticast, Reliable)
 		void ServerDealing();
@@ -115,14 +124,20 @@ public:
 		void ServerRunsOnAllClients();
 	virtual void RunsOnAllClients();
 
+	UFUNCTION()
+		void MissileMeshOverlap(class AActor* OtherActor, class UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+
+	UFUNCTION()
+		void MissileDestruction();
+
 	////// example for function replication------------------------
 	UPROPERTY(Replicated)
-	bool bSomeBool = false;
+		bool bSomeBool = false;
 
 	UFUNCTION(Server, Reliable, WithValidation)
 		void ServerSetSomeBool(bool bNewSomeBool);
 	virtual void SetSomeBool(bool bNewSomeBool); // executed on client
-	
+
 	////// end: example for function replication------------------------
 
 	////// example for function replication
@@ -137,10 +152,12 @@ private:
 
 	UFUNCTION()
 		void OnRep_Flag();
+
 	bool bNotFirstTick = false;
 
 	float MaxLifeTime;
 	float LifeTime;
+
 	FVector ExplosionLocation;
 	FVector RotationAxisForTurningToTarget;
 	FVector NewDirection;
@@ -152,28 +169,31 @@ private:
 	float Dot;
 	float Turnrate;
 	FVector DirectionToTarget;
-	FVector CurrentTargetLocation;	
+	FVector CurrentTargetLocation;
 	FVector LastTargetLocation;
 	FVector LastActorLocation;
 	FVector TargetVelocity;
 	FVector PredictedTargetLocation;
-	int FramesSinceLastVelocityCheck;
+	int32 FramesSinceLastVelocityCheck;
 	/** perform homing to the target by rotating*/
-	void Homing(float DeltaTime);
+	UFUNCTION()
+		void Homing(float DeltaTime);
 	FDateTime currentTime;
 	float Ping;
 	float DistanceToTarget;
 	float LastDistanceToTarget = ExplosionRadius;
-	float AdvancedHomingStrength;	
+	float AdvancedHomingStrength;
+	UFUNCTION()
+		float DistanceLineLine(const FVector& a1,
+			const FVector& a2,
+			const FVector& b1,
+			const FVector& b2);
+	UFUNCTION()
+		bool ClosestPointsOnTwoLines(const FVector& LineStartA,
+			const FVector& LineEndA,
+			const FVector& LineStartB,
+			const FVector& LineEndB,
+			FVector& PointA,
+			FVector& PointB);
 
-	float DistanceLineLine(const FVector& a1,
-		const FVector& a2,
-		const FVector& b1,
-		const FVector& b2);
-	bool ClosestPointsOnTwoLines(const FVector& LineStartA,
-		const FVector& LineEndA,
-		const FVector& LineStartB,
-		const FVector& LineEndB,
-		FVector& PointA,
-		FVector& PointB);
 };

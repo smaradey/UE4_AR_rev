@@ -6,13 +6,88 @@
 
 
 // Sets default values
-AMissile::AMissile()
+AMissile::AMissile(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
+	// Initialize all base values
+
 	bReplicates = true;                                    // Set the missile to be replicated	
-	PrimaryActorTick.bCanEverTick = true;                  // enable Tick
 	bAlwaysRelevant = true;
 
+	// Create static mesh component
+	MissileMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MissileMesh"));
+	RootComponent = MissileMesh;
+
+
+	//MissileMesh->SetCollisionObjectType(ECC_Dynamic);
+	//MissileMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+
+	MissileMesh->OnComponentBeginOverlap.AddDynamic(this, &AMissile::MissileMeshOverlap);
+	
+	OnDestroyed.AddDynamic(this, &AMissile::MissileDestruction);
+	PrimaryActorTick.bCanEverTick = true;                  // enable Tick
 }
+
+void AMissile::MissileDestruction() {
+	if (Explosion && Role < ROLE_Authority) {
+		UParticleSystemComponent* Hit = UGameplayStatics::SpawnEmitterAtLocation(this, Explosion, GetActorLocation(), GetActorRotation(), true);
+	}
+}
+
+
+
+void AMissile::MissileMeshOverlap(class AActor* OtherActor, class UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult) {
+	if (Role == ROLE_Authority) {
+		// missileMesh is overlapping with something	
+		// Other Actor is the actor that triggered the event. Check that is not ourself.  
+		if ((OtherActor) && (OtherActor != this) && (OtherComp)) {
+			// do sth
+			FString InstigatorOther;
+			FString InstigatorThis;
+
+			if (OtherActor->GetInstigator()) {
+				InstigatorOther = OtherActor->GetInstigator()->GetName();
+			}
+			else {
+				InstigatorOther = "NONE";
+			}
+
+			if (GetInstigator()) {
+				InstigatorThis = GetInstigator()->GetName();
+			}
+			else {
+				InstigatorThis = "NONE";
+			}
+			if (OtherActor->GetInstigator() == GetInstigator()) {
+				if (GEngine) GEngine->AddOnScreenDebugMessage(2, 3.0f/*seconds*/, FColor::Green, "Same Instigator");
+			}
+			if (GEngine) GEngine->AddOnScreenDebugMessage(1, 3.0f/*seconds*/, FColor::Red, "Instigator - Other: " + InstigatorOther + "; Missile: " + InstigatorThis);
+
+			// do sth
+			FString OwnerOther;
+			FString OwnerThis;
+
+			if (OtherComp->GetOwner()) {
+				OwnerOther = OtherComp->GetOwner()->GetName();
+			}
+			else {
+				OwnerOther = "NONE";
+			}
+
+			if (GetOwner()) {
+				OwnerThis = GetOwner()->GetName();
+			}
+			else {
+				OwnerThis = "NONE";
+			}
+			if (OtherComp->GetOwner() != GetOwner()) {
+				if (GEngine) GEngine->AddOnScreenDebugMessage(3, 3.0f/*seconds*/, FColor::White, "HIT");
+				Destroy();
+			}
+			if (GEngine) GEngine->AddOnScreenDebugMessage(4, 3.0f/*seconds*/, FColor::Red, "Owner - Other: " + OwnerOther + "; Missile: " + OwnerThis);
+		}
+	}
+}
+
 
 // replication of variables
 void AMissile::GetLifetimeReplicatedProps(TArray< FLifetimeProperty > & OutLifetimeProps) const
@@ -49,6 +124,8 @@ void AMissile::BeginPlay()
 {
 	Super::BeginPlay();
 
+	MissileMesh->SetWorldScale3D(FVector(0.1f, 0.1f, 0.1f));
+
 	if (Role == ROLE_Authority && bReplicates) {           // check if current actor has authority
 														   // start a timer that executes a function (multicast)
 		FTimerHandle Timer;
@@ -66,7 +143,9 @@ void AMissile::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-
+	if (SmokeTrail && Role < ROLE_Authority) {
+		UParticleSystemComponent* Trail = UGameplayStatics::SpawnEmitterAtLocation(this, SmokeTrail, GetActorLocation(), GetActorRotation(), true);
+	}
 	LifeTime += DeltaTime;                                 // store lifetime
 	Homing(DeltaTime);                                     // perform homing to the target by rotating, both clients and server
 
@@ -107,9 +186,9 @@ void AMissile::Tick(float DeltaTime)
 			}
 		}
 	}
-	
+
 	// is missile is still accelerating? 
-	if (!bReachedMaxVelocity) {                                      
+	if (!bReachedMaxVelocity) {
 		Velocity += Acceleration * DeltaTime * MaxVelocity;          // inrease Velocity
 		Turnrate += Acceleration * DeltaTime * MaxTurnrate;          // inrease Turnrate
 		// has reached max velocity?
@@ -125,19 +204,13 @@ void AMissile::Tick(float DeltaTime)
 
 }
 
-// return current lifetime of Missile in seconds
-float AMissile::GetMissileLifetime()
-{
-	return	LifeTime;
-}
-
 // perform homing to the target by rotating
 void AMissile::Homing(float DeltaTime) {
 	if (!CurrentTarget) return;                                           // no homing when there is no valid target
 	CurrentTargetLocation = CurrentTarget->GetComponentLocation();        // store the current target location
 
 	// actor is authority
-	if (Role == ROLE_Authority) {                                        
+	if (Role == ROLE_Authority) {
 		DistanceToTarget = (GetActorLocation() - CurrentTargetLocation).Size();
 		float MissileTravelDistance = Velocity * DeltaTime;               // the distance between the current missile location and the next location
 
@@ -149,7 +222,7 @@ void AMissile::Homing(float DeltaTime) {
 	}
 
 	// is target prediction active?
-	if (AdvancedHoming) {                                  
+	if (AdvancedHoming) {
 		// target prediction
 		TargetVelocity = (CurrentTargetLocation - LastTargetLocation) / DeltaTime;  // A vector with v(x,y,z) = [cm/s]
 		LastTargetLocation = CurrentTargetLocation;                                 // store current targetlocation for next recalculation of target velocity
@@ -175,14 +248,14 @@ void AMissile::Homing(float DeltaTime) {
 		DirectionToTarget = (CurrentTargetLocation - GetActorLocation());
 		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, DeltaTime/*seconds*/, FColor::Red, "normal Homing");
 	}
-	
+
 	DirectionToTarget.Normalize();                            // normalize the direction vector
-	
+
 	// calculate the angle the missile will turn (limited by the max turnspeed [deg/s] )
 	AngleToTarget = FMath::Clamp(FMath::RadiansToDegrees(FMath::Acos(DirectionToTarget | GetActorForwardVector())), 0.0f, Turnrate * DeltaTime);
 	// debug
 	//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, DeltaTime/*seconds*/, FColor::White, "Turnrate [deg/s] = " + FString::FromInt(AngleToTarget / DeltaTime));
-	
+
 	// rotation axis for turning the missile towards the target
 	RotationAxisForTurningToTarget = GetActorForwardVector() ^ DirectionToTarget;
 
