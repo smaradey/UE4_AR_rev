@@ -124,7 +124,6 @@ void AMissile::BeginPlay()
 {
 	Super::BeginPlay();
 
-	MissileMesh->SetWorldScale3D(FVector(0.1f, 0.1f, 0.1f));
 
 	if (Role == ROLE_Authority && bReplicates) {           // check if current actor has authority
 														   // start a timer that executes a function (multicast)
@@ -143,8 +142,15 @@ void AMissile::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	if (SmokeTrail && Role < ROLE_Authority) {
-		UParticleSystemComponent* Trail = UGameplayStatics::SpawnEmitterAtLocation(this, SmokeTrail, GetActorLocation(), GetActorRotation(), true);
+	if (MissileMesh && SmokeTrail && Role < ROLE_Authority) {
+		FVector SpawnLocation;
+		if (MissileMesh->DoesSocketExist(FName("booster"))) {			
+			SpawnLocation = MissileMesh->GetSocketLocation(FName("booster"));
+		}
+		else {
+			SpawnLocation = GetActorLocation();
+		}
+		UParticleSystemComponent* Trail = UGameplayStatics::SpawnEmitterAtLocation(this, SmokeTrail, SpawnLocation, GetActorRotation(), true);
 	}
 	LifeTime += DeltaTime;                                 // store lifetime
 	Homing(DeltaTime);                                     // perform homing to the target by rotating, both clients and server
