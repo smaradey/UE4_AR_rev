@@ -22,7 +22,7 @@ AMissile::AMissile(const FObjectInitializer& ObjectInitializer) : Super(ObjectIn
 	//MissileMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 
 	MissileMesh->OnComponentBeginOverlap.AddDynamic(this, &AMissile::MissileMeshOverlap);
-	
+
 	OnDestroyed.AddDynamic(this, &AMissile::MissileDestruction);
 	PrimaryActorTick.bCanEverTick = true;                  // enable Tick
 }
@@ -248,13 +248,12 @@ void AMissile::Homing(float DeltaTime) {
 		DirectionToTarget = (CurrentTargetLocation - GetActorLocation());
 		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, DeltaTime/*seconds*/, FColor::Red, "normal Homing");
 	}
-
 	DirectionToTarget.Normalize();                            // normalize the direction vector
-
+	
 	// calculate the angle the missile will turn (limited by the max turnspeed [deg/s] )
 	AngleToTarget = FMath::Clamp(FMath::RadiansToDegrees(FMath::Acos(DirectionToTarget | GetActorForwardVector())), 0.0f, Turnrate * DeltaTime);
 	// debug
-	//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, DeltaTime/*seconds*/, FColor::White, "Turnrate [deg/s] = " + FString::FromInt(AngleToTarget / DeltaTime));
+	//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, DeltaTime, FColor::White, "Turnrate [deg/s] = " + FString::FromInt(AngleToTarget / DeltaTime));
 
 	// rotation axis for turning the missile towards the target
 	RotationAxisForTurningToTarget = GetActorForwardVector() ^ DirectionToTarget;
@@ -262,7 +261,8 @@ void AMissile::Homing(float DeltaTime) {
 	// rotate the missile forward vector towards target direction
 	NewDirection = GetActorForwardVector().RotateAngleAxis(AngleToTarget, RotationAxisForTurningToTarget.GetSafeNormal());
 
-	SetActorRotation(NewDirection.Rotation());             // apply the new direction as rotation to the missile
+	// apply the new direction as rotation to the missile
+	SetActorRotation(NewDirection.Rotation());
 }
 
 //returns a location at which has to be aimed in order to hit the target
