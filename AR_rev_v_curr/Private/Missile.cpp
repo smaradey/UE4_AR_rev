@@ -142,16 +142,6 @@ void AMissile::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	if (MissileMesh && SmokeTrail && Role < ROLE_Authority) {
-		FVector SpawnLocation;
-		if (MissileMesh->DoesSocketExist(FName("booster"))) {			
-			SpawnLocation = MissileMesh->GetSocketLocation(FName("booster"));
-		}
-		else {
-			SpawnLocation = GetActorLocation();
-		}
-		UParticleSystemComponent* Trail = UGameplayStatics::SpawnEmitterAtLocation(this, SmokeTrail, SpawnLocation, GetActorRotation(), true);
-	}
 	LifeTime += DeltaTime;                                 // store lifetime
 	Homing(DeltaTime);                                     // perform homing to the target by rotating, both clients and server
 
@@ -207,6 +197,18 @@ void AMissile::Tick(float DeltaTime)
 	}
 	// perform movement
 	AddActorWorldOffset(MovementVector);
+
+	// spawn missiletrail
+	if (MissileMesh && SmokeTrail && Role < ROLE_Authority) {
+		FVector SpawnLocation;
+		if (MissileMesh->DoesSocketExist(FName("booster"))) {
+			SpawnLocation = MissileMesh->GetSocketLocation(FName("booster"));
+		}
+		else {
+			SpawnLocation = GetActorLocation();
+		}
+		UParticleSystemComponent* Trail = UGameplayStatics::SpawnEmitterAtLocation(this, SmokeTrail, SpawnLocation, GetActorRotation(), true);
+	}
 
 }
 
