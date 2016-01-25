@@ -217,9 +217,11 @@ void AMissile::Homing(float DeltaTime) {
 	if (!CurrentTarget) return;                                           // no homing when there is no valid target
 	CurrentTargetLocation = CurrentTarget->GetComponentLocation();        // store the current target location
 
+	DistanceToTarget = (GetActorLocation() - CurrentTargetLocation).Size();
+
 	// actor is authority
 	if (Role == ROLE_Authority) {
-		DistanceToTarget = (GetActorLocation() - CurrentTargetLocation).Size();
+		
 		float MissileTravelDistance = Velocity * DeltaTime;               // the distance between the current missile location and the next location
 
 		// is the target inside explosionradius? (missiletraveldistance is for fast moving missiles with low fps)
@@ -244,11 +246,12 @@ void AMissile::Homing(float DeltaTime) {
 			FVector2D(0.0f, 1.0f),
 			DistanceToTarget);
 		//debug
-		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, DeltaTime/*seconds*/, FColor::White, FString::SanitizeFloat(AdvancedHomingStrength));
+		if (GEngine) GEngine->AddOnScreenDebugMessage(4, DeltaTime/*seconds*/, FColor::White, FString::SanitizeFloat(AdvancedHomingStrength));
 
 		// calculate the new forward vector of the missile by taking the distance to the target into consideration 
+		DirectionToTarget = (FMath::Lerp(CurrentTargetLocation, PredictedTargetLocation, FMath::Sqrt(AdvancedHomingStrength))) - GetActorLocation();
 		// (sqrt of homing strength so that the transition is not linear)
-		DirectionToTarget = (CurrentTargetLocation + ((PredictedTargetLocation - CurrentTargetLocation) * FMath::Sqrt(AdvancedHomingStrength))) - GetActorLocation();
+		//DirectionToTarget = (CurrentTargetLocation + ((PredictedTargetLocation - CurrentTargetLocation) * FMath::Sqrt(AdvancedHomingStrength))) - GetActorLocation();
 		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, DeltaTime/*seconds*/, FColor::Green, "advanced Homing");
 	}
 	else {
@@ -257,7 +260,7 @@ void AMissile::Homing(float DeltaTime) {
 		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, DeltaTime/*seconds*/, FColor::Red, "normal Homing");
 	}
 	DirectionToTarget.Normalize();                            // normalize the direction vector
-	
+
 	// calculate the angle the missile will turn (limited by the max turnspeed [deg/s] )
 	AngleToTarget = FMath::Clamp(FMath::RadiansToDegrees(FMath::Acos(DirectionToTarget | GetActorForwardVector())), 0.0f, Turnrate * DeltaTime);
 	// debug
