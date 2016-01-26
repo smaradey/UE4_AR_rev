@@ -91,6 +91,10 @@ public:
 	/** is advanced homing active */
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Missile")
 		bool AdvancedHoming = true;
+	
+	/** missile hit the target */
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Missile")
+		bool TargetHit = false;
 
 	///** A Replicated Boolean Flag */
 	//UPROPERTY(Replicated)

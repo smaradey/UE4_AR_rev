@@ -59,6 +59,7 @@ void AMissile::MissileMeshOverlap(class AActor* OtherActor, class UPrimitiveComp
 			}
 			if (OtherActor->GetInstigator() == GetInstigator()) {
 				if (GEngine) GEngine->AddOnScreenDebugMessage(2, 3.0f/*seconds*/, FColor::Green, "Same Instigator");
+				return;
 			}
 			if (GEngine) GEngine->AddOnScreenDebugMessage(1, 3.0f/*seconds*/, FColor::Red, "Instigator - Other: " + InstigatorOther + "; Missile: " + InstigatorThis);
 
@@ -227,6 +228,7 @@ void AMissile::Homing(float DeltaTime) {
 		// is the target inside explosionradius? (missiletraveldistance is for fast moving missiles with low fps)
 		if (DistanceToTarget < ExplosionRadius + MissileTravelDistance && bNotFirstTick) {
 			// TODO
+			TargetHit = true;
 			Destroy();  // temp
 		}
 	}
