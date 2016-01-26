@@ -44,6 +44,15 @@ void AMissile::MissileMeshOverlap(class AActor* OtherActor, class UPrimitiveComp
 			FString InstigatorOther;
 			FString InstigatorThis;
 
+			if (CurrentTarget) {
+				if (CurrentTarget->GetOwner() == OtherActor) {
+					if (GetInstigatorController()) {
+						CurrentTarget->GetOwner()->ReceiveAnyDamage(500.0f, nullptr, GetInstigatorController(), this);
+					}
+					Destroy();  // temp
+				}
+			}
+
 			if (OtherActor->GetInstigator()) {
 				InstigatorOther = OtherActor->GetInstigator()->GetName();
 			}
@@ -227,8 +236,10 @@ void AMissile::Homing(float DeltaTime) {
 
 		// is the target inside explosionradius? (missiletraveldistance is for fast moving missiles with low fps)
 		if (DistanceToTarget < ExplosionRadius + MissileTravelDistance && bNotFirstTick) {
-			// TODO
-			TargetHit = true;
+			// TODO			
+			if (GetInstigatorController() && CurrentTarget && CurrentTarget->GetOwner()) {
+				CurrentTarget->GetOwner()->ReceiveAnyDamage(500.0f,nullptr, GetInstigatorController(), this);
+			}
 			Destroy();  // temp
 		}
 	}

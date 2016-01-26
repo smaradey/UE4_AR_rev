@@ -4,6 +4,7 @@
 
 #include "AR_rev_v_curr.h"
 #include "Engine.h"
+#include "GameFramework/DamageType.h"
 #include "UnrealNetwork.h"
 #include "GameFramework/Actor.h"
 #include "Missile.generated.h"
@@ -88,13 +89,11 @@ public:
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Missile")
 	class USceneComponent* CurrentTarget;
 
+
 	/** is advanced homing active */
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Missile")
 		bool AdvancedHoming = true;
 	
-	/** missile hit the target */
-	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Missile")
-		bool TargetHit = false;
 
 	///** A Replicated Boolean Flag */
 	//UPROPERTY(Replicated)
