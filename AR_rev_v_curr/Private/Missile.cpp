@@ -46,9 +46,7 @@ void AMissile::MissileMeshOverlap(class AActor* OtherActor, class UPrimitiveComp
 
 			if (CurrentTarget) {
 				if (CurrentTarget->GetOwner() == OtherActor) {
-					if (GetInstigatorController()) {
-						CurrentTarget->GetOwner()->ReceiveAnyDamage(500.0f, nullptr, GetInstigatorController(), this);
-					}
+					CurrentTarget->GetOwner()->ReceiveAnyDamage(500.0f, nullptr, GetInstigatorController(), this);
 					Destroy();  // temp
 				}
 			}
@@ -66,7 +64,7 @@ void AMissile::MissileMeshOverlap(class AActor* OtherActor, class UPrimitiveComp
 			else {
 				InstigatorThis = "NONE";
 			}
-			if (OtherActor->GetInstigator() == GetInstigator()) {
+			if (OtherActor->GetInstigator() == GetInstigator() && GetInstigator()) {
 				if (GEngine) GEngine->AddOnScreenDebugMessage(2, 3.0f/*seconds*/, FColor::Green, "Same Instigator");
 				return;
 			}
@@ -237,7 +235,7 @@ void AMissile::Homing(float DeltaTime) {
 		// is the target inside explosionradius? (missiletraveldistance is for fast moving missiles with low fps)
 		if (DistanceToTarget < ExplosionRadius + MissileTravelDistance && bNotFirstTick) {
 			// TODO			
-			if (GetInstigatorController() && CurrentTarget && CurrentTarget->GetOwner()) {
+			if (CurrentTarget && CurrentTarget->GetOwner()) {
 				CurrentTarget->GetOwner()->ReceiveAnyDamage(500.0f,nullptr, GetInstigatorController(), this);
 			}
 			Destroy();  // temp
