@@ -46,7 +46,7 @@ void AMissile::MissileMeshOverlap(class AActor* OtherActor, class UPrimitiveComp
 
 			if (CurrentTarget) {
 				if (CurrentTarget->GetOwner() == OtherActor) {
-					CurrentTarget->GetOwner()->ReceiveAnyDamage(500.0f, nullptr, GetInstigatorController(), this);
+					CurrentTarget->GetOwner()->ReceiveAnyDamage(100.0f, nullptr, GetInstigatorController(), this);
 					Destroy();  // temp
 				}
 			}
@@ -106,6 +106,8 @@ void AMissile::GetLifetimeReplicatedProps(TArray< FLifetimeProperty > & OutLifet
 	DOREPLIFETIME(AMissile, bSomeBool);
 	DOREPLIFETIME(AMissile, MissileTransformOnAuthority);
 	DOREPLIFETIME(AMissile, AdvancedHoming);
+	DOREPLIFETIME(AMissile, RotOffset);
+	DOREPLIFETIME(AMissile, SpiralDirection);
 
 }
 
@@ -134,6 +136,9 @@ void AMissile::BeginPlay()
 
 
 	if (Role == ROLE_Authority && bReplicates) {           // check if current actor has authority
+		RotOffset = FMath::FRandRange(0.0f, 360.f);
+		SpiralDirection = (FMath::RandBool()) ? -1.0f : 1.0f;
+		SpiralVelocity *= FMath::FRandRange(0.8f, 1.2f);
 														   // start a timer that executes a function (multicast)
 		FTimerHandle Timer;
 		const FTimerDelegate TimerDelegate = FTimerDelegate::CreateUObject(this, &AMissile::RunsOnAllClients);
@@ -223,20 +228,29 @@ void AMissile::Tick(float DeltaTime)
 // perform homing to the target by rotating
 void AMissile::Homing(float DeltaTime) {
 	if (!CurrentTarget) return;                                           // no homing when there is no valid target
-	CurrentTargetLocation = CurrentTarget->GetComponentLocation();        // store the current target location
 
-	DistanceToTarget = (GetActorLocation() - CurrentTargetLocation).Size();
+	CurrentTargetLocation = CurrentTarget->GetComponentLocation();
+	FVector VecToTarget = GetActorLocation() - CurrentTargetLocation;
+	DistanceToTarget = VecToTarget.Size();
+
+	if (SpiralHoming && DistanceToTarget > SpiralDeactivationDistance) {
+		float Amplitude = FMath::Sqrt(DistanceToTarget) * SpiralStrength;
+		CurrentTargetLocation += (Amplitude * VecToTarget.RightVector).RotateAngleAxis((int(SpiralVelocity * LifeTime) % int(360)) * SpiralDirection + RotOffset, VecToTarget.GetSafeNormal());
+		
+	}
+
+	
 
 	// actor is authority
 	if (Role == ROLE_Authority) {
-		
+
 		float MissileTravelDistance = Velocity * DeltaTime;               // the distance between the current missile location and the next location
 
 		// is the target inside explosionradius? (missiletraveldistance is for fast moving missiles with low fps)
 		if (DistanceToTarget < ExplosionRadius + MissileTravelDistance && bNotFirstTick) {
 			// TODO			
 			if (CurrentTarget && CurrentTarget->GetOwner()) {
-				CurrentTarget->GetOwner()->ReceiveAnyDamage(500.0f,nullptr, GetInstigatorController(), this);
+				CurrentTarget->GetOwner()->ReceiveAnyDamage(100.0f, nullptr, GetInstigatorController(), this);
 			}
 			Destroy();  // temp
 		}

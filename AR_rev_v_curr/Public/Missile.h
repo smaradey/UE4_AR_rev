@@ -81,6 +81,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile")
 		float ExplosionRadius = 500.0f;
 
+	/** spiraling velocity in deg/s */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile")
+		float SpiralVelocity = 360.0f;
+
 	///** missile explosioneffect */
 	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile")
 	//	class UParticleSystemComponent* ExplosionEffect;
@@ -90,10 +94,22 @@ public:
 	class USceneComponent* CurrentTarget;
 
 
-	/** is advanced homing active */
+	/** is advanced homing active  (IMPORTANT: Spiraling combined with Adv. Homing does NOT work!!!) */
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Missile")
-		bool AdvancedHoming = true;
-	
+		bool AdvancedHoming = false;
+
+	/** is spiral homing active  (IMPORTANT: Spiraling combined with Adv. Homing does NOT work!!!) */
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Missile")
+		bool SpiralHoming = false;
+
+	/** Spiral strength factor */
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Missile")
+		float SpiralStrength = 50.0f;
+
+	/** distance to target when spiraling deactivates to hit the target */
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Missile")
+		float SpiralDeactivationDistance = 1000.0f;
+
 
 	///** A Replicated Boolean Flag */
 	//UPROPERTY(Replicated)
@@ -198,5 +214,11 @@ private:
 			const FVector& LineEndB,
 			FVector& PointA,
 			FVector& PointB);
+
+	UPROPERTY(Replicated)
+		float RotOffset;
+
+	UPROPERTY(Replicated)
+		float SpiralDirection = 1.0f;
 
 };
