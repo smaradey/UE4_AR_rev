@@ -94,11 +94,11 @@ public:
 	class USceneComponent* CurrentTarget;
 
 
-	/** is advanced homing active  (IMPORTANT: Spiraling combined with Adv. Homing does NOT work!!!) */
+	/** is advanced homing active */
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Missile")
 		bool AdvancedHoming = false;
 
-	/** is spiral homing active  (IMPORTANT: Spiraling combined with Adv. Homing does NOT work!!!) */
+	/** is spiral homing active */
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Missile")
 		bool SpiralHoming = false;
 
@@ -193,6 +193,7 @@ private:
 	FVector LastActorLocation;
 	FVector TargetVelocity;
 	FVector PredictedTargetLocation;
+	FVector HomingLocation;
 	int32 FramesSinceLastVelocityCheck;
 	/** perform homing to the target by rotating*/
 	UFUNCTION()
