@@ -32,6 +32,8 @@ public:
 	/** StaticMesh component that will be the visuals for the missile */
 	UPROPERTY(Category = Mesh, VisibleDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 	class UStaticMeshComponent* MissileMesh;
+	/** Returns PlaneMesh subobject **/
+	FORCEINLINE class UStaticMeshComponent* GetPlaneMesh() const { return MissileMesh; }
 
 	UPROPERTY(Category = ParticleSystem, BlueprintReadWrite, EditAnywhere, meta = (AllowPrivateAccess = "true"))
 	class UParticleSystem* SmokeTrail;
@@ -42,9 +44,6 @@ public:
 	// Sets default values for this actor's properties
 	AMissile(const FObjectInitializer& ObjectInitializer);
 
-	/** Returns PlaneMesh subobject **/
-	FORCEINLINE class UStaticMeshComponent* GetPlaneMesh() const { return MissileMesh; }
-
 	/**	 Perform target location prediction*/
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Missile")
 		FVector LinearTargetPrediction(
@@ -54,11 +53,11 @@ public:
 			const float ProjectileVelocity);
 
 	/** missile turnrate in deg/s*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
 		float MaxTurnrate = 110.0f;
 
 	/** missile velocity in cm/s*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
 		float MaxVelocity = 4200.0f;
 
 	/** time it takes for the missile to reach max velocity*/
@@ -73,41 +72,61 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile")
 		float AdvancedMissileMaxRange = 15000.0f;
 
-	/** missile range in m */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile")
-		float Range = 4000.0f;
+	/** missile range in cm */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
+		float Range = 50000.0f;
 
-	/** missile explosionradius in cm */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile")
-		float ExplosionRadius = 500.0f;
+	/** distance to target at which missile will explode */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
+		float TargetDetectionRadius = 50.0f;
 
-	/** spiraling velocity in deg/s */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile")
-		float SpiralVelocity = 360.0f;
+
 
 	///** missile explosioneffect */
 	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile")
 	//	class UParticleSystemComponent* ExplosionEffect;
 
 	/** the current target (scenecpmponent) the missile is homing towards */
-	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Missile")
+
+
+	/** if set to false the missile will perform no homing */
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
+		bool MissileLock = true;
+
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
 	class USceneComponent* CurrentTarget;
 
-
 	/** is advanced homing active */
-	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Missile")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
 		bool AdvancedHoming = false;
 
 	/** is spiral homing active */
-	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Missile")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
 		bool SpiralHoming = false;
 
+	/** values between 1 to 360 degrees, leave at 0 do use random offset instead */
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
+		float CustomSpiralOffset = 0.0f;
+
+	/** set to -1 for ccw and +1 for cw rotation, leave at 0 for random rotation*/
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
+		float SpiralDirection = 0.0f;
+
+
 	/** Spiral strength factor */
-	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Missile")
-		float SpiralStrength = 50.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
+		float SpiralStrength = 0.2f;
+
+	/** if set to true: given Velocity will be multiplied by a random factor (0.5 to 1.5) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
+		bool RandomizeSpiralVelocity = true;
+
+	/** spiraling velocity in deg/s */
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
+		float SpiralVelocity = 180.0f;
 
 	/** distance to target when spiraling deactivates to hit the target */
-	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Missile")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile")
 		float SpiralDeactivationDistance = 1000.0f;
 
 
@@ -201,7 +220,7 @@ private:
 	FDateTime currentTime;
 	float Ping;
 	float DistanceToTarget;
-	float LastDistanceToTarget = ExplosionRadius;
+	float LastDistanceToTarget = TargetDetectionRadius;
 	float AdvancedHomingStrength;
 	UFUNCTION()
 		float DistanceLineLine(const FVector& a1,
@@ -216,10 +235,8 @@ private:
 			FVector& PointA,
 			FVector& PointB);
 
-	UPROPERTY(Replicated)
-		float RotOffset;
+	
 
-	UPROPERTY(Replicated)
-		float SpiralDirection = 1.0f;
+
 
 };

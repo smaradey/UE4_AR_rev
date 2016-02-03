@@ -100,14 +100,20 @@ void AMissile::MissileMeshOverlap(class AActor* OtherActor, class UPrimitiveComp
 // replication of variables
 void AMissile::GetLifetimeReplicatedProps(TArray< FLifetimeProperty > & OutLifetimeProps) const
 {
-	DOREPLIFETIME(AMissile, bFlag);
-	DOREPLIFETIME(AMissile, IntegerArray);
-	DOREPLIFETIME(AMissile, CurrentTarget);
-	DOREPLIFETIME(AMissile, bSomeBool);
-	DOREPLIFETIME(AMissile, MissileTransformOnAuthority);
-	DOREPLIFETIME(AMissile, AdvancedHoming);
-	DOREPLIFETIME(AMissile, RotOffset);
+	DOREPLIFETIME(AMissile, MissileLock);
+	DOREPLIFETIME(AMissile, CurrentTarget);	
+	DOREPLIFETIME(AMissile, CustomSpiralOffset);
 	DOREPLIFETIME(AMissile, SpiralDirection);
+	DOREPLIFETIME(AMissile, SpiralVelocity);
+
+	DOREPLIFETIME(AMissile, MissileTransformOnAuthority);
+	DOREPLIFETIME(AMissile, IntegerArray);
+	DOREPLIFETIME(AMissile, bFlag);	
+	DOREPLIFETIME(AMissile, bSomeBool);
+
+	
+
+
 
 }
 
@@ -136,15 +142,24 @@ void AMissile::BeginPlay()
 
 
 	if (Role == ROLE_Authority && bReplicates) {           // check if current actor has authority
-		RotOffset = FMath::FRandRange(0.0f, 360.f);
-		SpiralDirection = (FMath::RandBool()) ? -1.0f : 1.0f;
-		SpiralVelocity *= FMath::FRandRange(0.5f, 1.5f);
+		if (CustomSpiralOffset != 0.0f) {
+			CustomSpiralOffset = FMath::FRandRange(0.0f, 360.f);
+		}
+		if (SpiralDirection != 0) {
+			SpiralDirection = FMath::Sign(SpiralDirection);
+		}
+		else {
+			SpiralDirection = (FMath::RandBool()) ? -1.0f : 1.0f;
+		}
+		if (RandomizeSpiralVelocity) {
+			SpiralVelocity *= FMath::FRandRange(0.5f, 1.5f);
+		}
 		// start a timer that executes a function (multicast)
 		FTimerHandle Timer;
 		const FTimerDelegate TimerDelegate = FTimerDelegate::CreateUObject(this, &AMissile::RunsOnAllClients);
 		GetWorldTimerManager().SetTimer(Timer, TimerDelegate, NetUpdateFrequency, true, 0.0f);
 
-		MaxLifeTime = Range / (Velocity * 0.01f);          // calculate max missile liftime (t = s/v (SI units))
+		MaxLifeTime = Range / Velocity;          // calculate max missile liftime (t = s/v)
 		InitialLifeSpan = MaxLifeTime + 5.0f;              // set missile lifetime
 	}
 	Acceleration = 1.0f / AccelerationTime;
@@ -156,7 +171,30 @@ void AMissile::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 
 	LifeTime += DeltaTime;                                 // store lifetime
-	Homing(DeltaTime);                                     // perform homing to the target by rotating, both clients and server
+
+	if (CurrentTarget) {
+		CurrentTargetLocation = CurrentTarget->GetComponentLocation();
+		DirectionToTarget = CurrentTargetLocation - GetActorLocation();
+		DistanceToTarget = DirectionToTarget.Size();
+
+		// actor is authority
+		if (Role == ROLE_Authority) {
+
+			float MissileTravelDistance = Velocity * DeltaTime;               // the distance between the current missile location and the next location
+
+																			  // is the target inside explosionradius? (missiletraveldistance is for fast moving missiles with low fps)
+			if (DistanceToTarget < TargetDetectionRadius + MissileTravelDistance && bNotFirstTick) {
+				// TODO			
+				if (CurrentTarget && CurrentTarget->GetOwner()) {
+					CurrentTarget->GetOwner()->ReceiveAnyDamage(100.0f, nullptr, GetInstigatorController(), this);
+				}
+				Destroy();  // temp
+			}
+		}
+	}
+
+
+	if (MissileLock)	Homing(DeltaTime);                                     // perform homing to the target by rotating, both clients and server
 
 	// the distance the missile will be moved at the end of the current tick
 	MovementVector = GetActorForwardVector() * DeltaTime * Velocity;
@@ -229,24 +267,6 @@ void AMissile::Tick(float DeltaTime)
 void AMissile::Homing(float DeltaTime) {
 	if (!CurrentTarget) return;                                           // no homing when there is no valid target
 
-	CurrentTargetLocation = CurrentTarget->GetComponentLocation();
-	DirectionToTarget = CurrentTargetLocation - GetActorLocation();
-	DistanceToTarget = DirectionToTarget.Size();
-
-	// actor is authority
-	if (Role == ROLE_Authority) {
-
-		float MissileTravelDistance = Velocity * DeltaTime;               // the distance between the current missile location and the next location
-
-		// is the target inside explosionradius? (missiletraveldistance is for fast moving missiles with low fps)
-		if (DistanceToTarget < ExplosionRadius + MissileTravelDistance && bNotFirstTick) {
-			// TODO			
-			if (CurrentTarget && CurrentTarget->GetOwner()) {
-				CurrentTarget->GetOwner()->ReceiveAnyDamage(100.0f, nullptr, GetInstigatorController(), this);
-			}
-			Destroy();  // temp
-		}
-	}
 
 
 	// is target prediction active?
@@ -275,19 +295,21 @@ void AMissile::Homing(float DeltaTime) {
 		DirectionToTarget = PredictedTargetLocation - GetActorLocation();
 
 		if (SpiralHoming && DistanceToTarget > SpiralDeactivationDistance) {
-			float Amplitude = FMath::Sqrt(DistanceToTarget) * SpiralStrength;
-			HomingLocation = PredictedTargetLocation + (Amplitude * DirectionToTarget.RightVector).RotateAngleAxis((int(SpiralVelocity * LifeTime) % int(360)) * SpiralDirection + RotOffset, DirectionToTarget.GetSafeNormal());
+			float Amplitude = DistanceToTarget * SpiralStrength;
+
+			HomingLocation = PredictedTargetLocation + (Amplitude * FRotationMatrix(DirectionToTarget.Rotation()).GetScaledAxis(EAxis::Y)).RotateAngleAxis((int(SpiralVelocity * LifeTime) % int(360)) * SpiralDirection + CustomSpiralOffset, DirectionToTarget.GetSafeNormal());
 			DirectionToTarget = HomingLocation - GetActorLocation();
+
 		}
 	}
 	else {
 		if (SpiralHoming && DistanceToTarget > SpiralDeactivationDistance) {
-			float Amplitude = FMath::Sqrt(DistanceToTarget) * SpiralStrength;
-			HomingLocation = CurrentTargetLocation + (Amplitude * DirectionToTarget.RightVector).RotateAngleAxis((int(SpiralVelocity * LifeTime) % int(360)) * SpiralDirection + RotOffset, DirectionToTarget.GetSafeNormal());
+			float Amplitude = DistanceToTarget * SpiralStrength;
+			HomingLocation = CurrentTargetLocation + (Amplitude * FRotationMatrix(DirectionToTarget.Rotation()).GetScaledAxis(EAxis::Y)).RotateAngleAxis((int(SpiralVelocity * LifeTime) % int(360)) * SpiralDirection + CustomSpiralOffset, DirectionToTarget.GetSafeNormal());
 			DirectionToTarget = HomingLocation - GetActorLocation();
 		}
 	}
-	
+
 	DirectionToTarget.Normalize();                            // normalize the direction vector
 
 	// calculate the angle the missile will turn (limited by the max turnspeed [deg/s] )
