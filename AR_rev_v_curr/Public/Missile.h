@@ -53,23 +53,23 @@ public:
 			const float ProjectileVelocity);
 
 	/** missile turnrate in deg/s*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
 		float MaxTurnrate = 110.0f;
 
 	/** missile velocity in cm/s*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
 		float MaxVelocity = 4200.0f;
 
 	/** time it takes for the missile to reach max velocity*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile")
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Missile")
 		float AccelerationTime = 1.0f;
 
 	/** distance to target where prediction is working at full strength */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile")
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Missile")
 		float AdvancedMissileMinRange = 5000.0f;
 
 	/** distance to target where prediction will be deactivated */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile")
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Missile")
 		float AdvancedMissileMaxRange = 15000.0f;
 
 	/** missile range in cm */
@@ -97,11 +97,11 @@ public:
 	class USceneComponent* CurrentTarget;
 
 	/** is advanced homing active */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
 		bool AdvancedHoming = false;
 
 	/** is spiral homing active */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
 		bool SpiralHoming = false;
 
 	/** values between 1 to 360 degrees, leave at 0 do use random offset instead */
@@ -114,7 +114,7 @@ public:
 
 
 	/** Spiral strength factor */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
 		float SpiralStrength = 0.2f;
 
 	/** if set to true: given Velocity will be multiplied by a random factor (0.5 to 1.5) */
@@ -126,7 +126,7 @@ public:
 		float SpiralVelocity = 180.0f;
 
 	/** distance to target when spiraling deactivates to hit the target */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile")
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Missile")
 		float SpiralDeactivationDistance = 1000.0f;
 
 
@@ -134,7 +134,7 @@ public:
 	//UPROPERTY(Replicated)
 	//	uint32 bFlag : 1;
 
-	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Missile")
+	UPROPERTY(ReplicatedUsing = OnRep_MissileTransformOnAuthority, EditAnywhere, BlueprintReadWrite, Category = "Missile")
 		FTransform MissileTransformOnAuthority;
 
 	/** A Replicated Array Of Integers */
@@ -190,6 +190,8 @@ private:
 
 	UFUNCTION()
 		void OnRep_Flag();
+	UFUNCTION()
+		void OnRep_MissileTransformOnAuthority();
 
 	bool bNotFirstTick = false;
 

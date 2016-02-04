@@ -100,18 +100,27 @@ void AMissile::MissileMeshOverlap(class AActor* OtherActor, class UPrimitiveComp
 // replication of variables
 void AMissile::GetLifetimeReplicatedProps(TArray< FLifetimeProperty > & OutLifetimeProps) const
 {
+	DOREPLIFETIME(AMissile, MaxTurnrate);
+	DOREPLIFETIME(AMissile, MaxVelocity);
+	DOREPLIFETIME(AMissile, AccelerationTime);
+	DOREPLIFETIME(AMissile, AdvancedMissileMinRange);
+	DOREPLIFETIME(AMissile, AdvancedMissileMaxRange);
 	DOREPLIFETIME(AMissile, MissileLock);
-	DOREPLIFETIME(AMissile, CurrentTarget);	
+	DOREPLIFETIME(AMissile, CurrentTarget);
+	DOREPLIFETIME(AMissile, AdvancedHoming);
+	DOREPLIFETIME(AMissile, SpiralHoming);
 	DOREPLIFETIME(AMissile, CustomSpiralOffset);
 	DOREPLIFETIME(AMissile, SpiralDirection);
+	DOREPLIFETIME(AMissile, SpiralStrength);
 	DOREPLIFETIME(AMissile, SpiralVelocity);
+	DOREPLIFETIME(AMissile, SpiralDeactivationDistance);
 
 	DOREPLIFETIME(AMissile, MissileTransformOnAuthority);
 	DOREPLIFETIME(AMissile, IntegerArray);
-	DOREPLIFETIME(AMissile, bFlag);	
+	DOREPLIFETIME(AMissile, bFlag);
 	DOREPLIFETIME(AMissile, bSomeBool);
 
-	
+
 
 
 
@@ -209,9 +218,7 @@ void AMissile::Tick(float DeltaTime)
 		}
 
 		// store current missile transform of client (replicated)
-		MissileTransformOnAuthority = FTransform(GetActorRotation(),
-			GetActorLocation() + MovementVector,
-			GetActorScale3D());
+		MissileTransformOnAuthority = GetTransform();
 
 		//if (GEngine) GEngine->AddOnScreenDebugMessage(1, DeltaTime/*seconds*/, FColor::Red, "Authority");
 
@@ -371,6 +378,16 @@ void AMissile::ServerSetFlag()
 	{
 		bFlag = true;
 		OnRep_Flag(); // Run locally since we are the server this won't be called automatically.
+	}
+}
+
+void AMissile::OnRep_MissileTransformOnAuthority()
+{
+	// When this is called, bFlag already contains the new value. This
+	// just notifies you when it changes.
+	if (Role < ROLE_Authority) {
+		
+		SetActorTransform(MissileTransformOnAuthority);
 	}
 }
 
