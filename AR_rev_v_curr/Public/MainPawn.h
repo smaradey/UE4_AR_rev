@@ -18,6 +18,9 @@ public:
 	// Sets default values for this pawn's properties
 	AMainPawn();
 
+	// Sets default values for this actor's properties
+	AMainPawn(const FObjectInitializer& ObjectInitializer);
+
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
@@ -45,6 +48,10 @@ protected:
 	FVector2D ViewPortSize;
 	FVector2D ViewPortCenter;
 	FVector2D MouseInput;
+	FVector2D OldMouseInput;
+	float InputSize;
+	float NewInputSize;
+	float OldInputSize;
 	FVector2D MovementInput;
 	FVector2D CameraInput;
 	float ZoomFactor;

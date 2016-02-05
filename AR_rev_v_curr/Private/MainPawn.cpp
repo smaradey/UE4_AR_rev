@@ -5,11 +5,11 @@
 
 
 // Sets default values
-AMainPawn::AMainPawn()
+AMainPawn::AMainPawn(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
- 	// Set this pawn to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
+	// Set this pawn to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
-	bReplicates = true;                                   
+	bReplicates = true;
 	bAlwaysRelevant = true;
 	bReplicateMovement = true;
 
@@ -19,7 +19,7 @@ AMainPawn::AMainPawn()
 	OurCameraSpringArm->AttachTo(RootComponent);
 	OurCameraSpringArm->SetRelativeLocationAndRotation(FVector(-300.0f, 0.0f, 0.0f), FRotator(0.0f, 0.0f, 0.0f));
 	OurCameraSpringArm->TargetArmLength = 0.0f;
-	OurCameraSpringArm->SocketOffset = FVector(0.0f,0.0f,75.0f);
+	OurCameraSpringArm->SocketOffset = FVector(0.0f, 0.0f, 75.0f);
 	OurCameraSpringArm->bEnableCameraLag = true;
 	OurCameraSpringArm->CameraLagSpeed = 4.0f;
 	OurCameraSpringArm->CameraLagMaxDistance = 300.0f;
@@ -27,7 +27,7 @@ AMainPawn::AMainPawn()
 	OurCamera->AttachTo(OurCameraSpringArm, USpringArmComponent::SocketName);
 	OurCamera->PostProcessSettings.bOverride_LensFlareIntensity = true;
 	OurCamera->PostProcessSettings.LensFlareIntensity = 0.0f;
-	
+
 	// Create static mesh component
 	ArmorMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ArmorMesh"));
 	ArmorMesh->AttachTo(RootComponent);
@@ -49,9 +49,9 @@ void AMainPawn::BeginPlay()
 }
 
 // Called every frame
-void AMainPawn::Tick( float DeltaTime )
+void AMainPawn::Tick(float DeltaTime)
 {
-	Super::Tick( DeltaTime );
+	Super::Tick(DeltaTime);
 
 	if (IsLocallyControlled()) {
 		// get mouse position
@@ -77,14 +77,35 @@ void AMainPawn::Tick( float DeltaTime )
 		{
 			MouseInput = (CursorLoc - ViewPortCenter) / ViewPortCenter;
 			MouseInput *= MouseInput.GetSafeNormal().GetAbsMax();
-			// deadzone ( 5 pixel )
-			if (MouseInput.Size() < 5.0f / ViewPortSize.X) MouseInput = FVector2D::ZeroVector;
+			// deadzone (5 pixel)
+			if (MouseInput.Size() < (5.0f / ViewPortSize.X)) MouseInput = FVector2D::ZeroVector;
 		}
-		if (GEngine) GEngine->AddOnScreenDebugMessage(4, 3.0f/*seconds*/, FColor::Green, FString::SanitizeFloat(MouseInput.X) + " " + FString::SanitizeFloat(MouseInput.Y)+" "+ FString::SanitizeFloat((MouseInput*TurnRate).Size()));
-	}	
-	AddActorLocalRotation(FRotator(MouseInput.Y * -TurnRate * DeltaTime, MouseInput.X * TurnRate * DeltaTime, 0.0f), false, nullptr);
 
+	}
+	// smooth turning
+	{
+		//InputSize = MouseInput.Size();
+		bool q1 = OldMouseInput.X < 0.0f && MouseInput.X < 0.0f && MouseInput.X - OldMouseInput.X > 0.0f;
+		bool q2 = OldMouseInput.X > 0.0f && MouseInput.X > 0.0f && MouseInput.X - OldMouseInput.X < 0.0f;
+		bool q3 = OldMouseInput.Y < 0.0f && MouseInput.Y < 0.0f && MouseInput.Y - OldMouseInput.Y > 0.0f;
+		bool q4 = OldMouseInput.Y > 0.0f && MouseInput.Y > 0.0f && MouseInput.Y - OldMouseInput.Y < 0.0f;
 
+		if (q1 || q2) {
+			OldMouseInput.X = MouseInput.X;
+		}
+		else {
+			OldMouseInput.X = FMath::FInterpConstantTo(OldMouseInput.X, MouseInput.X, DeltaTime, 2.0f);
+		}
+		if (q3 || q4) {
+			OldMouseInput.Y = MouseInput.Y;
+		}
+		else {
+			OldMouseInput.Y = FMath::FInterpConstantTo(OldMouseInput.Y, MouseInput.Y, DeltaTime, 2.0f);
+		}
+		//OldInputSize = OldMouseInput.Size();
+	}
+	if (GEngine) GEngine->AddOnScreenDebugMessage(4, 3.0f/*seconds*/, FColor::Green, FString::SanitizeFloat(MouseInput.X) + " " + FString::SanitizeFloat(MouseInput.Y) + " " + FString::SanitizeFloat(OldMouseInput.Size()*TurnRate));
+	AddActorLocalRotation(FRotator(OldMouseInput.Y * -TurnRate * DeltaTime, OldMouseInput.X * TurnRate * DeltaTime, 0.0f), false, nullptr);
 
 	////Rotate our actor's yaw, which will turn our camera because we're attached to it
 	//{
@@ -131,7 +152,7 @@ void AMainPawn::SetupPlayerInputComponent(class UInputComponent* InputComponent)
 	InputComponent->BindAction("ZoomIn", IE_Released, this, &AMainPawn::ZoomOut);
 	InputComponent->BindAction("Fire Gun Action", IE_Pressed, this, &AMainPawn::StartGunFire);
 	InputComponent->BindAction("Fire Gun Action", IE_Released, this, &AMainPawn::StopGunFire);
-	
+
 
 	//Hook up every-frame handling for our four axes
 	InputComponent->BindAxis("MoveForward", this, &AMainPawn::MoveForward);
