@@ -100,20 +100,20 @@ void AMissile::MissileMeshOverlap(class AActor* OtherActor, class UPrimitiveComp
 // replication of variables
 void AMissile::GetLifetimeReplicatedProps(TArray< FLifetimeProperty > & OutLifetimeProps) const
 {
-	DOREPLIFETIME(AMissile, MaxTurnrate);
-	DOREPLIFETIME(AMissile, MaxVelocity);
-	DOREPLIFETIME(AMissile, AccelerationTime);
-	DOREPLIFETIME(AMissile, AdvancedMissileMinRange);
-	DOREPLIFETIME(AMissile, AdvancedMissileMaxRange);
+	DOREPLIFETIME_CONDITION(AMissile, MaxTurnrate,COND_InitialOnly);
+	DOREPLIFETIME_CONDITION(AMissile, MaxVelocity, COND_InitialOnly);
+	DOREPLIFETIME_CONDITION(AMissile, AccelerationTime, COND_InitialOnly);
+	DOREPLIFETIME_CONDITION(AMissile, AdvancedMissileMinRange, COND_InitialOnly);
+	DOREPLIFETIME_CONDITION(AMissile, AdvancedMissileMaxRange, COND_InitialOnly);
 	DOREPLIFETIME(AMissile, MissileLock);
 	DOREPLIFETIME(AMissile, CurrentTarget);
-	DOREPLIFETIME(AMissile, AdvancedHoming);
-	DOREPLIFETIME(AMissile, SpiralHoming);
+	DOREPLIFETIME_CONDITION(AMissile, AdvancedHoming, COND_InitialOnly);
+	DOREPLIFETIME_CONDITION(AMissile, SpiralHoming, COND_InitialOnly);
 	DOREPLIFETIME(AMissile, CustomSpiralOffset);
 	DOREPLIFETIME(AMissile, SpiralDirection);
 	DOREPLIFETIME(AMissile, SpiralStrength);
 	DOREPLIFETIME(AMissile, SpiralVelocity);
-	DOREPLIFETIME(AMissile, SpiralDeactivationDistance);
+	DOREPLIFETIME_CONDITION(AMissile, SpiralDeactivationDistance, COND_InitialOnly);
 
 	DOREPLIFETIME(AMissile, MissileTransformOnAuthority);
 	DOREPLIFETIME(AMissile, IntegerArray);
