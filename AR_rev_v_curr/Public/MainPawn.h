@@ -2,7 +2,11 @@
 
 #pragma once
 
+
 #include "GameFramework/Pawn.h"
+#include "Engine.h"
+#include "GameFramework/DamageType.h"
+#include "UnrealNetwork.h"
 #include "MainPawn.generated.h"
 
 UCLASS()
@@ -16,9 +20,9 @@ public:
 
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
-	
+
 	// Called every frame
-	virtual void Tick( float DeltaSeconds ) override;
+	virtual void Tick(float DeltaSeconds) override;
 
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* InputComponent) override;
@@ -41,6 +45,17 @@ protected:
 	float ZoomFactor;
 	bool bZoomingIn;
 
+
+	//Weapons
+	bool bGunFire;
+	UPROPERTY(Replicated)
+		bool bCanFireGun = true;
+	float FireRateGun = 0.1f;
+
+	//TimerHandle
+	UPROPERTY()
+		FTimerHandle GunFireHandle;
+
 	//Input functions
 	void MoveForward(float AxisValue);
 	void MoveRight(float AxisValue);
@@ -48,5 +63,9 @@ protected:
 	void YawCamera(float AxisValue);
 	void ZoomIn();
 	void ZoomOut();
-	
+	void GunFire();
+	void StartGunFire();
+	void StopGunFire();
+
+	int lagCounter = 0;
 };

@@ -50,12 +50,12 @@ void AMainPawn::Tick( float DeltaTime )
 	Super::Tick( DeltaTime );
 
 	
-	//Rotate our actor's yaw, which will turn our camera because we're attached to it
-	{
-		FRotator NewRotation = GetActorRotation();
-		NewRotation.Yaw += CameraInput.X;
-		SetActorRotation(NewRotation);
-	}
+	////Rotate our actor's yaw, which will turn our camera because we're attached to it
+	//{
+	//	FRotator NewRotation = GetActorRotation();
+	//	NewRotation.Yaw += CameraInput.X;
+	//	SetActorRotation(NewRotation);
+	//}
 
 	//Rotate our camera's pitch, but limit it so we're always looking downward
 	/*
@@ -79,6 +79,12 @@ void AMainPawn::Tick( float DeltaTime )
 	}
 }
 
+// replication of variables
+void AMainPawn::GetLifetimeReplicatedProps(TArray< FLifetimeProperty > & OutLifetimeProps) const
+{
+	DOREPLIFETIME(AMainPawn, bCanFireGun);
+}
+
 // Called to bind functionality to input
 void AMainPawn::SetupPlayerInputComponent(class UInputComponent* InputComponent)
 {
@@ -87,12 +93,16 @@ void AMainPawn::SetupPlayerInputComponent(class UInputComponent* InputComponent)
 	//Hook up events for "ZoomIn"
 	InputComponent->BindAction("ZoomIn", IE_Pressed, this, &AMainPawn::ZoomIn);
 	InputComponent->BindAction("ZoomIn", IE_Released, this, &AMainPawn::ZoomOut);
+	InputComponent->BindAction("Fire Gun Action", IE_Pressed, this, &AMainPawn::StartGunFire);
+	InputComponent->BindAction("Fire Gun Action", IE_Released, this, &AMainPawn::StopGunFire);
+	
 
 	//Hook up every-frame handling for our four axes
 	InputComponent->BindAxis("MoveForward", this, &AMainPawn::MoveForward);
 	InputComponent->BindAxis("MoveRight", this, &AMainPawn::MoveRight);
 	InputComponent->BindAxis("LookUp", this, &AMainPawn::PitchCamera);
 	InputComponent->BindAxis("LookRight", this, &AMainPawn::YawCamera);
+
 }
 
 //Input functions
@@ -114,14 +124,43 @@ void AMainPawn::PitchCamera(float AxisValue)
 void AMainPawn::YawCamera(float AxisValue)
 {
 	CameraInput.X = AxisValue;
+
+	//Rotate our actor's yaw, which will turn our camera because we're attached to it
+	{
+		FRotator NewRotation = GetActorRotation();
+		NewRotation.Yaw += CameraInput.X;
+		SetActorRotation(NewRotation);
+	}
 }
 
 void AMainPawn::ZoomIn()
 {
 	bZoomingIn = true;
+	if (GEngine) GEngine->AddOnScreenDebugMessage(1, 3.0f/*seconds*/, FColor::Red, "ZoomPressed");
+	OurCamera->FieldOfView = 30.0f;
 }
 
 void AMainPawn::ZoomOut()
 {
 	bZoomingIn = false;
+	OurCamera->FieldOfView = 90.0f;
+}
+
+void AMainPawn::StartGunFire() {
+	bGunFire = true;
+	if (GEngine) GEngine->AddOnScreenDebugMessage(1, GetWorld()->DeltaTimeSeconds, FColor::Green, "Gun ON");
+	GunFire();
+	GetWorldTimerManager().SetTimer(GunFireHandle, this, &AMainPawn::GunFire, FireRateGun, true);
+}
+void AMainPawn::StopGunFire() {
+	bGunFire = false;
+	if (GunFireHandle.IsValid()) {
+		GetWorldTimerManager().ClearTimer(GunFireHandle);
+	}
+	if (GEngine) GEngine->AddOnScreenDebugMessage(1, GetWorld()->DeltaTimeSeconds, FColor::Red, "Gun OFF");
+}
+
+void AMainPawn::GunFire() {
+	if (!bCanFireGun) return;
+	if (GEngine) GEngine->AddOnScreenDebugMessage(2, GetWorld()->DeltaTimeSeconds, FColor::White, "Bang");
 }
