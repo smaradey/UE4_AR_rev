@@ -119,11 +119,6 @@ void AMissile::GetLifetimeReplicatedProps(TArray< FLifetimeProperty > & OutLifet
 	DOREPLIFETIME(AMissile, IntegerArray);
 	DOREPLIFETIME(AMissile, bFlag);
 	DOREPLIFETIME(AMissile, bSomeBool);
-
-
-
-
-
 }
 
 #if WITH_EDITOR
@@ -148,8 +143,7 @@ void AMissile::PostInitProperties()
 void AMissile::BeginPlay()
 {
 	Super::BeginPlay();
-
-
+	
 	if (Role == ROLE_Authority && bReplicates) {           // check if current actor has authority
 		if (CustomSpiralOffset != 0.0f) {
 			CustomSpiralOffset = FMath::FRandRange(0.0f, 360.f);
@@ -164,10 +158,11 @@ void AMissile::BeginPlay()
 			SpiralVelocity *= FMath::FRandRange(0.5f, 1.5f);
 		}
 		// start a timer that executes a function (multicast)
-		FTimerHandle Timer;
-		const FTimerDelegate TimerDelegate = FTimerDelegate::CreateUObject(this, &AMissile::RunsOnAllClients);
-		GetWorldTimerManager().SetTimer(Timer, TimerDelegate, NetUpdateFrequency, true, 0.0f);
-
+		FTimerHandle TimerHandle;
+		//const FTimerDelegate TimerDelegate = FTimerDelegate::CreateUObject(this, &AMissile::RunsOnAllClients);
+		//GetWorldTimerManager().SetTimer(TimerHandle, TimerDelegate, NetUpdateFrequency, true, 0.0f);
+		GetWorldTimerManager().SetTimer(TimerHandle, this, &AMissile::RunsOnAllClients, NetUpdateFrequency, true, 0.0f);
+	
 		MaxLifeTime = Range / Velocity;          // calculate max missile liftime (t = s/v)
 		InitialLifeSpan = MaxLifeTime + 5.0f;              // set missile lifetime
 	}
