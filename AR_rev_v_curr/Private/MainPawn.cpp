@@ -11,6 +11,7 @@ AMainPawn::AMainPawn()
 	PrimaryActorTick.bCanEverTick = true;
 	bReplicates = true;                                   
 	bAlwaysRelevant = true;
+	bReplicateMovement = true;
 
 	//Create components
 	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("RootComponent"));
@@ -27,11 +28,11 @@ AMainPawn::AMainPawn()
 	OurCamera->PostProcessSettings.bOverride_LensFlareIntensity = true;
 	OurCamera->PostProcessSettings.LensFlareIntensity = 0.0f;
 	
-	
-
 	// Create static mesh component
 	ArmorMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ArmorMesh"));
 	ArmorMesh->AttachTo(RootComponent);
+
+
 
 	//Take control of the default Player
 	//AutoPossessPlayer = EAutoReceiveInput::Player0;
@@ -41,7 +42,10 @@ AMainPawn::AMainPawn()
 void AMainPawn::BeginPlay()
 {
 	Super::BeginPlay();
-	
+
+	// movement
+	TurnRate = MaxTurnRate;
+
 }
 
 // Called every frame
@@ -49,7 +53,39 @@ void AMainPawn::Tick( float DeltaTime )
 {
 	Super::Tick( DeltaTime );
 
-	
+	if (IsLocallyControlled()) {
+		// get mouse position
+		{
+			if (GetController()) {
+				if (GetController()->CastToPlayerController()) {
+					if (GetController()->CastToPlayerController()->GetMousePosition(CursorLoc.X, CursorLoc.Y)) {
+						if (GEngine) GEngine->AddOnScreenDebugMessage(3, 3.0f/*seconds*/, FColor::Red, FString::SanitizeFloat(CursorLoc.X) + " " + FString::SanitizeFloat(CursorLoc.Y));
+					}
+				}
+			}
+		}
+		// get viewport size/center
+		{
+			if (GetWorld()) {
+				if (GetWorld()->GetGameViewport()) {
+					GetWorld()->GetGameViewport()->GetViewportSize(ViewPortSize);
+					ViewPortCenter = ViewPortSize * 0.5f;
+				}
+			}
+		}
+		// the resulting mouse input
+		{
+			MouseInput = (CursorLoc - ViewPortCenter) / ViewPortCenter;
+			MouseInput *= MouseInput.GetSafeNormal().GetAbsMax();
+			// deadzone ( 5 pixel )
+			if (MouseInput.Size() < 5.0f / ViewPortSize.X) MouseInput = FVector2D::ZeroVector;
+		}
+		if (GEngine) GEngine->AddOnScreenDebugMessage(4, 3.0f/*seconds*/, FColor::Green, FString::SanitizeFloat(MouseInput.X) + " " + FString::SanitizeFloat(MouseInput.Y)+" "+ FString::SanitizeFloat((MouseInput*TurnRate).Size()));
+	}	
+	AddActorLocalRotation(FRotator(MouseInput.Y * -TurnRate * DeltaTime, MouseInput.X * TurnRate * DeltaTime, 0.0f), false, nullptr);
+
+
+
 	////Rotate our actor's yaw, which will turn our camera because we're attached to it
 	//{
 	//	FRotator NewRotation = GetActorRotation();
@@ -126,11 +162,11 @@ void AMainPawn::YawCamera(float AxisValue)
 	CameraInput.X = AxisValue;
 
 	//Rotate our actor's yaw, which will turn our camera because we're attached to it
-	{
-		FRotator NewRotation = GetActorRotation();
-		NewRotation.Yaw += CameraInput.X;
-		SetActorRotation(NewRotation);
-	}
+	//{
+	//	FRotator NewRotation = GetActorRotation();
+	//	NewRotation.Yaw += CameraInput.X;
+	//	SetActorRotation(NewRotation);
+	//}
 }
 
 void AMainPawn::ZoomIn()

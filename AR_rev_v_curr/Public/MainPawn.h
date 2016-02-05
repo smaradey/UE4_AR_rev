@@ -34,16 +34,27 @@ public:
 	FORCEINLINE class UStaticMeshComponent* GetPlaneMesh() const { return ArmorMesh; }
 
 
+
 protected:
 	UPROPERTY(EditAnywhere)
 		USpringArmComponent* OurCameraSpringArm;
 	UCameraComponent* OurCamera;
 
 	//Input variables
+	FVector2D CursorLoc;
+	FVector2D ViewPortSize;
+	FVector2D ViewPortCenter;
+	FVector2D MouseInput;
 	FVector2D MovementInput;
 	FVector2D CameraInput;
 	float ZoomFactor;
 	bool bZoomingIn;
+
+	/** missile velocity in cm/s*/
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
+		float MaxTurnRate = 100.0f;
+	float TurnRate;
+
 
 
 	//Weapons
