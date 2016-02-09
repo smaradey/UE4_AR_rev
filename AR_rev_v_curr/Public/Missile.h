@@ -91,14 +91,6 @@ public:
 		float TargetDetectionRadius = 50.0f;
 
 
-
-	///** missile explosioneffect */
-	//UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile")
-	//	class UParticleSystemComponent* ExplosionEffect;
-
-	/** the current target (scenecpmponent) the missile is homing towards */
-
-
 	/** if set to false the missile will perform no homing */
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
 		bool MissileLock = true;
@@ -121,6 +113,9 @@ public:
 	/** set to -1 for ccw and +1 for cw rotation, leave at 0 for random rotation*/
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
 		float SpiralDirection = 0.0f;
+
+	UPROPERTY(Replicated)
+		bool bHit = false;
 
 
 	/** Spiral strength factor */
@@ -210,7 +205,6 @@ private:
 	float MaxLifeTime;
 	float LifeTime;
 
-	FVector ExplosionLocation;
 	FVector RotationAxisForTurningToTarget;
 	FVector NewDirection;
 	FVector MovementVector;

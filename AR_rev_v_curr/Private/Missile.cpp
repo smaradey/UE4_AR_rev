@@ -15,48 +15,64 @@ AMissile::AMissile(const FObjectInitializer& ObjectInitializer) : Super(ObjectIn
 
 	// Create static mesh component
 	MissileMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MissileMesh"));
-	RootComponent = MissileMesh;
 
 
 	//MissileMesh->SetCollisionObjectType(ECC_Dynamic);
 	//MissileMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	MissileMesh->SetCollisionProfileName(TEXT("OverlapAll"));
 
-	MissileMesh->OnComponentBeginOverlap.AddDynamic(this, &AMissile::MissileMeshOverlap);
+	if (Role == ROLE_Authority) MissileMesh->OnComponentBeginOverlap.AddDynamic(this, &AMissile::MissileMeshOverlap);
+
+	RootComponent = MissileMesh;
 
 	OnDestroyed.AddDynamic(this, &AMissile::MissileDestruction);
 	PrimaryActorTick.bCanEverTick = true;                  // enable Tick
 }
 
 void AMissile::MissileDestruction() {
-//
+	//
 
 }
 
 
 void AMissile::MissileHit() {
 	if (Role == ROLE_Authority) {
+		bHit = true;
+
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Blue, "Auth: Hit Rep");
 		ServerMissileHit();
 		SetActorTickEnabled(false);
 		if (RootComponent) RootComponent->SetVisibility(false, true);
 		if (MissileTrail) MissileTrail->DeactivateSystem();
 		if (MissileTrail) MissileTrail->SetVisibility(true);
-		SetLifeSpan(10.0f);	
+		SetLifeSpan(10.0f);
 	}
 }
 
 void AMissile::ServerMissileHit_Implementation() {
-		SetActorTickEnabled(false);		
+	if (Role < ROLE_Authority) {
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Blue, "client: Hit Rep");
+
+		SetActorTickEnabled(false);
 		if (RootComponent) RootComponent->SetVisibility(false, true);
 		if (MissileTrail) MissileTrail->DeactivateSystem();
 		if (MissileTrail) MissileTrail->SetVisibility(true);
 
-		UParticleSystemComponent* Hit = UGameplayStatics::SpawnEmitterAtLocation(this, Explosion, GetActorLocation(), GetActorRotation(), true);
+		if (Explosion) {
+			if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Red, "client: Explosion");
+			UParticleSystemComponent* Hit = UGameplayStatics::SpawnEmitterAtLocation(this, Explosion, GetActorLocation(), GetActorRotation(), true);
+		}
 
+	}
 }
 
 
 void AMissile::MissileMeshOverlap(class AActor* OtherActor, class UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult) {
+	if (bHit) return;
+
+	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::White, "Overlap Event");
 	if (Role == ROLE_Authority) {
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Red, " Authority: Overlap Event");
 		// missileMesh is overlapping with something	
 		// Other Actor is the actor that triggered the event. Check that is not ourself.  
 		if ((OtherActor) && (OtherActor != this) && (OtherComp)) {
@@ -66,8 +82,10 @@ void AMissile::MissileMeshOverlap(class AActor* OtherActor, class UPrimitiveComp
 
 			if (CurrentTarget) {
 				if (CurrentTarget->GetOwner() == OtherActor) {
+					if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Green, "Auth: Target HIT");
 					CurrentTarget->GetOwner()->ReceiveAnyDamage(100.0f, nullptr, GetInstigatorController(), this);
 					MissileHit();  // temp
+					return;
 				}
 			}
 
@@ -108,8 +126,9 @@ void AMissile::MissileMeshOverlap(class AActor* OtherActor, class UPrimitiveComp
 				OwnerThis = "NONE";
 			}
 			if (OtherComp->GetOwner() != GetOwner()) {
-				if (GEngine) GEngine->AddOnScreenDebugMessage(3, 3.0f/*seconds*/, FColor::White, "HIT");
+				if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::White, " Auth: sth. HIT");
 				MissileHit();
+				return;
 			}
 			if (GEngine) GEngine->AddOnScreenDebugMessage(4, 3.0f/*seconds*/, FColor::Red, "Owner - Other: " + OwnerOther + "; Missile: " + OwnerThis);
 		}
@@ -134,6 +153,8 @@ void AMissile::GetLifetimeReplicatedProps(TArray< FLifetimeProperty > & OutLifet
 	DOREPLIFETIME(AMissile, SpiralStrength);
 	DOREPLIFETIME(AMissile, SpiralVelocity);
 	DOREPLIFETIME_CONDITION(AMissile, SpiralDeactivationDistance, COND_InitialOnly);
+
+	DOREPLIFETIME(AMissile, bHit);
 
 	DOREPLIFETIME(AMissile, MissileTransformOnAuthority);
 	DOREPLIFETIME(AMissile, IntegerArray);
@@ -199,8 +220,9 @@ void AMissile::BeginPlay()
 			MissileTrail = UGameplayStatics::SpawnEmitterAttached(MissileTrailSingle, MissileMesh);
 		}
 
-		if(SmokeTrailTick) UParticleSystemComponent* Trail = UGameplayStatics::SpawnEmitterAtLocation(this, SmokeTrailTick, SpawnLocation, GetActorRotation(), true);
 	}
+	if (SmokeTrailTick) UParticleSystemComponent* Trail = UGameplayStatics::SpawnEmitterAtLocation(this, SmokeTrailTick, SpawnLocation, GetActorRotation(), true);
+
 }
 
 // Called every frame

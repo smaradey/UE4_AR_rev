@@ -33,6 +33,7 @@ public:
 	/** StaticMesh component that will be the visuals for the missile */
 	UPROPERTY(Category = Mesh, VisibleDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 	class UStaticMeshComponent* ArmorMesh;
+
 	/** Returns PlaneMesh subobject **/
 	FORCEINLINE class UStaticMeshComponent* GetPlaneMesh() const { return ArmorMesh; }
 
@@ -86,4 +87,36 @@ protected:
 	void StopGunFire();
 
 	int lagCounter = 0;
+
+	// movement
+	UPROPERTY(ReplicatedUsing = OnRep_TransformOnAuthority, EditAnywhere, BlueprintReadWrite, Category = "MainPawn")
+		FTransform TransformOnAuthority;
+	UFUNCTION()
+		void OnRep_TransformOnAuthority();
+
+	FTransform TransformOnClient;
+	FTransform RelativeArmorTransform;
+
+	UPROPERTY(ReplicatedUsing = OnRep_LinearVelocity, EditAnywhere, BlueprintReadWrite, Category = "MainPawn")
+		FVector LinearVelocity;
+	UFUNCTION()
+		void OnRep_LinearVelocity();
+
+	UPROPERTY(ReplicatedUsing = OnRep_AngularVelocity, EditAnywhere, BlueprintReadWrite, Category = "MainPawn")
+		FVector AngularVelocity;
+	UFUNCTION()
+		void OnRep_AngularVelocity();
+
+
+
+
+	// playerstate
+	UPROPERTY()
+		APlayerState* State;
+
+	// network
+	UFUNCTION()
+		void GetPing();
+	float Ping;
+	float Alpha;
 };

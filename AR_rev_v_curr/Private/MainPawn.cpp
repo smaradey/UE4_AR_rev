@@ -13,8 +13,22 @@ AMainPawn::AMainPawn(const FObjectInitializer& ObjectInitializer) : Super(Object
 	bAlwaysRelevant = true;
 	bReplicateMovement = true;
 
+	//SetActorEnableCollision(true);
+
 	//Create components
-	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("RootComponent"));
+	//RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("RootComponent"));
+
+	// Create static mesh component
+	ArmorMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ArmorMesh"));
+	//ArmorMesh->AttachTo(RootComponent);
+	//ArmorMesh->SetCollisionObjectType(ECC_Pawn);
+	//ArmorMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	ArmorMesh->SetCollisionProfileName(TEXT("BlockAll"));
+
+	ArmorMesh->SetSimulatePhysics(true);
+	ArmorMesh->SetEnableGravity(false);
+	RootComponent = ArmorMesh;
+
 	OurCameraSpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraSpringArm"));
 	OurCameraSpringArm->AttachTo(RootComponent);
 	OurCameraSpringArm->SetRelativeLocationAndRotation(FVector(-300.0f, 0.0f, 0.0f), FRotator(0.0f, 0.0f, 0.0f));
@@ -23,14 +37,12 @@ AMainPawn::AMainPawn(const FObjectInitializer& ObjectInitializer) : Super(Object
 	OurCameraSpringArm->bEnableCameraLag = true;
 	OurCameraSpringArm->CameraLagSpeed = 4.0f;
 	OurCameraSpringArm->CameraLagMaxDistance = 300.0f;
+
 	OurCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("GameCamera"));
 	OurCamera->AttachTo(OurCameraSpringArm, USpringArmComponent::SocketName);
 	OurCamera->PostProcessSettings.bOverride_LensFlareIntensity = true;
 	OurCamera->PostProcessSettings.LensFlareIntensity = 0.0f;
 
-	// Create static mesh component
-	ArmorMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ArmorMesh"));
-	ArmorMesh->AttachTo(RootComponent);
 
 
 
@@ -53,7 +65,26 @@ void AMainPawn::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	
+	/*FVector LocArmor = ArmorMesh->GetComponentLocation();
+	FVector DirToRoot = (GetActorLocation() - LocArmor);
+
+	ArmorMesh->AddForce(DirToRoot.GetSafeNormal(), NAME_None, true);*/
+
+
+
+	//ArmorMesh->ResetRelativeTransform();
+	//RelativeArmorTransform.Blend(ArmorMesh->GetComponentTransform(),GetTransform(), 0.5f); //?
+	//ArmorMesh->SetWorldTransform(RootComponent->GetComponentTransform());
+	//RelativeArmorTransform = ArmorMesh->GetComponentTransform();
+
+
+
 	if (IsLocallyControlled()) {
+		ArmorMesh->SetPhysicsAngularVelocity(FMath::VInterpConstantTo(ArmorMesh->GetPhysicsAngularVelocity(), FVector::ZeroVector, DeltaTime, 1000.0f));
+		ArmorMesh->SetPhysicsLinearVelocity(FMath::VInterpConstantTo(ArmorMesh->GetPhysicsLinearVelocity(), FVector::ZeroVector, DeltaTime, 1000.0f));
+
+		FVector CurrentPhVel = ArmorMesh->GetPhysicsLinearVelocity();
 		// get mouse position
 		{
 			if (GetController()) {
@@ -81,65 +112,134 @@ void AMainPawn::Tick(float DeltaTime)
 			if (MouseInput.Size() < (5.0f / ViewPortSize.X)) MouseInput = FVector2D::ZeroVector;
 		}
 
-	}
-	// smooth turning
-	{
-		//InputSize = MouseInput.Size();
-		bool q1 = OldMouseInput.X < 0.0f && MouseInput.X < 0.0f && MouseInput.X - OldMouseInput.X > 0.0f;
-		bool q2 = OldMouseInput.X > 0.0f && MouseInput.X > 0.0f && MouseInput.X - OldMouseInput.X < 0.0f;
-		bool q3 = OldMouseInput.Y < 0.0f && MouseInput.Y < 0.0f && MouseInput.Y - OldMouseInput.Y > 0.0f;
-		bool q4 = OldMouseInput.Y > 0.0f && MouseInput.Y > 0.0f && MouseInput.Y - OldMouseInput.Y < 0.0f;
 
-		if (q1 || q2) {
-			OldMouseInput.X = MouseInput.X;
-		}
-		else {
-			OldMouseInput.X = FMath::FInterpConstantTo(OldMouseInput.X, MouseInput.X, DeltaTime, 2.0f);
-		}
-		if (q3 || q4) {
-			OldMouseInput.Y = MouseInput.Y;
-		}
-		else {
-			OldMouseInput.Y = FMath::FInterpConstantTo(OldMouseInput.Y, MouseInput.Y, DeltaTime, 2.0f);
-		}
-		//OldInputSize = OldMouseInput.Size();
-	}
-	if (GEngine) GEngine->AddOnScreenDebugMessage(4, 3.0f/*seconds*/, FColor::Green, FString::SanitizeFloat(MouseInput.X) + " " + FString::SanitizeFloat(MouseInput.Y) + " " + FString::SanitizeFloat(OldMouseInput.Size()*TurnRate));
-	AddActorLocalRotation(FRotator(OldMouseInput.Y * -TurnRate * DeltaTime, OldMouseInput.X * TurnRate * DeltaTime, 0.0f), false, nullptr);
-
-	////Rotate our actor's yaw, which will turn our camera because we're attached to it
-	//{
-	//	FRotator NewRotation = GetActorRotation();
-	//	NewRotation.Yaw += CameraInput.X;
-	//	SetActorRotation(NewRotation);
-	//}
-
-	//Rotate our camera's pitch, but limit it so we're always looking downward
-	/*
-	{
-		FRotator NewRotation = OurCameraSpringArm->GetComponentRotation();
-		NewRotation.Pitch = FMath::Clamp(NewRotation.Pitch + CameraInput.Y, -80.0f, -15.0f);
-		OurCameraSpringArm->SetWorldRotation(NewRotation);
-	}*/
-
-	//Handle movement based on our "MoveX" and "MoveY" axes
-	{
-		if (!MovementInput.IsZero())
+		// smooth turning
 		{
-			//Scale our movement input axis values by 100 units per second
-			MovementInput = MovementInput.GetSafeNormal() * 1000.0f;
-			FVector NewLocation = GetActorLocation();
-			NewLocation += GetActorForwardVector() * MovementInput.X * DeltaTime;
-			NewLocation += GetActorRightVector() * MovementInput.Y * DeltaTime;
-			SetActorLocation(NewLocation);
+			//InputSize = MouseInput.Size();
+			bool q1 = OldMouseInput.X < 0.0f && MouseInput.X < 0.0f && MouseInput.X - OldMouseInput.X > 0.0f;
+			bool q2 = OldMouseInput.X > 0.0f && MouseInput.X > 0.0f && MouseInput.X - OldMouseInput.X < 0.0f;
+			bool q3 = OldMouseInput.Y < 0.0f && MouseInput.Y < 0.0f && MouseInput.Y - OldMouseInput.Y > 0.0f;
+			bool q4 = OldMouseInput.Y > 0.0f && MouseInput.Y > 0.0f && MouseInput.Y - OldMouseInput.Y < 0.0f;
+
+			if (q1 || q2) {
+				OldMouseInput.X = MouseInput.X;
+			}
+			else {
+				OldMouseInput.X = FMath::FInterpConstantTo(OldMouseInput.X, MouseInput.X, DeltaTime, 2.0f);
+			}
+			if (q3 || q4) {
+				OldMouseInput.Y = MouseInput.Y;
+			}
+			else {
+				OldMouseInput.Y = FMath::FInterpConstantTo(OldMouseInput.Y, MouseInput.Y, DeltaTime, 2.0f);
+			}
+			//OldInputSize = OldMouseInput.Size();
+		}
+		if (GEngine) GEngine->AddOnScreenDebugMessage(4, 3.0f/*seconds*/, FColor::Green, FString::SanitizeFloat(MouseInput.X) + " " + FString::SanitizeFloat(MouseInput.Y) + " " + FString::SanitizeFloat(OldMouseInput.Size()*TurnRate));
+		AddActorLocalRotation(FRotator(OldMouseInput.Y * -TurnRate * DeltaTime, OldMouseInput.X * TurnRate * DeltaTime, 0.0f), false, nullptr);
+
+		////Rotate our actor's yaw, which will turn our camera because we're attached to it
+		//{
+		//	FRotator NewRotation = GetActorRotation();
+		//	NewRotation.Yaw += CameraInput.X;
+		//	SetActorRotation(NewRotation);
+		//}
+
+		//Rotate our camera's pitch, but limit it so we're always looking downward
+		/*
+		{
+			FRotator NewRotation = OurCameraSpringArm->GetComponentRotation();
+			NewRotation.Pitch = FMath::Clamp(NewRotation.Pitch + CameraInput.Y, -80.0f, -15.0f);
+			OurCameraSpringArm->SetWorldRotation(NewRotation);
+		}*/
+
+		//Handle movement based on our "MoveX" and "MoveY" axes
+		{
+			if (!MovementInput.IsZero())
+			{
+				//Scale our movement input axis values by 100 units per second
+				MovementInput = MovementInput.GetSafeNormal() * 10000.0f;
+				FVector NewLocation = GetActorLocation();
+				NewLocation += GetActorForwardVector() * MovementInput.X * DeltaTime;
+				NewLocation += GetActorRightVector() * MovementInput.Y * DeltaTime;
+				//SetActorLocation(NewLocation);
+				FVector Vel = NewLocation - GetActorLocation();
+				ArmorMesh->SetPhysicsLinearVelocity(CurrentPhVel + Vel / DeltaTime);
+
+
+
+
+			}
 		}
 	}
+	if (Role == ROLE_Authority) {
+		TransformOnAuthority = GetTransform();
+		AngularVelocity = ArmorMesh->GetPhysicsAngularVelocity();
+		LinearVelocity = ArmorMesh->GetPhysicsLinearVelocity();
+	}
+	else {
+		//GetPing();
+		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, GetWorld()->DeltaTimeSeconds, FColor::Green, "Ping = " + FString::SanitizeFloat(Ping) + " s");
+		//FTransform newTransform;
+
+		//newTransform.Blend(TransformOnClient, TransformOnAuthority, FMath::Min(Alpha * NetUpdateFrequency*0.9f, 1.0f)); //?
+		//Alpha += DeltaTime;
+		//SetActorTransform(newTransform);
+	}
+
+
 }
 
 // replication of variables
 void AMainPawn::GetLifetimeReplicatedProps(TArray< FLifetimeProperty > & OutLifetimeProps) const
 {
 	DOREPLIFETIME(AMainPawn, bCanFireGun);
+	DOREPLIFETIME(AMainPawn, TransformOnAuthority);
+	DOREPLIFETIME(AMainPawn, LinearVelocity);
+	DOREPLIFETIME(AMainPawn, AngularVelocity);
+}
+
+void AMainPawn::OnRep_TransformOnAuthority()
+{
+	// When this is called, bFlag already contains the new value. This
+	// just notifies you when it changes.
+	if (Role < ROLE_Authority) {
+		//Alpha = GetWorld()->DeltaTimeSeconds;
+		//TransformOnClient = GetTransform();
+
+		SetActorTransform(TransformOnAuthority);
+
+		//SetActorTransform(MissileTransformOnAuthority);
+	}
+}
+
+void AMainPawn::OnRep_LinearVelocity()
+{
+	if (Role < ROLE_Authority ) {
+		if(ArmorMesh) ArmorMesh->SetPhysicsLinearVelocity(LinearVelocity, false);
+	}
+}
+
+void AMainPawn::OnRep_AngularVelocity()
+{
+	if (Role < ROLE_Authority) {
+		if (ArmorMesh) ArmorMesh->SetPhysicsAngularVelocity(AngularVelocity, false);
+	}
+}
+
+void AMainPawn::GetPing() {
+	if (State) {
+		Ping = State->ExactPing * 0.001f;
+		return;
+	}
+	if (GetWorld()->GetFirstPlayerController()) {      // get ping
+		State = Cast<APlayerState>(GetWorld()->GetFirstPlayerController()->PlayerState); // "APlayerState" hardcoded, needs to be changed for main project
+		if (State) {
+			Ping = State->ExactPing * 0.001f;
+			// client has now the most recent ping in seconds
+		}
+	}
+
 }
 
 // Called to bind functionality to input
