@@ -28,11 +28,31 @@ AMissile::AMissile(const FObjectInitializer& ObjectInitializer) : Super(ObjectIn
 }
 
 void AMissile::MissileDestruction() {
-	if (Explosion && Role < ROLE_Authority) {
-		UParticleSystemComponent* Hit = UGameplayStatics::SpawnEmitterAtLocation(this, Explosion, GetActorLocation(), GetActorRotation(), true);
+//
+
+}
+
+
+void AMissile::MissileHit() {
+	if (Role == ROLE_Authority) {
+		ServerMissileHit();
+		SetActorTickEnabled(false);
+		if (RootComponent) RootComponent->SetVisibility(false, true);
+		if (MissileTrail) MissileTrail->DeactivateSystem();
+		if (MissileTrail) MissileTrail->SetVisibility(true);
+		SetLifeSpan(10.0f);	
 	}
 }
 
+void AMissile::ServerMissileHit_Implementation() {
+		SetActorTickEnabled(false);		
+		if (RootComponent) RootComponent->SetVisibility(false, true);
+		if (MissileTrail) MissileTrail->DeactivateSystem();
+		if (MissileTrail) MissileTrail->SetVisibility(true);
+
+		UParticleSystemComponent* Hit = UGameplayStatics::SpawnEmitterAtLocation(this, Explosion, GetActorLocation(), GetActorRotation(), true);
+
+}
 
 
 void AMissile::MissileMeshOverlap(class AActor* OtherActor, class UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult) {
@@ -47,7 +67,7 @@ void AMissile::MissileMeshOverlap(class AActor* OtherActor, class UPrimitiveComp
 			if (CurrentTarget) {
 				if (CurrentTarget->GetOwner() == OtherActor) {
 					CurrentTarget->GetOwner()->ReceiveAnyDamage(100.0f, nullptr, GetInstigatorController(), this);
-					Destroy();  // temp
+					MissileHit();  // temp
 				}
 			}
 
@@ -89,7 +109,7 @@ void AMissile::MissileMeshOverlap(class AActor* OtherActor, class UPrimitiveComp
 			}
 			if (OtherComp->GetOwner() != GetOwner()) {
 				if (GEngine) GEngine->AddOnScreenDebugMessage(3, 3.0f/*seconds*/, FColor::White, "HIT");
-				Destroy();
+				MissileHit();
 			}
 			if (GEngine) GEngine->AddOnScreenDebugMessage(4, 3.0f/*seconds*/, FColor::Red, "Owner - Other: " + OwnerOther + "; Missile: " + OwnerThis);
 		}
@@ -100,7 +120,7 @@ void AMissile::MissileMeshOverlap(class AActor* OtherActor, class UPrimitiveComp
 // replication of variables
 void AMissile::GetLifetimeReplicatedProps(TArray< FLifetimeProperty > & OutLifetimeProps) const
 {
-	DOREPLIFETIME_CONDITION(AMissile, MaxTurnrate,COND_InitialOnly);
+	DOREPLIFETIME_CONDITION(AMissile, MaxTurnrate, COND_InitialOnly);
 	DOREPLIFETIME_CONDITION(AMissile, MaxVelocity, COND_InitialOnly);
 	DOREPLIFETIME_CONDITION(AMissile, AccelerationTime, COND_InitialOnly);
 	DOREPLIFETIME_CONDITION(AMissile, AdvancedMissileMinRange, COND_InitialOnly);
@@ -143,7 +163,7 @@ void AMissile::PostInitProperties()
 void AMissile::BeginPlay()
 {
 	Super::BeginPlay();
-	
+
 	if (Role == ROLE_Authority && bReplicates) {           // check if current actor has authority
 		if (CustomSpiralOffset != 0.0f) {
 			CustomSpiralOffset = FMath::FRandRange(0.0f, 360.f);
@@ -162,11 +182,25 @@ void AMissile::BeginPlay()
 		//const FTimerDelegate TimerDelegate = FTimerDelegate::CreateUObject(this, &AMissile::RunsOnAllClients);
 		//GetWorldTimerManager().SetTimer(TimerHandle, TimerDelegate, NetUpdateFrequency, true, 0.0f);
 		GetWorldTimerManager().SetTimer(TimerHandle, this, &AMissile::RunsOnAllClients, NetUpdateFrequency, true, 0.0f);
-	
+
 		MaxLifeTime = Range / Velocity;          // calculate max missile liftime (t = s/v)
 		InitialLifeSpan = MaxLifeTime + 5.0f;              // set missile lifetime
 	}
 	Acceleration = 1.0f / AccelerationTime;
+
+	if (MissileMesh && MissileTrailSingle && Role < ROLE_Authority) {
+		FVector SpawnLocation;
+		if (MissileMesh->DoesSocketExist(FName("booster"))) {
+			SpawnLocation = MissileMesh->GetSocketLocation(FName("booster"));
+			MissileTrail = UGameplayStatics::SpawnEmitterAttached(MissileTrailSingle, MissileMesh, FName("booster"));
+		}
+		else {
+			SpawnLocation = GetActorLocation();
+			MissileTrail = UGameplayStatics::SpawnEmitterAttached(MissileTrailSingle, MissileMesh);
+		}
+
+		if(SmokeTrailTick) UParticleSystemComponent* Trail = UGameplayStatics::SpawnEmitterAtLocation(this, SmokeTrailTick, SpawnLocation, GetActorRotation(), true);
+	}
 }
 
 // Called every frame
@@ -192,7 +226,7 @@ void AMissile::Tick(float DeltaTime)
 				if (CurrentTarget && CurrentTarget->GetOwner()) {
 					CurrentTarget->GetOwner()->ReceiveAnyDamage(100.0f, nullptr, GetInstigatorController(), this);
 				}
-				Destroy();  // temp
+				MissileHit();  // temp
 			}
 		}
 	}
@@ -209,7 +243,7 @@ void AMissile::Tick(float DeltaTime)
 		if (LifeTime > MaxLifeTime) {                      //  reached max lifetime -> explosion etc.
 
 			//if (ExplosionEffect) ExplosionEffect->Activate(true); // not yet working
-			Destroy();  // temp
+			MissileHit();  // temp
 		}
 
 		// store current missile transform of client (replicated)
@@ -252,7 +286,7 @@ void AMissile::Tick(float DeltaTime)
 	AddActorWorldOffset(MovementVector);
 
 	// spawn missiletrail
-	if (MissileMesh && SmokeTrail && Role < ROLE_Authority) {
+	if (MissileMesh && SmokeTrailTick && Role < ROLE_Authority) {
 		FVector SpawnLocation;
 		if (MissileMesh->DoesSocketExist(FName("booster"))) {
 			SpawnLocation = MissileMesh->GetSocketLocation(FName("booster"));
@@ -260,7 +294,7 @@ void AMissile::Tick(float DeltaTime)
 		else {
 			SpawnLocation = GetActorLocation();
 		}
-		UParticleSystemComponent* Trail = UGameplayStatics::SpawnEmitterAtLocation(this, SmokeTrail, SpawnLocation, GetActorRotation(), true);
+		UParticleSystemComponent* Trail = UGameplayStatics::SpawnEmitterAtLocation(this, SmokeTrailTick, SpawnLocation, GetActorRotation(), true);
 	}
 
 }
@@ -381,7 +415,7 @@ void AMissile::OnRep_MissileTransformOnAuthority()
 	// When this is called, bFlag already contains the new value. This
 	// just notifies you when it changes.
 	if (Role < ROLE_Authority) {
-		
+
 		SetActorTransform(MissileTransformOnAuthority);
 	}
 }
@@ -412,6 +446,11 @@ void AMissile::Dealing() {
 	{
 		ServerDealing();
 	}
+}
+
+// testing
+void AMissile::ServerDealing_Implementation() {
+	//
 }
 
 float AMissile::DistanceLineLine(const FVector& a1,
@@ -457,10 +496,6 @@ bool AMissile::ClosestPointsOnTwoLines(const FVector& LineStartA,
 
 
 
-// testing
-void AMissile::ServerDealing_Implementation() {
-	//
-}
 
 ////// example for function replication------------------------
 void AMissile::SetSomeBool(bool bNewSomeBool)

@@ -29,6 +29,11 @@ public:
 	void PostInitProperties();
 	void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent);
 
+	UFUNCTION(NetMulticast, Reliable)
+		void ServerMissileHit();
+	virtual void MissileHit();
+
+
 	/** StaticMesh component that will be the visuals for the missile */
 	UPROPERTY(Category = Mesh, VisibleDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 	class UStaticMeshComponent* MissileMesh;
@@ -36,7 +41,12 @@ public:
 	FORCEINLINE class UStaticMeshComponent* GetPlaneMesh() const { return MissileMesh; }
 
 	UPROPERTY(Category = ParticleSystem, BlueprintReadWrite, EditAnywhere, meta = (AllowPrivateAccess = "true"))
-	class UParticleSystem* SmokeTrail;
+	class UParticleSystem* SmokeTrailTick;
+
+	UPROPERTY(Category = ParticleSystem, BlueprintReadWrite, EditAnywhere, meta = (AllowPrivateAccess = "true"))
+	class UParticleSystem* MissileTrailSingle;
+
+	UParticleSystemComponent* MissileTrail;
 
 	UPROPERTY(Category = ParticleSystem, BlueprintReadWrite, EditAnywhere, meta = (AllowPrivateAccess = "true"))
 	class UParticleSystem* Explosion;
@@ -157,6 +167,8 @@ public:
 	UFUNCTION(NetMulticast, Reliable)
 		void ServerDealing();
 	virtual void Dealing();
+
+
 
 	UFUNCTION(NetMulticast, Unreliable)
 		void ServerRunsOnAllClients();
