@@ -3,134 +3,93 @@
 #include "AR_rev_v_curr.h"
 #include "Missile.h"
 
-
-
 // Sets default values
 AMissile::AMissile(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {
 	// Initialize all base values
-
-	bReplicates = true;                                    // Set the missile to be replicated	
+	bReplicates = true;
 	bAlwaysRelevant = true;
+	PrimaryActorTick.bCanEverTick = true;
 
 	// Create static mesh component
 	MissileMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MissileMesh"));
-
-
-	//MissileMesh->SetCollisionObjectType(ECC_Dynamic);
-	//MissileMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	MissileMesh->SetCollisionProfileName(TEXT("OverlapAll"));
-
-	if (Role == ROLE_Authority) MissileMesh->OnComponentBeginOverlap.AddDynamic(this, &AMissile::MissileMeshOverlap);
-
 	RootComponent = MissileMesh;
 
+	if (Role == ROLE_Authority) MissileMesh->OnComponentBeginOverlap.AddDynamic(this, &AMissile::MissileMeshOverlap);
 	OnDestroyed.AddDynamic(this, &AMissile::MissileDestruction);
-	PrimaryActorTick.bCanEverTick = true;                  // enable Tick
 }
 
 void AMissile::MissileDestruction() {
 	//
-
 }
 
-
+// called on server for multicast of explosion
 void AMissile::MissileHit() {
 	if (Role == ROLE_Authority) {
 		bHit = true;
 
-		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Blue, "Auth: Hit Rep");
-		ServerMissileHit();
+		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Blue, "Auth: Hit Rep");
+		//Stop all missile movements & hide visible components
 		SetActorTickEnabled(false);
 		if (RootComponent) RootComponent->SetVisibility(false, true);
 		if (MissileTrail) MissileTrail->DeactivateSystem();
+		// missile trail fades out after explosion
 		if (MissileTrail) MissileTrail->SetVisibility(true);
-		SetLifeSpan(10.0f);
+		SetLifeSpan(MissileTrailLifeSpan);
+		// do the same on all clients
+		ServerMissileHit();
 	}
 }
 
 void AMissile::ServerMissileHit_Implementation() {
 	if (Role < ROLE_Authority) {
-		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Blue, "client: Hit Rep");
-
+		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Blue, "client: Hit Rep");
 		SetActorTickEnabled(false);
 		if (RootComponent) RootComponent->SetVisibility(false, true);
 		if (MissileTrail) MissileTrail->DeactivateSystem();
 		if (MissileTrail) MissileTrail->SetVisibility(true);
-
 		if (Explosion) {
-			if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Red, "client: Explosion");
+			//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Red, "client: Explosion");
 			UParticleSystemComponent* Hit = UGameplayStatics::SpawnEmitterAtLocation(this, Explosion, GetActorLocation(), GetActorRotation(), true);
 		}
+		// note: audio missing
 
 	}
 }
 
 
 void AMissile::MissileMeshOverlap(class AActor* OtherActor, class UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult) {
+	// if missile has already exploded abort function
 	if (bHit) return;
+	//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::White, "Overlap Event");
 
-	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::White, "Overlap Event");
 	if (Role == ROLE_Authority) {
-		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Red, " Authority: Overlap Event");
+		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Red, " Authority: Overlap Event");
 		// missileMesh is overlapping with something	
-		// Other Actor is the actor that triggered the event. Check that is not ourself.  
+		// Other Actor is the actor that triggered the event. Check that is not the missile.  
 		if ((OtherActor) && (OtherActor != this) && (OtherComp)) {
-			// do sth
-			FString InstigatorOther;
-			FString InstigatorThis;
 
+			// did the missile hit the target?
 			if (CurrentTarget) {
 				if (CurrentTarget->GetOwner() == OtherActor) {
-					if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Green, "Auth: Target HIT");
+					//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Green, "Auth: Target HIT");
 					CurrentTarget->GetOwner()->ReceiveAnyDamage(100.0f, nullptr, GetInstigatorController(), this);
-					MissileHit();  // temp
+					MissileHit();
 					return;
 				}
 			}
-
-			if (OtherActor->GetInstigator()) {
-				InstigatorOther = OtherActor->GetInstigator()->GetName();
-			}
-			else {
-				InstigatorOther = "NONE";
-			}
-
-			if (GetInstigator()) {
-				InstigatorThis = GetInstigator()->GetName();
-			}
-			else {
-				InstigatorThis = "NONE";
-			}
+			// missile is overlapping with another missile fired by the same player
 			if (OtherActor->GetInstigator() == GetInstigator() && GetInstigator()) {
-				if (GEngine) GEngine->AddOnScreenDebugMessage(2, 3.0f/*seconds*/, FColor::Green, "Same Instigator");
+				//if (GEngine) GEngine->AddOnScreenDebugMessage(2, 3.0f/*seconds*/, FColor::Green, "Same Instigator");
 				return;
 			}
-			if (GEngine) GEngine->AddOnScreenDebugMessage(1, 3.0f/*seconds*/, FColor::Red, "Instigator - Other: " + InstigatorOther + "; Missile: " + InstigatorThis);
-
-			// do sth
-			FString OwnerOther;
-			FString OwnerThis;
-
-			if (OtherComp->GetOwner()) {
-				OwnerOther = OtherComp->GetOwner()->GetName();
-			}
-			else {
-				OwnerOther = "NONE";
-			}
-
-			if (GetOwner()) {
-				OwnerThis = GetOwner()->GetName();
-			}
-			else {
-				OwnerThis = "NONE";
-			}
+			// did the missile hit something else?
 			if (OtherComp->GetOwner() != GetOwner()) {
-				if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::White, " Auth: sth. HIT");
+				//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::White, " Auth: sth. HIT");
 				MissileHit();
 				return;
 			}
-			if (GEngine) GEngine->AddOnScreenDebugMessage(4, 3.0f/*seconds*/, FColor::Red, "Owner - Other: " + OwnerOther + "; Missile: " + OwnerThis);
 		}
 	}
 }
@@ -185,112 +144,90 @@ void AMissile::BeginPlay()
 {
 	Super::BeginPlay();
 
-	if (Role == ROLE_Authority && bReplicates) {           // check if current actor has authority
-		if (CustomSpiralOffset != 0.0f) {
-			CustomSpiralOffset = FMath::FRandRange(0.0f, 360.f);
+	if (Role == ROLE_Authority) {
+		// specify spiraling behaviour
+		{
+			if (CustomSpiralOffset != 0.0f) {
+				CustomSpiralOffset = FMath::FRandRange(0.0f, 360.f);
+			}
+			if (SpiralDirection != 0) {
+				SpiralDirection = FMath::Sign(SpiralDirection);
+			}
+			else {
+				SpiralDirection = (FMath::RandBool()) ? -1.0f : 1.0f;
+			}
+			if (RandomizeSpiralVelocity) {
+				SpiralVelocity *= FMath::FRandRange(0.5f, 1.5f);
+			}
 		}
-		if (SpiralDirection != 0) {
-			SpiralDirection = FMath::Sign(SpiralDirection);
+		// testing
+		{
+			//// start a timer that executes a function (multicast)
+			//FTimerHandle TimerHandle;
+			////const FTimerDelegate TimerDelegate = FTimerDelegate::CreateUObject(this, &AMissile::RunsOnAllClients);
+			////GetWorldTimerManager().SetTimer(TimerHandle, TimerDelegate, NetUpdateFrequency, true, 0.0f);
+			//GetWorldTimerManager().SetTimer(TimerHandle, this, &AMissile::RunsOnAllClients, NetUpdateFrequency, true, 0.0f);
 		}
-		else {
-			SpiralDirection = (FMath::RandBool()) ? -1.0f : 1.0f;
-		}
-		if (RandomizeSpiralVelocity) {
-			SpiralVelocity *= FMath::FRandRange(0.5f, 1.5f);
-		}
-		// start a timer that executes a function (multicast)
-		FTimerHandle TimerHandle;
-		//const FTimerDelegate TimerDelegate = FTimerDelegate::CreateUObject(this, &AMissile::RunsOnAllClients);
-		//GetWorldTimerManager().SetTimer(TimerHandle, TimerDelegate, NetUpdateFrequency, true, 0.0f);
-		GetWorldTimerManager().SetTimer(TimerHandle, this, &AMissile::RunsOnAllClients, NetUpdateFrequency, true, 0.0f);
 
-		MaxLifeTime = Range / Velocity;          // calculate max missile liftime (t = s/v)
-		InitialLifeSpan = MaxLifeTime + 5.0f;              // set missile lifetime
+		// calculate max missile liftime (t = s/v)
+		MaxLifeTime = Range / MaxVelocity;
+		SetLifeSpan(MaxLifeTime + MissileTrailLifeSpan);              // set missile lifespan
 	}
+
 	Acceleration = 1.0f / AccelerationTime;
 
-	if (MissileMesh && MissileTrailSingle && Role < ROLE_Authority) {
-		FVector SpawnLocation;
-		if (MissileMesh->DoesSocketExist(FName("booster"))) {
-			SpawnLocation = MissileMesh->GetSocketLocation(FName("booster"));
-			MissileTrail = UGameplayStatics::SpawnEmitterAttached(MissileTrailSingle, MissileMesh, FName("booster"));
+	// clients
+	if (Role < ROLE_Authority) {
+		NetUpdateInterval = 1.0f / NetUpdateFrequency;
+		// spawn missiletrail (depending on which one is valid)
+		if (MissileMesh) {
+			FVector SpawnLocation;
+			if (MissileMesh->DoesSocketExist(FName("booster"))) {
+				SpawnLocation = MissileMesh->GetSocketLocation(FName("booster"));
+				if (MissileTrailSingle) MissileTrail = UGameplayStatics::SpawnEmitterAttached(MissileTrailSingle, MissileMesh, FName("booster"));
+			}
+			else {
+				SpawnLocation = GetActorLocation();
+				if (MissileTrailSingle) MissileTrail = UGameplayStatics::SpawnEmitterAttached(MissileTrailSingle, MissileMesh);
+			}
+			if (SmokeTrailTick) UParticleSystemComponent* Trail = UGameplayStatics::SpawnEmitterAtLocation(this, SmokeTrailTick, SpawnLocation, GetActorRotation(), true);
 		}
-		else {
-			SpawnLocation = GetActorLocation();
-			MissileTrail = UGameplayStatics::SpawnEmitterAttached(MissileTrailSingle, MissileMesh);
-		}
-
 	}
-	if (SmokeTrailTick) UParticleSystemComponent* Trail = UGameplayStatics::SpawnEmitterAtLocation(this, SmokeTrailTick, SpawnLocation, GetActorRotation(), true);
-
 }
 
 // Called every frame
 void AMissile::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-
-	LifeTime += DeltaTime;                                 // store lifetime
+	LifeTime += DeltaTime;
 
 	if (CurrentTarget) {
 		CurrentTargetLocation = CurrentTarget->GetComponentLocation();
 		DirectionToTarget = CurrentTargetLocation - GetActorLocation();
 		DistanceToTarget = DirectionToTarget.Size();
 
-		// actor is authority
 		if (Role == ROLE_Authority) {
-
+			if (LifeTime > MaxLifeTime) {
+				MissileHit();
+				return;
+			}
 			float MissileTravelDistance = Velocity * DeltaTime;               // the distance between the current missile location and the next location
-
 																			  // is the target inside explosionradius? (missiletraveldistance is for fast moving missiles with low fps)
 			if (DistanceToTarget < TargetDetectionRadius + MissileTravelDistance && bNotFirstTick) {
-				// TODO			
 				if (CurrentTarget && CurrentTarget->GetOwner()) {
 					CurrentTarget->GetOwner()->ReceiveAnyDamage(100.0f, nullptr, GetInstigatorController(), this);
 				}
-				MissileHit();  // temp
+				MissileHit();
+				return;
 			}
 		}
 	}
 
-
-	if (MissileLock)	Homing(DeltaTime);                                     // perform homing to the target by rotating, both clients and server
+	// perform homing to the target by rotating, both clients and server
+	if (MissileLock)	Homing(DeltaTime);
 
 	// the distance the missile will be moved at the end of the current tick
 	MovementVector = GetActorForwardVector() * DeltaTime * Velocity;
-
-
-	if (Role == ROLE_Authority) {
-		// is authority
-		if (LifeTime > MaxLifeTime) {                      //  reached max lifetime -> explosion etc.
-
-			//if (ExplosionEffect) ExplosionEffect->Activate(true); // not yet working
-			MissileHit();  // temp
-		}
-
-		// store current missile transform of client (replicated)
-		MissileTransformOnAuthority = GetTransform();
-
-		//if (GEngine) GEngine->AddOnScreenDebugMessage(1, DeltaTime/*seconds*/, FColor::Red, "Authority");
-
-		// store current location for next Tick
-		LastActorLocation = GetActorLocation();
-
-	}
-	else {
-		// is NOT authority
-
-		if (GetWorld()->GetFirstPlayerController()) {      // get ping
-			State = Cast<APlayerState>(GetWorld()->GetFirstPlayerController()->PlayerState); // "APlayerState" hardcoded, needs to be changed for main project
-			if (State) {
-				Ping = float(State->Ping) * 0.001f;
-				// debug display ping on screen
-				//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, DeltaTime/*seconds*/, FColor::Green, FString::SanitizeFloat(Ping));
-
-				// client has now the most recent ping in seconds
-			}
-		}
-	}
 
 	// is missile is still accelerating? 
 	if (!bReachedMaxVelocity) {
@@ -304,33 +241,75 @@ void AMissile::Tick(float DeltaTime)
 		}
 		bNotFirstTick = true;
 	}
-	// perform movement
-	AddActorWorldOffset(MovementVector);
 
-	// spawn missiletrail
-	if (MissileMesh && SmokeTrailTick && Role < ROLE_Authority) {
-		FVector SpawnLocation;
-		if (MissileMesh->DoesSocketExist(FName("booster"))) {
-			SpawnLocation = MissileMesh->GetSocketLocation(FName("booster"));
+	if (Role == ROLE_Authority) {
+		// perform movement
+		AddActorWorldOffset(MovementVector);
+		// current missile transform for replication to client
+		MissileTransformOnAuthority = GetTransform();
+	}
+	else {
+		// is NOT authority
+		// perform movement with correction
+		if (LocationCorrectionTimeLeft > 0.0f) {
+			AddActorWorldOffset(MovementVector + (ClientLocationError * DeltaTime));
+			LocationCorrectionTimeLeft -= DeltaTime;
 		}
 		else {
-			SpawnLocation = GetActorLocation();
+			AddActorWorldOffset(MovementVector);
 		}
-		UParticleSystemComponent* Trail = UGameplayStatics::SpawnEmitterAtLocation(this, SmokeTrailTick, SpawnLocation, GetActorRotation(), true);
+
+		// ping testing
+		{
+			//if (GetWorld()->GetFirstPlayerController()) {      // get ping
+			//	State = Cast<APlayerState>(GetWorld()->GetFirstPlayerController()->PlayerState); // "APlayerState" hardcoded, needs to be changed for main project
+			//	if (State) {
+			//		Ping = float(State->Ping) * 0.001f;
+			//		// debug display ping on screen
+			//		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, DeltaTime/*seconds*/, FColor::Green, FString::SanitizeFloat(Ping));
+
+			//		// client has now the most recent ping in seconds
+			//	}
+			//}
+		}
+
+		// spawn missiletrail on clientside
+		if (MissileMesh && SmokeTrailTick) {
+			FVector SpawnLocation;
+			if (MissileMesh->DoesSocketExist(FName("booster"))) {
+				SpawnLocation = MissileMesh->GetSocketLocation(FName("booster"));
+			}
+			else {
+				SpawnLocation = GetActorLocation();
+			}
+			UParticleSystemComponent* Trail = UGameplayStatics::SpawnEmitterAtLocation(this, SmokeTrailTick, SpawnLocation, GetActorRotation(), true);
+		}
 	}
 
+	// store current location for next Tick
+	LastActorLocation = GetActorLocation();
+}
+
+void AMissile::OnRep_MissileTransformOnAuthority()
+{
+	if (Role < ROLE_Authority) {
+		SetActorRotation(MissileTransformOnAuthority.GetRotation());                                                                       // correct Actor rotation
+		ClientLocationError = (MissileTransformOnAuthority.GetLocation() - GetActorLocation()) * NetUpdateFrequency;                       // get location error scaled by replication frequency
+
+		LocationCorrectionTimeLeft = NetUpdateInterval;
+
+		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Red, "LocError: " + FString::SanitizeFloat(ClientLocationError.Size()) + "cm");
+	}
 }
 
 // perform homing to the target by rotating
 void AMissile::Homing(float DeltaTime) {
 	if (!CurrentTarget) return;                                           // no homing when there is no valid target
 
-
-
 	// is target prediction active?
 	if (AdvancedHoming) {
-		// target prediction
-		TargetVelocity = (CurrentTargetLocation - LastTargetLocation) / DeltaTime;  // A vector with v(x,y,z) = [cm/s]
+		TargetVelocity = CurrentTarget->ComponentVelocity;
+		//TargetVelocity = (CurrentTargetLocation - LastTargetLocation) / DeltaTime;  // A vector with v(x,y,z) = [cm/s]
 		LastTargetLocation = CurrentTargetLocation;                                 // store current targetlocation for next recalculation of target velocity
 
 		// calculate the location where missile and target will hit each other
@@ -342,7 +321,7 @@ void AMissile::Homing(float DeltaTime) {
 			FVector2D(0.0f, 1.0f),
 			DistanceToTarget);
 		//debug
-		if (GEngine) GEngine->AddOnScreenDebugMessage(4, DeltaTime/*seconds*/, FColor::White, FString::SanitizeFloat(AdvancedHomingStrength));
+		//if (GEngine) GEngine->AddOnScreenDebugMessage(4, DeltaTime/*seconds*/, FColor::White, FString::SanitizeFloat(AdvancedHomingStrength));
 
 		// calculate the new forward vector of the missile by taking the distance to the target into consideration 
 		PredictedTargetLocation = FMath::Lerp(CurrentTargetLocation, PredictedTargetLocation, FMath::Sqrt(AdvancedHomingStrength));
@@ -398,6 +377,10 @@ FVector AMissile::LinearTargetPrediction(
 	return StartLocation + vi + AB * FMath::Sqrt(ProjectileVelocity * ProjectileVelocity - FMath::Pow((vi.Size()), 2.f));
 }
 
+
+//----------------------------------------------------- TESTING ------------------------------------------------
+
+// testing
 // replication of the timercalled funtion
 void AMissile::RunsOnAllClients() {
 	if (Role == ROLE_Authority)
@@ -420,9 +403,6 @@ void AMissile::ServerRunsOnAllClients_Implementation() {
 		//if (GEngine) GEngine->AddOnScreenDebugMessage(3, 3.0f/*seconds*/, FColor::Green, FString::SanitizeFloat((float)Milliseconds));
 	}
 }
-//----------------------------------------------------- TESTING ------------------------------------------------
-
-// testing
 void AMissile::ServerSetFlag()
 {
 	if (HasAuthority() && !bFlag) // Ensure Role == ROLE_Authority
@@ -432,15 +412,6 @@ void AMissile::ServerSetFlag()
 	}
 }
 
-void AMissile::OnRep_MissileTransformOnAuthority()
-{
-	// When this is called, bFlag already contains the new value. This
-	// just notifies you when it changes.
-	if (Role < ROLE_Authority) {
-
-		SetActorTransform(MissileTransformOnAuthority);
-	}
-}
 
 // testing
 void AMissile::OnRep_Flag()

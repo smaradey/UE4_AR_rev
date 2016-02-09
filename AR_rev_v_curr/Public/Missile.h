@@ -48,6 +48,9 @@ public:
 
 	UParticleSystemComponent* MissileTrail;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile")
+	float MissileTrailLifeSpan = 5.0f;
+
 	UPROPERTY(Category = ParticleSystem, BlueprintReadWrite, EditAnywhere, meta = (AllowPrivateAccess = "true"))
 	class UParticleSystem* Explosion;
 
@@ -114,7 +117,7 @@ public:
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
 		float SpiralDirection = 0.0f;
 
-	UPROPERTY(Replicated)
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Missile")
 		bool bHit = false;
 
 
@@ -205,6 +208,8 @@ private:
 	float MaxLifeTime;
 	float LifeTime;
 
+	float NetUpdateInterval;
+
 	FVector RotationAxisForTurningToTarget;
 	FVector NewDirection;
 	FVector MovementVector;
@@ -218,6 +223,8 @@ private:
 	FVector CurrentTargetLocation;
 	FVector LastTargetLocation;
 	FVector LastActorLocation;
+	FVector ClientLocationError;
+	float LocationCorrectionTimeLeft;
 	FVector TargetVelocity;
 	FVector PredictedTargetLocation;
 	FVector HomingLocation;
