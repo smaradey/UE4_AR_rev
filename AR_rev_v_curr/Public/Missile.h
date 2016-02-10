@@ -44,8 +44,6 @@ public:
 	class UParticleSystem* SmokeTrailTick;
 
 	UPROPERTY(Category = ParticleSystem, BlueprintReadWrite, EditAnywhere, meta = (AllowPrivateAccess = "true"))
-	class UParticleSystem* MissileTrailSingle;
-
 	UParticleSystemComponent* MissileTrail;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile")
@@ -53,6 +51,12 @@ public:
 
 	UPROPERTY(Category = ParticleSystem, BlueprintReadWrite, EditAnywhere, meta = (AllowPrivateAccess = "true"))
 	class UParticleSystem* Explosion;
+
+	UPROPERTY(Category = Sound, BlueprintReadWrite, EditAnywhere, meta = (AllowPrivateAccess = "true"))
+	class UAudioComponent* ExplosionSound;
+
+	UPROPERTY(Category = Sound, BlueprintReadWrite, EditAnywhere, meta = (AllowPrivateAccess = "true"))
+	class UAudioComponent* MissileEngineSound;
 
 	// Sets default values for this actor's properties
 	AMissile(const FObjectInitializer& ObjectInitializer);

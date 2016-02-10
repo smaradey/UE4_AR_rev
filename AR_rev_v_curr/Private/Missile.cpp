@@ -16,6 +16,20 @@ AMissile::AMissile(const FObjectInitializer& ObjectInitializer) : Super(ObjectIn
 	MissileMesh->SetCollisionProfileName(TEXT("OverlapAll"));
 	RootComponent = MissileMesh;
 
+	ExplosionSound = CreateDefaultSubobject<UAudioComponent>(TEXT("ExplosionSound"));
+	ExplosionSound->bAutoActivate = false;	
+	ExplosionSound->PitchModulationMin = 0.5f;
+
+	MissileEngineSound = CreateDefaultSubobject<UAudioComponent>(TEXT("EngineSound"));
+	MissileEngineSound->bAutoActivate = true;
+	MissileEngineSound->PitchModulationMin = 0.8f;
+	MissileEngineSound->SetVolumeMultiplier(0.5f);
+
+	MissileTrail = CreateDefaultSubobject<UParticleSystemComponent>(TEXT("MissileTrail"));
+	MissileTrail->AttachTo(MissileMesh, FName("booster"));
+
+
+
 	if (Role == ROLE_Authority) MissileMesh->OnComponentBeginOverlap.AddDynamic(this, &AMissile::MissileMeshOverlap);
 	OnDestroyed.AddDynamic(this, &AMissile::MissileDestruction);
 }
@@ -53,8 +67,8 @@ void AMissile::ServerMissileHit_Implementation() {
 			//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Red, "client: Explosion");
 			UParticleSystemComponent* Hit = UGameplayStatics::SpawnEmitterAtLocation(this, Explosion, GetActorLocation(), GetActorRotation(), true);
 		}
-		// note: audio missing
-
+		if (MissileEngineSound) MissileEngineSound->Deactivate();
+		if (ExplosionSound) ExplosionSound->Activate();
 	}
 }
 
@@ -179,19 +193,8 @@ void AMissile::BeginPlay()
 	// clients
 	if (Role < ROLE_Authority) {
 		NetUpdateInterval = 1.0f / NetUpdateFrequency;
-		// spawn missiletrail (depending on which one is valid)
-		if (MissileMesh) {
-			FVector SpawnLocation;
-			if (MissileMesh->DoesSocketExist(FName("booster"))) {
-				SpawnLocation = MissileMesh->GetSocketLocation(FName("booster"));
-				if (MissileTrailSingle) MissileTrail = UGameplayStatics::SpawnEmitterAttached(MissileTrailSingle, MissileMesh, FName("booster"));
-			}
-			else {
-				SpawnLocation = GetActorLocation();
-				if (MissileTrailSingle) MissileTrail = UGameplayStatics::SpawnEmitterAttached(MissileTrailSingle, MissileMesh);
-			}
-			if (SmokeTrailTick) UParticleSystemComponent* Trail = UGameplayStatics::SpawnEmitterAtLocation(this, SmokeTrailTick, SpawnLocation, GetActorRotation(), true);
-		}
+		if(ExplosionSound) ExplosionSound->AttachTo(RootComponent);
+		if (MissileEngineSound) MissileEngineSound->AttachTo(RootComponent);
 	}
 }
 
@@ -271,18 +274,6 @@ void AMissile::Tick(float DeltaTime)
 			//		// client has now the most recent ping in seconds
 			//	}
 			//}
-		}
-
-		// spawn missiletrail on clientside
-		if (MissileMesh && SmokeTrailTick) {
-			FVector SpawnLocation;
-			if (MissileMesh->DoesSocketExist(FName("booster"))) {
-				SpawnLocation = MissileMesh->GetSocketLocation(FName("booster"));
-			}
-			else {
-				SpawnLocation = GetActorLocation();
-			}
-			UParticleSystemComponent* Trail = UGameplayStatics::SpawnEmitterAtLocation(this, SmokeTrailTick, SpawnLocation, GetActorRotation(), true);
 		}
 	}
 
