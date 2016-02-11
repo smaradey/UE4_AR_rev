@@ -33,6 +33,13 @@ public:
 		void ServerMissileHit();
 	virtual void MissileHit();
 
+	UFUNCTION()
+		void Explode();
+
+	UFUNCTION(BlueprintNativeEvent, Category = "Missile")
+		void HitTarget(class AActor* TargetedActor);
+
+
 
 	/** StaticMesh component that will be the visuals for the missile */
 	UPROPERTY(Category = Mesh, VisibleDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
@@ -208,6 +215,7 @@ private:
 		void OnRep_MissileTransformOnAuthority();
 
 	bool bNotFirstTick = false;
+	bool bDamageTarget = false;
 
 	float MaxLifeTime;
 	float LifeTime;

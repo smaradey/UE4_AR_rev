@@ -40,38 +40,43 @@ void AMissile::MissileDestruction() {
 
 // called on server for multicast of explosion
 void AMissile::MissileHit() {
-	if (Role == ROLE_Authority) {
-		bHit = true;
-
-		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Blue, "Auth: Hit Rep");
-		//Stop all missile movements & hide visible components
-		SetActorTickEnabled(false);
-		if (RootComponent) RootComponent->SetVisibility(false, true);
-		if (MissileTrail) MissileTrail->DeactivateSystem();
-		// missile trail fades out after explosion
-		if (MissileTrail) MissileTrail->SetVisibility(true);
-		SetLifeSpan(MissileTrailLifeSpan);
-		// do the same on all clients
+	if (Role == ROLE_Authority) {		
 		ServerMissileHit();
+		Explode();
 	}
 }
 
 void AMissile::ServerMissileHit_Implementation() {
 	if (Role < ROLE_Authority) {
-		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Blue, "client: Hit Rep");
-		SetActorTickEnabled(false);
-		if (RootComponent) RootComponent->SetVisibility(false, true);
-		if (MissileTrail) MissileTrail->DeactivateSystem();
-		if (MissileTrail) MissileTrail->SetVisibility(true);
-		if (Explosion) {
-			//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Red, "client: Explosion");
-			UParticleSystemComponent* Hit = UGameplayStatics::SpawnEmitterAtLocation(this, Explosion, GetActorLocation(), GetActorRotation(), true);
-		}
-		if (MissileEngineSound) MissileEngineSound->Deactivate();
-		if (ExplosionSound) ExplosionSound->Activate();
+		Explode();
 	}
 }
 
+void AMissile::HitTarget_Implementation(class AActor* TargetedActor) {
+	if (Role == ROLE_Authority && !bHit) {
+		SetLifeSpan(MissileTrailLifeSpan);
+		if (bDamageTarget && CurrentTarget) {
+			//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Green, "Auth: Target HIT");
+			CurrentTarget->GetOwner()->ReceiveAnyDamage(100.0f, nullptr, GetInstigatorController(), this);
+			bHit = true;
+			MissileHit();
+		}
+	}
+}
+
+void AMissile::Explode() {
+	if (Explosion && Role < ROLE_Authority) {
+		
+		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Red, "client: Explosion");
+		UParticleSystemComponent* Hit = UGameplayStatics::SpawnEmitterAtLocation(this, Explosion, GetActorLocation(), GetActorRotation(), true);
+			if (ExplosionSound) ExplosionSound->Activate();
+	}
+	if (MissileEngineSound) MissileEngineSound->Deactivate();
+	SetActorTickEnabled(false);
+	if (RootComponent) RootComponent->SetVisibility(false, true);
+	if (MissileTrail) MissileTrail->DeactivateSystem();
+	if (MissileTrail) MissileTrail->SetVisibility(true);
+}
 
 void AMissile::MissileMeshOverlap(class AActor* OtherActor, class UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult) {
 	// if missile has already exploded abort function
@@ -87,9 +92,9 @@ void AMissile::MissileMeshOverlap(class AActor* OtherActor, class UPrimitiveComp
 			// did the missile hit the target?
 			if (CurrentTarget) {
 				if (CurrentTarget->GetOwner() == OtherActor) {
-					//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Green, "Auth: Target HIT");
-					CurrentTarget->GetOwner()->ReceiveAnyDamage(100.0f, nullptr, GetInstigatorController(), this);
-					MissileHit();
+					bDamageTarget = true;
+
+					HitTarget(CurrentTarget ? ((CurrentTarget->GetOwner()) ? CurrentTarget->GetOwner() : nullptr) : nullptr);
 					return;
 				}
 			}
@@ -101,6 +106,7 @@ void AMissile::MissileMeshOverlap(class AActor* OtherActor, class UPrimitiveComp
 			// did the missile hit something else?
 			if (OtherComp->GetOwner() != GetOwner()) {
 				//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::White, " Auth: sth. HIT");
+				CurrentTarget = nullptr;
 				MissileHit();
 				return;
 			}
@@ -211,16 +217,15 @@ void AMissile::Tick(float DeltaTime)
 
 		if (Role == ROLE_Authority) {
 			if (LifeTime > MaxLifeTime) {
+				CurrentTarget = nullptr;
 				MissileHit();
 				return;
 			}
 			float MissileTravelDistance = Velocity * DeltaTime;               // the distance between the current missile location and the next location
 																			  // is the target inside explosionradius? (missiletraveldistance is for fast moving missiles with low fps)
 			if (DistanceToTarget < TargetDetectionRadius + MissileTravelDistance && bNotFirstTick) {
-				if (CurrentTarget && CurrentTarget->GetOwner()) {
-					CurrentTarget->GetOwner()->ReceiveAnyDamage(100.0f, nullptr, GetInstigatorController(), this);
-				}
-				MissileHit();
+				bDamageTarget = true;				
+				HitTarget(CurrentTarget ? ((CurrentTarget->GetOwner()) ? CurrentTarget->GetOwner() : nullptr) : nullptr);
 				return;
 			}
 		}
