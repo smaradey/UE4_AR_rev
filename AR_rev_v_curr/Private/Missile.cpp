@@ -27,6 +27,8 @@ AMissile::AMissile(const FObjectInitializer& ObjectInitializer) : Super(ObjectIn
 
 	MissileTrail = CreateDefaultSubobject<UParticleSystemComponent>(TEXT("MissileTrail"));
 	MissileTrail->AttachTo(MissileMesh, FName("booster"));
+	MissileTrail->bAutoActivate = false;
+	
 
 
 
@@ -199,6 +201,7 @@ void AMissile::BeginPlay()
 	// clients
 	if (Role < ROLE_Authority) {
 		NetUpdateInterval = 1.0f / NetUpdateFrequency;
+		if (MissileTrail) MissileTrail->Activate();
 		if(ExplosionSound) ExplosionSound->AttachTo(RootComponent);
 		if (MissileEngineSound) MissileEngineSound->AttachTo(RootComponent);
 	}
