@@ -15,9 +15,18 @@ AMissile::AMissile(const FObjectInitializer& ObjectInitializer) : Super(ObjectIn
 	MissileMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MissileMesh"));
 	MissileMesh->SetCollisionProfileName(TEXT("OverlapAll"));
 	RootComponent = MissileMesh;
+	 
+		ActorDetectionSphere = CreateDefaultSubobject<USphereComponent>(TEXT("ActorDetection"));
+		ActorDetectionSphere->Deactivate();
+		ActorDetectionSphere->AttachTo(RootComponent);
+		ActorDetectionSphere->InitSphereRadius(TargetDetectionRadius);
+		ActorDetectionSphere->SetCollisionProfileName(TEXT("Custom"));
+		ActorDetectionSphere->SetCanEverAffectNavigation(false);
+	
+	//ActorDetectionSphere->OnComponentBeginOverlap.AddDynamic(this, &AMissile::OverlappingATarget);
 
 	ExplosionSound = CreateDefaultSubobject<UAudioComponent>(TEXT("ExplosionSound"));
-	ExplosionSound->bAutoActivate = false;	
+	ExplosionSound->bAutoActivate = false;
 	ExplosionSound->PitchModulationMin = 0.5f;
 
 	MissileEngineSound = CreateDefaultSubobject<UAudioComponent>(TEXT("EngineSound"));
@@ -28,7 +37,7 @@ AMissile::AMissile(const FObjectInitializer& ObjectInitializer) : Super(ObjectIn
 	MissileTrail = CreateDefaultSubobject<UParticleSystemComponent>(TEXT("MissileTrail"));
 	MissileTrail->AttachTo(MissileMesh, FName("booster"));
 	MissileTrail->bAutoActivate = false;
-	
+
 
 
 
@@ -42,7 +51,7 @@ void AMissile::MissileDestruction() {
 
 // called on server for multicast of explosion
 void AMissile::MissileHit() {
-	if (Role == ROLE_Authority) {		
+	if (Role == ROLE_Authority) {
 		ServerMissileHit();
 		Explode();
 	}
@@ -68,34 +77,46 @@ void AMissile::HitTarget_Implementation(class AActor* TargetedActor) {
 
 void AMissile::Explode() {
 	if (Explosion && Role < ROLE_Authority) {
-		
+
 		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Red, "client: Explosion");
 		UParticleSystemComponent* Hit = UGameplayStatics::SpawnEmitterAtLocation(this, Explosion, GetActorLocation(), GetActorRotation(), true);
-			if (ExplosionSound) ExplosionSound->Activate();
+		if (ExplosionSound) ExplosionSound->Activate();
 	}
 	if (MissileEngineSound) MissileEngineSound->Deactivate();
 	SetActorTickEnabled(false);
+	if (ActorDetectionSphere) ActorDetectionSphere->DestroyComponent();
 	if (RootComponent) RootComponent->SetVisibility(false, true);
 	if (MissileTrail) MissileTrail->DeactivateSystem();
 	if (MissileTrail) MissileTrail->SetVisibility(true);
 }
 
+void AMissile::OverlappingATarget(class AActor* OtherActor/*, class UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult*/) {
+	if (Role == ROLE_Authority) {
+		if (bBombingMode && OtherActor) {
+		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f/*seconds*/, FColor::Green, "Overlapping in bombing mode");
+			if (OtherActor == GetOwner()) return;
+			CurrentTarget = OtherActor->GetRootComponent();
+			bDamageTarget = true;
+			HitTarget(CurrentTarget ? ((CurrentTarget->GetOwner()) ? CurrentTarget->GetOwner() : nullptr) : nullptr);
+		}
+	}
+}
+
 void AMissile::MissileMeshOverlap(class AActor* OtherActor, class UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult) {
 	// if missile has already exploded abort function
 	if (bHit) return;
-	//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::White, "Overlap Event");
+//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::White, "Overlap Event");
 
 	if (Role == ROLE_Authority) {
 		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Red, " Authority: Overlap Event");
 		// missileMesh is overlapping with something	
 		// Other Actor is the actor that triggered the event. Check that is not the missile.  
-		if ((OtherActor) && (OtherActor != this) && (OtherComp)) {
+		if (OtherActor && (OtherActor != this) && OtherComp) {
 
 			// did the missile hit the target?
 			if (CurrentTarget) {
 				if (CurrentTarget->GetOwner() == OtherActor) {
 					bDamageTarget = true;
-
 					HitTarget(CurrentTarget ? ((CurrentTarget->GetOwner()) ? CurrentTarget->GetOwner() : nullptr) : nullptr);
 					return;
 				}
@@ -108,7 +129,6 @@ void AMissile::MissileMeshOverlap(class AActor* OtherActor, class UPrimitiveComp
 			// did the missile hit something else?
 			if (OtherComp->GetOwner() != GetOwner()) {
 				//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::White, " Auth: sth. HIT");
-				CurrentTarget = nullptr;
 				MissileHit();
 				return;
 			}
@@ -126,6 +146,9 @@ void AMissile::GetLifetimeReplicatedProps(TArray< FLifetimeProperty > & OutLifet
 	DOREPLIFETIME_CONDITION(AMissile, AdvancedMissileMinRange, COND_InitialOnly);
 	DOREPLIFETIME_CONDITION(AMissile, AdvancedMissileMaxRange, COND_InitialOnly);
 	DOREPLIFETIME(AMissile, MissileLock);
+	DOREPLIFETIME_CONDITION(AMissile, bBombingMode, COND_InitialOnly);
+	DOREPLIFETIME_CONDITION(AMissile, BombingTargetLocation, COND_InitialOnly);
+
 	DOREPLIFETIME(AMissile, CurrentTarget);
 	DOREPLIFETIME_CONDITION(AMissile, AdvancedHoming, COND_InitialOnly);
 	DOREPLIFETIME_CONDITION(AMissile, SpiralHoming, COND_InitialOnly);
@@ -167,6 +190,14 @@ void AMissile::BeginPlay()
 	Super::BeginPlay();
 
 	if (Role == ROLE_Authority) {
+		if (bBombingMode) {
+			ActorDetectionSphere->Activate();
+			ActorDetectionSphere->SetSphereRadius(TargetDetectionRadius);
+		}
+		else {
+			ActorDetectionSphere->DestroyComponent();
+		}
+
 		// specify spiraling behaviour
 		{
 			if (CustomSpiralOffset != 0.0f) {
@@ -196,13 +227,20 @@ void AMissile::BeginPlay()
 		SetLifeSpan(MaxLifeTime + MissileTrailLifeSpan);              // set missile lifespan
 	}
 
+	if (bBombingMode) {
+		AdvancedHoming = false;
+		MissileLock = true;
+		CurrentTargetLocation = BombingTargetLocation;
+	}
+
 	Acceleration = 1.0f / AccelerationTime;
 
 	// clients
 	if (Role < ROLE_Authority) {
+		if(ActorDetectionSphere) ActorDetectionSphere->DestroyComponent();
 		NetUpdateInterval = 1.0f / NetUpdateFrequency;
 		if (MissileTrail) MissileTrail->Activate();
-		if(ExplosionSound) ExplosionSound->AttachTo(RootComponent);
+		if (ExplosionSound) ExplosionSound->AttachTo(RootComponent);
 		if (MissileEngineSound) MissileEngineSound->AttachTo(RootComponent);
 	}
 }
@@ -213,24 +251,33 @@ void AMissile::Tick(float DeltaTime)
 	Super::Tick(DeltaTime);
 	LifeTime += DeltaTime;
 
-	if (CurrentTarget) {
-		CurrentTargetLocation = CurrentTarget->GetComponentLocation();
+	if (bBombingMode) {
 		DirectionToTarget = CurrentTargetLocation - GetActorLocation();
 		DistanceToTarget = DirectionToTarget.Size();
-
-		if (Role == ROLE_Authority) {
-			if (LifeTime > MaxLifeTime) {
-				CurrentTarget = nullptr;
+	}
+	else {
+		if (CurrentTarget) {
+			CurrentTargetLocation = CurrentTarget->GetComponentLocation();
+			DirectionToTarget = CurrentTargetLocation - GetActorLocation();
+			DistanceToTarget = DirectionToTarget.Size();
+		}
+	}
+	if (Role == ROLE_Authority) {
+		if (LifeTime > MaxLifeTime) {
+			CurrentTarget = nullptr;
+			MissileHit();
+			return;
+		}
+		float MissileTravelDistance = Velocity * DeltaTime;               // the distance between the current missile location and the next location
+																		  // is the target inside explosionradius? (missiletraveldistance is for fast moving missiles with low fps)
+		if (DistanceToTarget < TargetDetectionRadius + MissileTravelDistance && bNotFirstTick) {
+			if (bBombingMode) {
 				MissileHit();
 				return;
 			}
-			float MissileTravelDistance = Velocity * DeltaTime;               // the distance between the current missile location and the next location
-																			  // is the target inside explosionradius? (missiletraveldistance is for fast moving missiles with low fps)
-			if (DistanceToTarget < TargetDetectionRadius + MissileTravelDistance && bNotFirstTick) {
-				bDamageTarget = true;				
-				HitTarget(CurrentTarget ? ((CurrentTarget->GetOwner()) ? CurrentTarget->GetOwner() : nullptr) : nullptr);
-				return;
-			}
+			bDamageTarget = true;
+			HitTarget(CurrentTarget ? ((CurrentTarget->GetOwner()) ? CurrentTarget->GetOwner() : nullptr) : nullptr);
+			return;
 		}
 	}
 

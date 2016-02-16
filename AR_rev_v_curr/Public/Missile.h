@@ -29,7 +29,7 @@ public:
 	void PostInitProperties();
 	void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent);
 
-	UFUNCTION(NetMulticast, Reliable)
+	UFUNCTION(BlueprintCallable, NetMulticast, Reliable, Category = "Missile")
 		void ServerMissileHit();
 	virtual void MissileHit();
 
@@ -39,7 +39,8 @@ public:
 	UFUNCTION(BlueprintNativeEvent, Category = "Missile")
 		void HitTarget(class AActor* TargetedActor);
 
-
+	UFUNCTION(BlueprintCallable, Category = "Missile")
+		void OverlappingATarget(class AActor* OtherActor/*, class UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult*/);
 
 	/** StaticMesh component that will be the visuals for the missile */
 	UPROPERTY(Category = Mesh, VisibleDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
@@ -47,14 +48,17 @@ public:
 	/** Returns PlaneMesh subobject **/
 	FORCEINLINE class UStaticMeshComponent* GetPlaneMesh() const { return MissileMesh; }
 
+	UPROPERTY(Category = ActorDetection, BlueprintReadWrite, EditAnywhere, meta = (AllowPrivateAccess = "true"))
+	class USphereComponent* ActorDetectionSphere;
+
 	UPROPERTY(Category = ParticleSystem, BlueprintReadWrite, EditAnywhere, meta = (AllowPrivateAccess = "true"))
 	class UParticleSystem* SmokeTrailTick;
 
 	UPROPERTY(Category = ParticleSystem, BlueprintReadWrite, EditAnywhere, meta = (AllowPrivateAccess = "true"))
-	UParticleSystemComponent* MissileTrail;
+		UParticleSystemComponent* MissileTrail;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile")
-	float MissileTrailLifeSpan = 5.0f;
+		float MissileTrailLifeSpan = 5.0f;
 
 	UPROPERTY(Category = ParticleSystem, BlueprintReadWrite, EditAnywhere, meta = (AllowPrivateAccess = "true"))
 	class UParticleSystem* Explosion;
@@ -76,6 +80,12 @@ public:
 			const FVector &TargetVelocity,
 			const float ProjectileVelocity);
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
+		float DamageMin = 90.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
+		float DamageMax = 110.0f;
+
 	/** missile turnrate in deg/s*/
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
 		float MaxTurnrate = 110.0f;
@@ -85,7 +95,7 @@ public:
 		float MaxVelocity = 4200.0f;
 
 	/** time it takes for the missile to reach max velocity*/
-	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Missile")
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
 		float AccelerationTime = 1.0f;
 
 	/** distance to target where prediction is working at full strength */
@@ -108,6 +118,12 @@ public:
 	/** if set to false the missile will perform no homing */
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
 		bool MissileLock = true;
+
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
+		bool bBombingMode = false;
+
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
+		FVector BombingTargetLocation;
 
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
 	class USceneComponent* CurrentTarget;
@@ -262,7 +278,7 @@ private:
 			FVector& PointA,
 			FVector& PointB);
 
-	
+
 
 
 
