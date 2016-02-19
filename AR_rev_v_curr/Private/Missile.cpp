@@ -142,6 +142,7 @@ void AMissile::GetLifetimeReplicatedProps(TArray< FLifetimeProperty > & OutLifet
 {
 	DOREPLIFETIME_CONDITION(AMissile, MaxTurnrate, COND_InitialOnly);
 	DOREPLIFETIME_CONDITION(AMissile, MaxVelocity, COND_InitialOnly);
+	DOREPLIFETIME_CONDITION(AMissile, InitialVelocity, COND_InitialOnly);
 	DOREPLIFETIME_CONDITION(AMissile, AccelerationTime, COND_InitialOnly);
 	DOREPLIFETIME_CONDITION(AMissile, AdvancedMissileMinRange, COND_InitialOnly);
 	DOREPLIFETIME_CONDITION(AMissile, AdvancedMissileMaxRange, COND_InitialOnly);
@@ -234,6 +235,13 @@ void AMissile::BeginPlay()
 	}
 
 	Acceleration = 1.0f / AccelerationTime;
+	Velocity = InitialVelocity;
+
+	if (MissileLock) {
+		FTimerHandle AccerlerationStarter;
+		GetWorldTimerManager().SetTimer(AccerlerationStarter, this, &AMissile::EnableAcceleration, 0.2f,false);
+	}
+
 
 	// clients
 	if (Role < ROLE_Authority) {
@@ -244,6 +252,11 @@ void AMissile::BeginPlay()
 		if (MissileEngineSound) MissileEngineSound->AttachTo(RootComponent);
 	}
 }
+
+void AMissile::EnableAcceleration() {
+	bCanAccelerate = true;
+}
+
 
 // Called every frame
 void AMissile::Tick(float DeltaTime)
@@ -288,16 +301,21 @@ void AMissile::Tick(float DeltaTime)
 	MovementVector = GetActorForwardVector() * DeltaTime * Velocity;
 
 	// is missile is still accelerating? 
-	if (!bReachedMaxVelocity) {
-		Velocity += Acceleration * DeltaTime * MaxVelocity;          // inrease Velocity
-		Turnrate += Acceleration * DeltaTime * MaxTurnrate;          // inrease Turnrate
-		// has reached max velocity?
-		if (Velocity > MaxVelocity) {
-			Velocity = MaxVelocity;
-			Turnrate = MaxTurnrate;
-			bReachedMaxVelocity = true;                              // has now reached max velocity
+	if (bCanAccelerate) {
+		Turnrate = MaxTurnrate;
+		if (!bReachedMaxVelocity) {
+			Velocity += Acceleration * DeltaTime * MaxVelocity;          // inrease Velocity
+			//Turnrate += Acceleration * DeltaTime * MaxTurnrate;          // inrease Turnrate
+			// has reached max velocity?
+			if (Velocity > MaxVelocity) {
+				Velocity = MaxVelocity;
+				//Turnrate = MaxTurnrate;
+				bReachedMaxVelocity = true;
+				bCanAccelerate = false;
+				// has now reached max velocity
+			}
+
 		}
-		bNotFirstTick = true;
 	}
 
 	if (Role == ROLE_Authority) {
@@ -334,6 +352,7 @@ void AMissile::Tick(float DeltaTime)
 
 	// store current location for next Tick
 	LastActorLocation = GetActorLocation();
+	bNotFirstTick = true;
 }
 
 void AMissile::OnRep_MissileTransformOnAuthority()

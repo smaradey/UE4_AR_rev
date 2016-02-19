@@ -92,7 +92,13 @@ public:
 
 	/** missile velocity in cm/s*/
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
-		float MaxVelocity = 4200.0f;
+		float MaxVelocity = 2100.0f;
+
+	/** missile velocity in cm/s*/
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
+	float InitialVelocity = 1000.0f;
+
+
 
 	/** time it takes for the missile to reach max velocity*/
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
@@ -244,7 +250,8 @@ private:
 	float AngleToTarget;
 	float Acceleration;
 	bool bReachedMaxVelocity = false;
-	float Velocity;
+		float Velocity;
+	
 	float Dot;
 	float Turnrate;
 	FVector DirectionToTarget;
@@ -260,6 +267,10 @@ private:
 	/** perform homing to the target by rotating*/
 	UFUNCTION()
 		void Homing(float DeltaTime);
+
+	UFUNCTION()
+		void EnableAcceleration();
+	bool bCanAccelerate = false;
 	FDateTime currentTime;
 	float Ping;
 	float DistanceToTarget;
