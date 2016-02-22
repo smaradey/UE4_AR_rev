@@ -10,6 +10,8 @@ AMissile::AMissile(const FObjectInitializer& ObjectInitializer) : Super(ObjectIn
 	bReplicates = true;
 	bAlwaysRelevant = true;
 	PrimaryActorTick.bCanEverTick = true;
+	NetCullDistanceSquared = 100000.0f * 100000.0f; // Distance of 1km
+	NetUpdateFrequency = 5.0f;
 
 	// Create static mesh component
 	MissileMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MissileMesh"));
@@ -33,16 +35,11 @@ AMissile::AMissile(const FObjectInitializer& ObjectInitializer) : Super(ObjectIn
 	// Missileboostersoundeffect
 	MissileEngineSound = CreateDefaultSubobject<UAudioComponent>(TEXT("EngineSound"));
 	MissileEngineSound->bAutoActivate = true;
-	if (MissileMesh->DoesSocketExist(FName("booster"))) {
-		MissileEngineSound->AttachTo(MissileMesh, FName("booster"));
-	}
 
 	// Missiletrailparticlesystem
 	MissileTrail = CreateDefaultSubobject<UParticleSystemComponent>(TEXT("MissileTrail"));
 	MissileTrail->bAutoActivate = false;
-	if (MissileMesh->DoesSocketExist(FName("booster"))) {
-		MissileTrail->AttachTo(MissileMesh, FName("booster"));
-	}
+
 	
 	// binding an a function to event OnDestroyed
 	OnDestroyed.AddDynamic(this, &AMissile::MissileDestruction);
@@ -101,16 +98,19 @@ void AMissile::BeginPlay()
 {
 	Super::BeginPlay();
 
+	// server behaviour
 	if (Role == ROLE_Authority) {
-		if (bBombingMode) {
-			ActorDetectionSphere->Activate();
-			ActorDetectionSphere->SetSphereRadius(TargetDetectionRadius);
-		}
-		else {
-			ActorDetectionSphere->DestroyComponent();
+		{
+			if (bBombingMode) {
+				ActorDetectionSphere->Activate();
+				ActorDetectionSphere->SetSphereRadius(TargetDetectionRadius);
+			}
+			else {
+				ActorDetectionSphere->DestroyComponent();
+			}
 		}
 
-		// specify spiraling behaviour
+		// create spiraling behaviour
 		{
 			if (CustomSpiralOffset != 0.0f) {
 				CustomSpiralOffset = FMath::FRandRange(0.0f, 360.f);
@@ -125,42 +125,48 @@ void AMissile::BeginPlay()
 				SpiralVelocity *= FMath::FRandRange(0.5f, 1.5f);
 			}
 		}
-		// testing
-		{
-			//// start a timer that executes a function (multicast)
-			//FTimerHandle TimerHandle;
-			////const FTimerDelegate TimerDelegate = FTimerDelegate::CreateUObject(this, &AMissile::RunsOnAllClients);
-			////GetWorldTimerManager().SetTimer(TimerHandle, TimerDelegate, NetUpdateFrequency, true, 0.0f);
-			//GetWorldTimerManager().SetTimer(TimerHandle, this, &AMissile::RunsOnAllClients, NetUpdateFrequency, true, 0.0f);
-		}
 
 		// calculate max missile liftime (t = s/v)
-		MaxLifeTime = Range / MaxVelocity;
-		SetLifeSpan(MaxLifeTime + MissileTrailLifeSpan);              // set missile lifespan
+		MaxFlightTime = Range / MaxVelocity;
+		SetLifeSpan(MaxFlightTime + MissileTrailLifeSpan);              // set missile lifespan
 	}
 
-	if (bBombingMode) {
-		AdvancedHoming = false;
-		MissileLock = true;
-		CurrentTargetLocation = BombingTargetLocation;
+	// clients and authority
+	{
+		if (bBombingMode) {
+			AdvancedHoming = false;
+			MissileLock = true;
+			CurrentTargetLocation = BombingTargetLocation;
+		}
+
+		Velocity = InitialVelocity;
+		Acceleration = 1.0f / AccelerationTime;
+
+		if (MissileLock) {
+			FTimerHandle AccerlerationStarter;
+			GetWorldTimerManager().SetTimer(AccerlerationStarter, this, &AMissile::EnableAcceleration, 0.2f, false);
+		}
 	}
-
-	Acceleration = 1.0f / AccelerationTime;
-	Velocity = InitialVelocity;
-
-	if (MissileLock) {
-		FTimerHandle AccerlerationStarter;
-		GetWorldTimerManager().SetTimer(AccerlerationStarter, this, &AMissile::EnableAcceleration, 0.2f, false);
-	}
-
-
+	
 	// clients
 	if (Role < ROLE_Authority) {
-		if (ActorDetectionSphere) ActorDetectionSphere->DestroyComponent();
 		NetUpdateInterval = 1.0f / NetUpdateFrequency;
-		if (MissileTrail) MissileTrail->Activate();
-		if (ExplosionSound) ExplosionSound->AttachTo(RootComponent);
-		if (MissileEngineSound) MissileEngineSound->AttachTo(RootComponent);
+		ActorDetectionSphere->DestroyComponent();
+		ExplosionSound->AttachTo(RootComponent);
+		if (MissileMesh->DoesSocketExist(FName("booster"))) {
+			MissileTrail->AttachTo(MissileMesh, FName("booster"));
+			MissileTrail->Activate();
+			MissileEngineSound->AttachTo(MissileMesh, FName("booster"));
+		}		
+	}
+
+	// testing
+	{
+		//// start a timer that executes a function (multicast)
+		//FTimerHandle TimerHandle;
+		////const FTimerDelegate TimerDelegate = FTimerDelegate::CreateUObject(this, &AMissile::RunsOnAllClients);
+		////GetWorldTimerManager().SetTimer(TimerHandle, TimerDelegate, NetUpdateFrequency, true, 0.0f);
+		//GetWorldTimerManager().SetTimer(TimerHandle, this, &AMissile::RunsOnAllClients, NetUpdateFrequency, true, 0.0f);
 	}
 }
 
@@ -182,7 +188,7 @@ void AMissile::Tick(float DeltaTime)
 		}
 	}
 	if (Role == ROLE_Authority) {
-		if (LifeTime > MaxLifeTime) {
+		if (LifeTime > MaxFlightTime) {
 			CurrentTarget = nullptr;
 			MissileHit();
 			return;

@@ -57,8 +57,8 @@ public:
 	UPROPERTY(Category = ParticleSystem, BlueprintReadWrite, EditAnywhere, meta = (AllowPrivateAccess = "true"))
 		UParticleSystemComponent* MissileTrail;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile")
-		float MissileTrailLifeSpan = 5.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile | Trail")
+		float MissileTrailLifeSpan = 3.0f;
 
 	UPROPERTY(Category = ParticleSystem, BlueprintReadWrite, EditAnywhere, meta = (AllowPrivateAccess = "true"))
 	class UParticleSystem* Explosion;
@@ -239,7 +239,7 @@ private:
 	bool bNotFirstTick = false;
 	bool bDamageTarget = false;
 
-	float MaxLifeTime;
+	float MaxFlightTime;
 	float LifeTime;
 
 	float NetUpdateInterval;
