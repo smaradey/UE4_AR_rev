@@ -15,33 +15,36 @@ AMissile::AMissile(const FObjectInitializer& ObjectInitializer) : Super(ObjectIn
 	MissileMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MissileMesh"));
 	MissileMesh->SetCollisionProfileName(TEXT("OverlapAll"));
 	RootComponent = MissileMesh;
-	 
-		ActorDetectionSphere = CreateDefaultSubobject<USphereComponent>(TEXT("ActorDetection"));
-		ActorDetectionSphere->Deactivate();
-		ActorDetectionSphere->AttachTo(RootComponent);
-		ActorDetectionSphere->InitSphereRadius(TargetDetectionRadius);
-		ActorDetectionSphere->SetCollisionProfileName(TEXT("Custom"));
-		ActorDetectionSphere->SetCanEverAffectNavigation(false);
-	
+	if (Role == ROLE_Authority) MissileMesh->OnComponentBeginOverlap.AddDynamic(this, &AMissile::MissileMeshOverlap);
+
+	// A sphere that acts as explosionradius/targetdetection
+	ActorDetectionSphere = CreateDefaultSubobject<USphereComponent>(TEXT("ActorDetection"));
+	ActorDetectionSphere->bAutoActivate = false;
+	ActorDetectionSphere->AttachTo(RootComponent);
+	ActorDetectionSphere->InitSphereRadius(TargetDetectionRadius);
+	ActorDetectionSphere->SetCollisionProfileName(TEXT("Custom"));
+	ActorDetectionSphere->SetCanEverAffectNavigation(false);
 	//ActorDetectionSphere->OnComponentBeginOverlap.AddDynamic(this, &AMissile::OverlappingATarget);
 
+	// Explosionsoundeffect
 	ExplosionSound = CreateDefaultSubobject<UAudioComponent>(TEXT("ExplosionSound"));
 	ExplosionSound->bAutoActivate = false;
-	ExplosionSound->PitchModulationMin = 0.5f;
 
+	// Missileboostersoundeffect
 	MissileEngineSound = CreateDefaultSubobject<UAudioComponent>(TEXT("EngineSound"));
 	MissileEngineSound->bAutoActivate = true;
-	MissileEngineSound->PitchModulationMin = 0.8f;
-	MissileEngineSound->SetVolumeMultiplier(0.5f);
+	if (MissileMesh->DoesSocketExist(FName("booster"))) {
+		MissileEngineSound->AttachTo(MissileMesh, FName("booster"));
+	}
 
+	// Missiletrailparticlesystem
 	MissileTrail = CreateDefaultSubobject<UParticleSystemComponent>(TEXT("MissileTrail"));
-	MissileTrail->AttachTo(MissileMesh, FName("booster"));
 	MissileTrail->bAutoActivate = false;
-
-
-
-
-	if (Role == ROLE_Authority) MissileMesh->OnComponentBeginOverlap.AddDynamic(this, &AMissile::MissileMeshOverlap);
+	if (MissileMesh->DoesSocketExist(FName("booster"))) {
+		MissileTrail->AttachTo(MissileMesh, FName("booster"));
+	}
+	
+	// binding an a function to event OnDestroyed
 	OnDestroyed.AddDynamic(this, &AMissile::MissileDestruction);
 }
 
@@ -306,7 +309,7 @@ void AMissile::Explode() {
 void AMissile::OverlappingATarget(class AActor* OtherActor/*, class UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult*/) {
 	if (Role == ROLE_Authority) {
 		if (bBombingMode && OtherActor) {
-		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f/*seconds*/, FColor::Green, "Overlapping in bombing mode");
+			//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f/*seconds*/, FColor::Green, "Overlapping in bombing mode");
 			if (OtherActor == GetOwner()) return;
 			CurrentTarget = OtherActor->GetRootComponent();
 			bDamageTarget = true;
@@ -318,7 +321,7 @@ void AMissile::OverlappingATarget(class AActor* OtherActor/*, class UPrimitiveCo
 void AMissile::MissileMeshOverlap(class AActor* OtherActor, class UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult) {
 	// if missile has already exploded abort function
 	if (bHit) return;
-//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::White, "Overlap Event");
+	//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::White, "Overlap Event");
 
 	if (Role == ROLE_Authority) {
 		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Red, " Authority: Overlap Event");
