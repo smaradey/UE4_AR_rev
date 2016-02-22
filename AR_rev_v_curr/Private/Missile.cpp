@@ -40,7 +40,7 @@ AMissile::AMissile(const FObjectInitializer& ObjectInitializer) : Super(ObjectIn
 	MissileTrail = CreateDefaultSubobject<UParticleSystemComponent>(TEXT("MissileTrail"));
 	MissileTrail->bAutoActivate = false;
 
-	
+
 	// binding an a function to event OnDestroyed
 	OnDestroyed.AddDynamic(this, &AMissile::MissileDestruction);
 }
@@ -147,7 +147,7 @@ void AMissile::BeginPlay()
 			GetWorldTimerManager().SetTimer(AccerlerationStarter, this, &AMissile::EnableAcceleration, 0.2f, false);
 		}
 	}
-	
+
 	// clients
 	if (Role < ROLE_Authority) {
 		NetUpdateInterval = 1.0f / NetUpdateFrequency;
@@ -157,7 +157,7 @@ void AMissile::BeginPlay()
 			MissileTrail->AttachTo(MissileMesh, FName("booster"));
 			MissileTrail->Activate();
 			MissileEngineSound->AttachTo(MissileMesh, FName("booster"));
-		}		
+		}
 	}
 
 	// testing
@@ -174,6 +174,8 @@ void AMissile::BeginPlay()
 void AMissile::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+
+	// count missile lifetime
 	LifeTime += DeltaTime;
 
 	if (bBombingMode) {
@@ -187,27 +189,33 @@ void AMissile::Tick(float DeltaTime)
 			DistanceToTarget = DirectionToTarget.Size();
 		}
 	}
+
 	if (Role == ROLE_Authority) {
 		if (LifeTime > MaxFlightTime) {
 			CurrentTarget = nullptr;
 			MissileHit();
 			return;
 		}
-		float MissileTravelDistance = Velocity * DeltaTime;               // the distance between the current missile location and the next location
-																		  // is the target inside explosionradius? (missiletraveldistance is for fast moving missiles with low fps)
-		if (DistanceToTarget < TargetDetectionRadius + MissileTravelDistance && bNotFirstTick) {
+
+		// is the target inside explosionradius? (missiletraveldistance is for fast moving missiles with low fps)
+		if (DistanceToTarget < TargetDetectionRadius + Velocity * DeltaTime && bNotFirstTick) {
+			// in bombing mode explode when reaching hominglocation
 			if (bBombingMode) {
 				MissileHit();
 				return;
 			}
-			bDamageTarget = true;
-			HitTarget(CurrentTarget ? ((CurrentTarget->GetOwner()) ? CurrentTarget->GetOwner() : nullptr) : nullptr);
-			return;
+
+			// explode and damage target when target is in range
+			{
+				bDamageTarget = true;
+				HitTarget(CurrentTarget ? ((CurrentTarget->GetOwner()) ? CurrentTarget->GetOwner() : nullptr) : nullptr);
+				return;
+			}
 		}
 	}
 
 	// perform homing to the target by rotating, both clients and server
-	if (MissileLock)	Homing(DeltaTime);
+	if (MissileLock) Homing(DeltaTime);
 
 	// the distance the missile will be moved at the end of the current tick
 	MovementVector = GetActorForwardVector() * DeltaTime * Velocity;
@@ -376,7 +384,7 @@ void AMissile::OnRep_MissileTransformOnAuthority()
 
 // perform homing to the target by rotating
 void AMissile::Homing(float DeltaTime) {
-	if (!CurrentTarget) return;                                           // no homing when there is no valid target
+	if (!CurrentTarget && !bBombingMode) return;                                           // no homing when there is no valid target
 
 	// is target prediction active?
 	if (AdvancedHoming) {
