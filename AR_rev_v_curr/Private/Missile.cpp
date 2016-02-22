@@ -45,6 +45,219 @@ AMissile::AMissile(const FObjectInitializer& ObjectInitializer) : Super(ObjectIn
 	OnDestroyed.AddDynamic(this, &AMissile::MissileDestruction);
 }
 
+//allows calculation of missing values that have dependencies
+void AMissile::PostInitProperties()
+{
+	Super::PostInitProperties();
+	// do stuff e.g.
+	// AdvancedMissileMinRange = MaxVelocity;
+}
+
+#if WITH_EDITOR
+void AMissile::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
+{
+	// do stuff e.g.
+	//AdvancedMissileMinRange = MaxVelocity;
+
+	Super::PostEditChangeProperty(PropertyChangedEvent);
+}
+#endif
+
+// replication of variables
+void AMissile::GetLifetimeReplicatedProps(TArray< FLifetimeProperty > & OutLifetimeProps) const
+{
+	DOREPLIFETIME_CONDITION(AMissile, MaxTurnrate, COND_InitialOnly);
+	DOREPLIFETIME_CONDITION(AMissile, MaxVelocity, COND_InitialOnly);
+	DOREPLIFETIME_CONDITION(AMissile, InitialVelocity, COND_InitialOnly);
+	DOREPLIFETIME_CONDITION(AMissile, AccelerationTime, COND_InitialOnly);
+	DOREPLIFETIME_CONDITION(AMissile, AdvancedMissileMinRange, COND_InitialOnly);
+	DOREPLIFETIME_CONDITION(AMissile, AdvancedMissileMaxRange, COND_InitialOnly);
+	DOREPLIFETIME(AMissile, MissileLock);
+	DOREPLIFETIME_CONDITION(AMissile, bBombingMode, COND_InitialOnly);
+	DOREPLIFETIME_CONDITION(AMissile, BombingTargetLocation, COND_InitialOnly);
+
+	DOREPLIFETIME(AMissile, CurrentTarget);
+	DOREPLIFETIME_CONDITION(AMissile, AdvancedHoming, COND_InitialOnly);
+	DOREPLIFETIME_CONDITION(AMissile, SpiralHoming, COND_InitialOnly);
+	DOREPLIFETIME(AMissile, CustomSpiralOffset);
+	DOREPLIFETIME(AMissile, SpiralDirection);
+	DOREPLIFETIME(AMissile, SpiralStrength);
+	DOREPLIFETIME(AMissile, SpiralVelocity);
+	DOREPLIFETIME_CONDITION(AMissile, SpiralDeactivationDistance, COND_InitialOnly);
+
+	DOREPLIFETIME(AMissile, bHit);
+
+	DOREPLIFETIME(AMissile, MissileTransformOnAuthority);
+	DOREPLIFETIME(AMissile, IntegerArray);
+	DOREPLIFETIME(AMissile, bFlag);
+	DOREPLIFETIME(AMissile, bSomeBool);
+}
+
+// Called when the game starts or when spawned
+void AMissile::BeginPlay()
+{
+	Super::BeginPlay();
+
+	if (Role == ROLE_Authority) {
+		if (bBombingMode) {
+			ActorDetectionSphere->Activate();
+			ActorDetectionSphere->SetSphereRadius(TargetDetectionRadius);
+		}
+		else {
+			ActorDetectionSphere->DestroyComponent();
+		}
+
+		// specify spiraling behaviour
+		{
+			if (CustomSpiralOffset != 0.0f) {
+				CustomSpiralOffset = FMath::FRandRange(0.0f, 360.f);
+			}
+			if (SpiralDirection != 0) {
+				SpiralDirection = FMath::Sign(SpiralDirection);
+			}
+			else {
+				SpiralDirection = (FMath::RandBool()) ? -1.0f : 1.0f;
+			}
+			if (RandomizeSpiralVelocity) {
+				SpiralVelocity *= FMath::FRandRange(0.5f, 1.5f);
+			}
+		}
+		// testing
+		{
+			//// start a timer that executes a function (multicast)
+			//FTimerHandle TimerHandle;
+			////const FTimerDelegate TimerDelegate = FTimerDelegate::CreateUObject(this, &AMissile::RunsOnAllClients);
+			////GetWorldTimerManager().SetTimer(TimerHandle, TimerDelegate, NetUpdateFrequency, true, 0.0f);
+			//GetWorldTimerManager().SetTimer(TimerHandle, this, &AMissile::RunsOnAllClients, NetUpdateFrequency, true, 0.0f);
+		}
+
+		// calculate max missile liftime (t = s/v)
+		MaxLifeTime = Range / MaxVelocity;
+		SetLifeSpan(MaxLifeTime + MissileTrailLifeSpan);              // set missile lifespan
+	}
+
+	if (bBombingMode) {
+		AdvancedHoming = false;
+		MissileLock = true;
+		CurrentTargetLocation = BombingTargetLocation;
+	}
+
+	Acceleration = 1.0f / AccelerationTime;
+	Velocity = InitialVelocity;
+
+	if (MissileLock) {
+		FTimerHandle AccerlerationStarter;
+		GetWorldTimerManager().SetTimer(AccerlerationStarter, this, &AMissile::EnableAcceleration, 0.2f, false);
+	}
+
+
+	// clients
+	if (Role < ROLE_Authority) {
+		if (ActorDetectionSphere) ActorDetectionSphere->DestroyComponent();
+		NetUpdateInterval = 1.0f / NetUpdateFrequency;
+		if (MissileTrail) MissileTrail->Activate();
+		if (ExplosionSound) ExplosionSound->AttachTo(RootComponent);
+		if (MissileEngineSound) MissileEngineSound->AttachTo(RootComponent);
+	}
+}
+
+// Called every frame
+void AMissile::Tick(float DeltaTime)
+{
+	Super::Tick(DeltaTime);
+	LifeTime += DeltaTime;
+
+	if (bBombingMode) {
+		DirectionToTarget = CurrentTargetLocation - GetActorLocation();
+		DistanceToTarget = DirectionToTarget.Size();
+	}
+	else {
+		if (CurrentTarget) {
+			CurrentTargetLocation = CurrentTarget->GetComponentLocation();
+			DirectionToTarget = CurrentTargetLocation - GetActorLocation();
+			DistanceToTarget = DirectionToTarget.Size();
+		}
+	}
+	if (Role == ROLE_Authority) {
+		if (LifeTime > MaxLifeTime) {
+			CurrentTarget = nullptr;
+			MissileHit();
+			return;
+		}
+		float MissileTravelDistance = Velocity * DeltaTime;               // the distance between the current missile location and the next location
+																		  // is the target inside explosionradius? (missiletraveldistance is for fast moving missiles with low fps)
+		if (DistanceToTarget < TargetDetectionRadius + MissileTravelDistance && bNotFirstTick) {
+			if (bBombingMode) {
+				MissileHit();
+				return;
+			}
+			bDamageTarget = true;
+			HitTarget(CurrentTarget ? ((CurrentTarget->GetOwner()) ? CurrentTarget->GetOwner() : nullptr) : nullptr);
+			return;
+		}
+	}
+
+	// perform homing to the target by rotating, both clients and server
+	if (MissileLock)	Homing(DeltaTime);
+
+	// the distance the missile will be moved at the end of the current tick
+	MovementVector = GetActorForwardVector() * DeltaTime * Velocity;
+
+	// is missile is still accelerating? 
+	if (bCanAccelerate) {
+		Turnrate = MaxTurnrate;
+		if (!bReachedMaxVelocity) {
+			Velocity += Acceleration * DeltaTime * MaxVelocity;          // inrease Velocity
+																		 //Turnrate += Acceleration * DeltaTime * MaxTurnrate;          // inrease Turnrate
+																		 // has reached max velocity?
+			if (Velocity > MaxVelocity) {
+				Velocity = MaxVelocity;
+				//Turnrate = MaxTurnrate;
+				bReachedMaxVelocity = true;
+				bCanAccelerate = false;
+				// has now reached max velocity
+			}
+
+		}
+	}
+
+	if (Role == ROLE_Authority) {
+		// perform movement
+		AddActorWorldOffset(MovementVector);
+		// current missile transform for replication to client
+		MissileTransformOnAuthority = GetTransform();
+	}
+	else {
+		// is NOT authority
+		// perform movement with correction
+		if (LocationCorrectionTimeLeft > 0.0f) {
+			AddActorWorldOffset(MovementVector + (ClientLocationError * DeltaTime));
+			LocationCorrectionTimeLeft -= DeltaTime;
+		}
+		else {
+			AddActorWorldOffset(MovementVector);
+		}
+
+		// ping testing
+		{
+			//if (GetWorld()->GetFirstPlayerController()) {      // get ping
+			//	State = Cast<APlayerState>(GetWorld()->GetFirstPlayerController()->PlayerState); // "APlayerState" hardcoded, needs to be changed for main project
+			//	if (State) {
+			//		Ping = float(State->Ping) * 0.001f;
+			//		// debug display ping on screen
+			//		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, DeltaTime/*seconds*/, FColor::Green, FString::SanitizeFloat(Ping));
+
+			//		// client has now the most recent ping in seconds
+			//	}
+			//}
+		}
+	}
+
+	// store current location for next Tick
+	LastActorLocation = GetActorLocation();
+	bNotFirstTick = true;
+}
+
 void AMissile::MissileDestruction() {
 	//
 }
@@ -136,223 +349,8 @@ void AMissile::MissileMeshOverlap(class AActor* OtherActor, class UPrimitiveComp
 	}
 }
 
-
-// replication of variables
-void AMissile::GetLifetimeReplicatedProps(TArray< FLifetimeProperty > & OutLifetimeProps) const
-{
-	DOREPLIFETIME_CONDITION(AMissile, MaxTurnrate, COND_InitialOnly);
-	DOREPLIFETIME_CONDITION(AMissile, MaxVelocity, COND_InitialOnly);
-	DOREPLIFETIME_CONDITION(AMissile, InitialVelocity, COND_InitialOnly);
-	DOREPLIFETIME_CONDITION(AMissile, AccelerationTime, COND_InitialOnly);
-	DOREPLIFETIME_CONDITION(AMissile, AdvancedMissileMinRange, COND_InitialOnly);
-	DOREPLIFETIME_CONDITION(AMissile, AdvancedMissileMaxRange, COND_InitialOnly);
-	DOREPLIFETIME(AMissile, MissileLock);
-	DOREPLIFETIME_CONDITION(AMissile, bBombingMode, COND_InitialOnly);
-	DOREPLIFETIME_CONDITION(AMissile, BombingTargetLocation, COND_InitialOnly);
-
-	DOREPLIFETIME(AMissile, CurrentTarget);
-	DOREPLIFETIME_CONDITION(AMissile, AdvancedHoming, COND_InitialOnly);
-	DOREPLIFETIME_CONDITION(AMissile, SpiralHoming, COND_InitialOnly);
-	DOREPLIFETIME(AMissile, CustomSpiralOffset);
-	DOREPLIFETIME(AMissile, SpiralDirection);
-	DOREPLIFETIME(AMissile, SpiralStrength);
-	DOREPLIFETIME(AMissile, SpiralVelocity);
-	DOREPLIFETIME_CONDITION(AMissile, SpiralDeactivationDistance, COND_InitialOnly);
-
-	DOREPLIFETIME(AMissile, bHit);
-
-	DOREPLIFETIME(AMissile, MissileTransformOnAuthority);
-	DOREPLIFETIME(AMissile, IntegerArray);
-	DOREPLIFETIME(AMissile, bFlag);
-	DOREPLIFETIME(AMissile, bSomeBool);
-}
-
-#if WITH_EDITOR
-void AMissile::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent)
-{
-	// do stuff e.g.
-	//AdvancedMissileMinRange = MaxVelocity;
-
-	Super::PostEditChangeProperty(PropertyChangedEvent);
-}
-#endif
-
-//allows calculation of missing values that have dependencies
-void AMissile::PostInitProperties()
-{
-	Super::PostInitProperties();
-	// do stuff e.g.
-	// AdvancedMissileMinRange = MaxVelocity;
-}
-
-// Called when the game starts or when spawned
-void AMissile::BeginPlay()
-{
-	Super::BeginPlay();
-
-	if (Role == ROLE_Authority) {
-		if (bBombingMode) {
-			ActorDetectionSphere->Activate();
-			ActorDetectionSphere->SetSphereRadius(TargetDetectionRadius);
-		}
-		else {
-			ActorDetectionSphere->DestroyComponent();
-		}
-
-		// specify spiraling behaviour
-		{
-			if (CustomSpiralOffset != 0.0f) {
-				CustomSpiralOffset = FMath::FRandRange(0.0f, 360.f);
-			}
-			if (SpiralDirection != 0) {
-				SpiralDirection = FMath::Sign(SpiralDirection);
-			}
-			else {
-				SpiralDirection = (FMath::RandBool()) ? -1.0f : 1.0f;
-			}
-			if (RandomizeSpiralVelocity) {
-				SpiralVelocity *= FMath::FRandRange(0.5f, 1.5f);
-			}
-		}
-		// testing
-		{
-			//// start a timer that executes a function (multicast)
-			//FTimerHandle TimerHandle;
-			////const FTimerDelegate TimerDelegate = FTimerDelegate::CreateUObject(this, &AMissile::RunsOnAllClients);
-			////GetWorldTimerManager().SetTimer(TimerHandle, TimerDelegate, NetUpdateFrequency, true, 0.0f);
-			//GetWorldTimerManager().SetTimer(TimerHandle, this, &AMissile::RunsOnAllClients, NetUpdateFrequency, true, 0.0f);
-		}
-
-		// calculate max missile liftime (t = s/v)
-		MaxLifeTime = Range / MaxVelocity;
-		SetLifeSpan(MaxLifeTime + MissileTrailLifeSpan);              // set missile lifespan
-	}
-
-	if (bBombingMode) {
-		AdvancedHoming = false;
-		MissileLock = true;
-		CurrentTargetLocation = BombingTargetLocation;
-	}
-
-	Acceleration = 1.0f / AccelerationTime;
-	Velocity = InitialVelocity;
-
-	if (MissileLock) {
-		FTimerHandle AccerlerationStarter;
-		GetWorldTimerManager().SetTimer(AccerlerationStarter, this, &AMissile::EnableAcceleration, 0.2f,false);
-	}
-
-
-	// clients
-	if (Role < ROLE_Authority) {
-		if(ActorDetectionSphere) ActorDetectionSphere->DestroyComponent();
-		NetUpdateInterval = 1.0f / NetUpdateFrequency;
-		if (MissileTrail) MissileTrail->Activate();
-		if (ExplosionSound) ExplosionSound->AttachTo(RootComponent);
-		if (MissileEngineSound) MissileEngineSound->AttachTo(RootComponent);
-	}
-}
-
 void AMissile::EnableAcceleration() {
 	bCanAccelerate = true;
-}
-
-
-// Called every frame
-void AMissile::Tick(float DeltaTime)
-{
-	Super::Tick(DeltaTime);
-	LifeTime += DeltaTime;
-
-	if (bBombingMode) {
-		DirectionToTarget = CurrentTargetLocation - GetActorLocation();
-		DistanceToTarget = DirectionToTarget.Size();
-	}
-	else {
-		if (CurrentTarget) {
-			CurrentTargetLocation = CurrentTarget->GetComponentLocation();
-			DirectionToTarget = CurrentTargetLocation - GetActorLocation();
-			DistanceToTarget = DirectionToTarget.Size();
-		}
-	}
-	if (Role == ROLE_Authority) {
-		if (LifeTime > MaxLifeTime) {
-			CurrentTarget = nullptr;
-			MissileHit();
-			return;
-		}
-		float MissileTravelDistance = Velocity * DeltaTime;               // the distance between the current missile location and the next location
-																		  // is the target inside explosionradius? (missiletraveldistance is for fast moving missiles with low fps)
-		if (DistanceToTarget < TargetDetectionRadius + MissileTravelDistance && bNotFirstTick) {
-			if (bBombingMode) {
-				MissileHit();
-				return;
-			}
-			bDamageTarget = true;
-			HitTarget(CurrentTarget ? ((CurrentTarget->GetOwner()) ? CurrentTarget->GetOwner() : nullptr) : nullptr);
-			return;
-		}
-	}
-
-	// perform homing to the target by rotating, both clients and server
-	if (MissileLock)	Homing(DeltaTime);
-
-	// the distance the missile will be moved at the end of the current tick
-	MovementVector = GetActorForwardVector() * DeltaTime * Velocity;
-
-	// is missile is still accelerating? 
-	if (bCanAccelerate) {
-		Turnrate = MaxTurnrate;
-		if (!bReachedMaxVelocity) {
-			Velocity += Acceleration * DeltaTime * MaxVelocity;          // inrease Velocity
-			//Turnrate += Acceleration * DeltaTime * MaxTurnrate;          // inrease Turnrate
-			// has reached max velocity?
-			if (Velocity > MaxVelocity) {
-				Velocity = MaxVelocity;
-				//Turnrate = MaxTurnrate;
-				bReachedMaxVelocity = true;
-				bCanAccelerate = false;
-				// has now reached max velocity
-			}
-
-		}
-	}
-
-	if (Role == ROLE_Authority) {
-		// perform movement
-		AddActorWorldOffset(MovementVector);
-		// current missile transform for replication to client
-		MissileTransformOnAuthority = GetTransform();
-	}
-	else {
-		// is NOT authority
-		// perform movement with correction
-		if (LocationCorrectionTimeLeft > 0.0f) {
-			AddActorWorldOffset(MovementVector + (ClientLocationError * DeltaTime));
-			LocationCorrectionTimeLeft -= DeltaTime;
-		}
-		else {
-			AddActorWorldOffset(MovementVector);
-		}
-
-		// ping testing
-		{
-			//if (GetWorld()->GetFirstPlayerController()) {      // get ping
-			//	State = Cast<APlayerState>(GetWorld()->GetFirstPlayerController()->PlayerState); // "APlayerState" hardcoded, needs to be changed for main project
-			//	if (State) {
-			//		Ping = float(State->Ping) * 0.001f;
-			//		// debug display ping on screen
-			//		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, DeltaTime/*seconds*/, FColor::Green, FString::SanitizeFloat(Ping));
-
-			//		// client has now the most recent ping in seconds
-			//	}
-			//}
-		}
-	}
-
-	// store current location for next Tick
-	LastActorLocation = GetActorLocation();
-	bNotFirstTick = true;
 }
 
 void AMissile::OnRep_MissileTransformOnAuthority()
