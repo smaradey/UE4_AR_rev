@@ -224,9 +224,13 @@ void AMissile::Tick(float DeltaTime)
 	if (bCanAccelerate) {
 		Turnrate = MaxTurnrate;
 		if (!bReachedMaxVelocity) {
-			Velocity += Acceleration * DeltaTime * MaxVelocity;          // inrease Velocity
-																		 //Turnrate += Acceleration * DeltaTime * MaxTurnrate;          // inrease Turnrate
-																		 // has reached max velocity?
+			// inrease Velocity
+			Velocity += Acceleration * DeltaTime * MaxVelocity;
+
+			//// inrease Turnrate
+			//Turnrate += Acceleration * DeltaTime * MaxTurnrate;          
+
+			// has reached max velocity?
 			if (Velocity > MaxVelocity) {
 				Velocity = MaxVelocity;
 				//Turnrate = MaxTurnrate;
@@ -234,7 +238,6 @@ void AMissile::Tick(float DeltaTime)
 				bCanAccelerate = false;
 				// has now reached max velocity
 			}
-
 		}
 	}
 
@@ -244,8 +247,8 @@ void AMissile::Tick(float DeltaTime)
 		// current missile transform for replication to client
 		MissileTransformOnAuthority = GetTransform();
 	}
-	else {
-		// is NOT authority
+
+	if (Role < ROLE_Authority) {
 		// perform movement with correction
 		if (LocationCorrectionTimeLeft > 0.0f) {
 			AddActorWorldOffset(MovementVector + (ClientLocationError * DeltaTime));
@@ -375,9 +378,7 @@ void AMissile::OnRep_MissileTransformOnAuthority()
 	if (Role < ROLE_Authority) {
 		SetActorRotation(MissileTransformOnAuthority.GetRotation());                                                                       // correct Actor rotation
 		ClientLocationError = (MissileTransformOnAuthority.GetLocation() - GetActorLocation()) * NetUpdateFrequency;                       // get location error scaled by replication frequency
-
 		LocationCorrectionTimeLeft = NetUpdateInterval;
-
 		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Red, "LocError: " + FString::SanitizeFloat(ClientLocationError.Size()) + "cm");
 	}
 }
