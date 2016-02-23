@@ -301,7 +301,7 @@ void AMissile::HitTarget_Implementation(class AActor* TargetedActor) {
 		SetLifeSpan(MissileTrailLifeSpan);
 		if (bDamageTarget && CurrentTarget) {
 			//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Green, "Auth: Target HIT");
-			CurrentTarget->GetOwner()->ReceiveAnyDamage(100.0f, nullptr, GetInstigatorController(), this);
+			CurrentTarget->GetOwner()->ReceiveAnyDamage(FMath::RandRange(DamageMin,DamageMax), nullptr, GetInstigatorController(), this);
 			bHit = true;
 			MissileHit();
 		}
