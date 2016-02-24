@@ -142,10 +142,10 @@ void AMissile::BeginPlay()
 		Velocity = InitialVelocity;
 		Acceleration = 1.0f / AccelerationTime;
 
-		if (MissileLock) {
+
 			FTimerHandle AccerlerationStarter;
 			GetWorldTimerManager().SetTimer(AccerlerationStarter, this, &AMissile::EnableAcceleration, 0.2f, false);
-		}
+
 	}
 
 	// clients
@@ -175,6 +175,7 @@ void AMissile::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+
 	// count missile lifetime
 	LifeTime += DeltaTime;
 
@@ -198,7 +199,7 @@ void AMissile::Tick(float DeltaTime)
 		}
 
 		// is the target inside explosionradius? (missiletraveldistance is for fast moving missiles with low fps)
-		if (DistanceToTarget < TargetDetectionRadius + Velocity * DeltaTime && bNotFirstTick) {
+		if (DistanceToTarget < TargetDetectionRadius + Velocity * DeltaTime && bNotFirstTick && CurrentTarget) {
 			// in bombing mode explode when reaching hominglocation
 			if (bBombingMode) {
 				MissileHit();
@@ -206,16 +207,17 @@ void AMissile::Tick(float DeltaTime)
 			}
 
 			// explode and damage target when target is in range
-			{
+			{				
 				bDamageTarget = true;
 				HitTarget(CurrentTarget ? ((CurrentTarget->GetOwner()) ? CurrentTarget->GetOwner() : nullptr) : nullptr);
-				return;
+				return;				
 			}
 		}
 	}
 
 	// perform homing to the target by rotating, both clients and server
 	if (MissileLock) Homing(DeltaTime);
+
 
 	// the distance the missile will be moved at the end of the current tick
 	MovementVector = GetActorForwardVector() * DeltaTime * Velocity;
