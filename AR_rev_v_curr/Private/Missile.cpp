@@ -100,14 +100,13 @@ void AMissile::BeginPlay()
 
 	// server behaviour
 	if (Role == ROLE_Authority) {
-		{
-			if (bBombingMode) {
-				ActorDetectionSphere->Activate();
-				ActorDetectionSphere->SetSphereRadius(TargetDetectionRadius);
-			}
-			else {
-				ActorDetectionSphere->DestroyComponent();
-			}
+		if (bBombingMode) {
+			CurrentTarget = nullptr;
+			ActorDetectionSphere->Activate();
+			ActorDetectionSphere->SetSphereRadius(TargetDetectionRadius);
+		}
+		else {
+			ActorDetectionSphere->DestroyComponent();
 		}
 
 		// create spiraling behaviour
@@ -138,17 +137,15 @@ void AMissile::BeginPlay()
 			MissileLock = true;
 			CurrentTargetLocation = BombingTargetLocation;
 		}
-
-		Velocity = InitialVelocity;
-		Acceleration = 1.0f / AccelerationTime;
-
-
+		{
+			Velocity = InitialVelocity;
+			Acceleration = 1.0f / AccelerationTime;
 			FTimerHandle AccerlerationStarter;
 			GetWorldTimerManager().SetTimer(AccerlerationStarter, this, &AMissile::EnableAcceleration, 0.2f, false);
-
+		}
 	}
 
-	// clients
+	// clients only
 	if (Role < ROLE_Authority) {
 		NetUpdateInterval = 1.0f / NetUpdateFrequency;
 		ActorDetectionSphere->DestroyComponent();
@@ -159,15 +156,6 @@ void AMissile::BeginPlay()
 			MissileEngineSound->AttachTo(MissileMesh, FName("booster"));
 		}
 	}
-
-	// testing
-	{
-		//// start a timer that executes a function (multicast)
-		//FTimerHandle TimerHandle;
-		////const FTimerDelegate TimerDelegate = FTimerDelegate::CreateUObject(this, &AMissile::RunsOnAllClients);
-		////GetWorldTimerManager().SetTimer(TimerHandle, TimerDelegate, NetUpdateFrequency, true, 0.0f);
-		//GetWorldTimerManager().SetTimer(TimerHandle, this, &AMissile::RunsOnAllClients, NetUpdateFrequency, true, 0.0f);
-	}
 }
 
 // Called every frame
@@ -175,10 +163,10 @@ void AMissile::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-
 	// count missile lifetime
 	LifeTime += DeltaTime;
 
+	// client and server
 	if (bBombingMode) {
 		DirectionToTarget = CurrentTargetLocation - GetActorLocation();
 		DistanceToTarget = DirectionToTarget.Size();
@@ -191,58 +179,71 @@ void AMissile::Tick(float DeltaTime)
 		}
 	}
 
+	// server only
 	if (Role == ROLE_Authority) {
+		if (GetOwner()) { // not working???
+			if (GetOwner()->IsPendingKill()) {
+				MissileHit();
+				return;
+			}
+		}
+
 		if (LifeTime > MaxFlightTime) {
 			CurrentTarget = nullptr;
 			MissileHit();
 			return;
 		}
 
-		// is the target inside explosionradius? (missiletraveldistance is for fast moving missiles with low fps)
-		if (DistanceToTarget < TargetDetectionRadius + Velocity * DeltaTime && bNotFirstTick && CurrentTarget) {
-			// in bombing mode explode when reaching hominglocation
-			if (bBombingMode) {
+		// in bombing mode explode when reaching hominglocation
+		if (bBombingMode) {
+			if (FVector::DotProduct(DirectionToTarget, GetActorForwardVector()) < 0.0f) {
 				MissileHit();
 				return;
 			}
+		}
 
+		// is the target inside explosionradius? (missiletraveldistance is for fast moving missiles with low fps)
+		if (DistanceToTarget < TargetDetectionRadius + Velocity * DeltaTime && bNotFirstTick && CurrentTarget) {
 			// explode and damage target when target is in range
-			{				
+			{
 				bDamageTarget = true;
 				HitTarget(CurrentTarget ? ((CurrentTarget->GetOwner()) ? CurrentTarget->GetOwner() : nullptr) : nullptr);
-				return;				
+				return;
 			}
 		}
 	}
 
-	// perform homing to the target by rotating, both clients and server
-	if (MissileLock) Homing(DeltaTime);
+	// clients and server
+	{
+		// perform homing to the target by rotating, both clients and server
+		if (MissileLock) Homing(DeltaTime);
 
+		// the distance the missile will be moved at the end of the current tick
+		MovementVector = GetActorForwardVector() * DeltaTime * Velocity;
 
-	// the distance the missile will be moved at the end of the current tick
-	MovementVector = GetActorForwardVector() * DeltaTime * Velocity;
+		// is missile is still accelerating? 
+		if (bCanAccelerate) {
+			Turnrate = MaxTurnrate;
+			if (!bReachedMaxVelocity) {
+				// inrease Velocity
+				Velocity += Acceleration * DeltaTime * MaxVelocity;
 
-	// is missile is still accelerating? 
-	if (bCanAccelerate) {
-		Turnrate = MaxTurnrate;
-		if (!bReachedMaxVelocity) {
-			// inrease Velocity
-			Velocity += Acceleration * DeltaTime * MaxVelocity;
+				//// inrease Turnrate
+				//Turnrate += Acceleration * DeltaTime * MaxTurnrate;          
 
-			//// inrease Turnrate
-			//Turnrate += Acceleration * DeltaTime * MaxTurnrate;          
-
-			// has reached max velocity?
-			if (Velocity > MaxVelocity) {
-				Velocity = MaxVelocity;
-				//Turnrate = MaxTurnrate;
-				bReachedMaxVelocity = true;
-				bCanAccelerate = false;
-				// has now reached max velocity
+				// has reached max velocity?
+				if (Velocity > MaxVelocity) {
+					Velocity = MaxVelocity;
+					//Turnrate = MaxTurnrate;
+					bReachedMaxVelocity = true;
+					bCanAccelerate = false;
+					// has now reached max velocity
+				}
 			}
 		}
 	}
 
+	// server only
 	if (Role == ROLE_Authority) {
 		// perform movement
 		AddActorWorldOffset(MovementVector);
@@ -250,6 +251,7 @@ void AMissile::Tick(float DeltaTime)
 		MissileTransformOnAuthority = GetTransform();
 	}
 
+	// clients only
 	if (Role < ROLE_Authority) {
 		// perform movement with correction
 		if (LocationCorrectionTimeLeft > 0.0f) {
@@ -275,9 +277,12 @@ void AMissile::Tick(float DeltaTime)
 		}
 	}
 
-	// store current location for next Tick
-	LastActorLocation = GetActorLocation();
-	bNotFirstTick = true;
+	// clients and server
+	{
+		// store current location for next Tick
+		LastActorLocation = GetActorLocation();
+		bNotFirstTick = true;
+	}
 }
 
 void AMissile::MissileDestruction() {
@@ -303,7 +308,7 @@ void AMissile::HitTarget_Implementation(class AActor* TargetedActor) {
 		SetLifeSpan(MissileTrailLifeSpan);
 		if (bDamageTarget && CurrentTarget) {
 			//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Green, "Auth: Target HIT");
-			CurrentTarget->GetOwner()->ReceiveAnyDamage(FMath::RandRange(DamageMin,DamageMax), nullptr, GetInstigatorController(), this);
+			CurrentTarget->GetOwner()->ReceiveAnyDamage(FMath::RandRange(DamageMin, DamageMax), nullptr, GetInstigatorController(), this);
 			bHit = true;
 			MissileHit();
 		}
