@@ -155,23 +155,23 @@ FRotator UCalcFunctionLibrary::DetermineTurnDirection(
 	float UpAngel = UCalcFunctionLibrary::AngleBetween2Vectors(ActorUpVector, Direction);
 	float RightAngel = UCalcFunctionLibrary::AngleBetween2Vectors(ActorRightVector, Direction);
 
-	if (UpAngel < 90.0f){
+	if (UpAngel < 90.0f) {
 		UpAngel = 90.0f - UpAngel;
 	}
-	else{
+	else {
 		UpAngel = -(UpAngel - 90.0f);
 	}
 
-	if (RightAngel < 90.0f){
+	if (RightAngel < 90.0f) {
 		RightAngel = 90.0f - RightAngel;
 	}
-	else{
+	else {
 		RightAngel = -(RightAngel - 90.0f);
 	}
 
 	float Mag = FMath::Sqrt(UpAngel*UpAngel + RightAngel*RightAngel);
 
-	if (TurnrateDegreePerSecond*DeltaSeconds > Mag){
+	if (TurnrateDegreePerSecond*DeltaSeconds > Mag) {
 		return FRotator(DeltaSeconds * UpAngel,
 			DeltaSeconds * RightAngel,
 			0.f);
@@ -307,26 +307,40 @@ bool UCalcFunctionLibrary::TracerMotionBlur(
 
 //11
 float UCalcFunctionLibrary::controller_PID(
-const float Value,
-const float Target,
-const float OldError,
-float &NewError,
-const float P,
-const float I,
-const float old_I_Term,
-float &ITerm,
-const float D,
-const float DeltaTime) {
+	const float Value,
+	const float Target,
+	const float OldError,
+	float &NewError,
+	const float P,
+	const float I,
+	const float old_I_Term,
+	float &ITerm,
+	const float D,
+	const float DeltaTime) {
 
 	NewError = Target - Value;
 
 	float PTerm = P * NewError;
 
-	ITerm = I * NewError  + old_I_Term;
+	ITerm = I * NewError + old_I_Term;
 
 	float DTerm = NewError / OldError * D;
 
 	return PTerm + ITerm + DTerm;
+
+}
+
+//12
+
+void UCalcFunctionLibrary::SetCameraFOV(const float newFOV, const bool bVertical, const bool bDiagonal, float &CameraFOV, const bool bHorizontal) {
+	const FVector2D ViewportSize = FVector2D(GEngine->GameViewport->Viewport->GetSizeXY());
+
+	float Value = ViewportSize.X; // horizontal is default
+	if (bVertical) Value = ViewportSize.Y;
+	if (bDiagonal) Value = FMath::Sqrt(ViewportSize.Y *ViewportSize.Y + ViewportSize.X*ViewportSize.X);
+
+	float p = (Value*0.5f) / FMath::Tan(FMath::DegreesToRadians(newFOV*0.5f));
+	CameraFOV = 2.0f * FMath::RadiansToDegrees(FMath::Atan((ViewportSize.X*0.5f) / p));
 
 }
 

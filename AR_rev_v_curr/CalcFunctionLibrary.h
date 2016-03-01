@@ -122,8 +122,10 @@ public:
 		const float D,
 		const float DeltaTime);
 
-
-
+	//12
+	/* convert a given FOV to UE4 horizontal FOV */
+	UFUNCTION(BlueprintCallable, Category = "Math_C++ | Camera")
+		static void SetCameraFOV(const float newFOV, const bool bVertical, const bool bDiagonal, float &CameraFOV, const bool bHorizontal = true);
 	
 
 };
