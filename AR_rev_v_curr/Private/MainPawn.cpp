@@ -11,7 +11,7 @@ AMainPawn::AMainPawn(const FObjectInitializer& ObjectInitializer) : Super(Object
 	PrimaryActorTick.bCanEverTick = true;
 	bReplicates = true;
 	bAlwaysRelevant = true;
-	bReplicateMovement = true;
+	bReplicateMovement = false;
 
 	//SetActorEnableCollision(true);
 
@@ -65,7 +65,7 @@ void AMainPawn::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	
+
 	/*FVector LocArmor = ArmorMesh->GetComponentLocation();
 	FVector DirToRoot = (GetActorLocation() - LocArmor);
 
@@ -81,10 +81,7 @@ void AMainPawn::Tick(float DeltaTime)
 
 
 	if (IsLocallyControlled()) {
-		ArmorMesh->SetPhysicsAngularVelocity(FMath::VInterpConstantTo(ArmorMesh->GetPhysicsAngularVelocity(), FVector::ZeroVector, DeltaTime, 1000.0f));
-		ArmorMesh->SetPhysicsLinearVelocity(FMath::VInterpConstantTo(ArmorMesh->GetPhysicsLinearVelocity(), FVector::ZeroVector, DeltaTime, 1000.0f));
 
-		FVector CurrentPhVel = ArmorMesh->GetPhysicsLinearVelocity();
 		// get mouse position
 		{
 			if (GetController()) {
@@ -115,6 +112,7 @@ void AMainPawn::Tick(float DeltaTime)
 
 		// smooth turning
 		{
+			float TurnInterpSpeed = 2.0f;
 			//InputSize = MouseInput.Size();
 			bool q1 = OldMouseInput.X < 0.0f && MouseInput.X < 0.0f && MouseInput.X - OldMouseInput.X > 0.0f;
 			bool q2 = OldMouseInput.X > 0.0f && MouseInput.X > 0.0f && MouseInput.X - OldMouseInput.X < 0.0f;
@@ -125,18 +123,24 @@ void AMainPawn::Tick(float DeltaTime)
 				OldMouseInput.X = MouseInput.X;
 			}
 			else {
-				OldMouseInput.X = FMath::FInterpConstantTo(OldMouseInput.X, MouseInput.X, DeltaTime, 2.0f);
+				OldMouseInput.X = FMath::FInterpConstantTo(OldMouseInput.X, MouseInput.X, DeltaTime, TurnInterpSpeed);
 			}
 			if (q3 || q4) {
 				OldMouseInput.Y = MouseInput.Y;
 			}
 			else {
-				OldMouseInput.Y = FMath::FInterpConstantTo(OldMouseInput.Y, MouseInput.Y, DeltaTime, 2.0f);
+				OldMouseInput.Y = FMath::FInterpConstantTo(OldMouseInput.Y, MouseInput.Y, DeltaTime, TurnInterpSpeed);
 			}
 			//OldInputSize = OldMouseInput.Size();
 		}
 		if (GEngine) GEngine->AddOnScreenDebugMessage(4, 3.0f/*seconds*/, FColor::Green, FString::SanitizeFloat(MouseInput.X) + " " + FString::SanitizeFloat(MouseInput.Y) + " " + FString::SanitizeFloat(OldMouseInput.Size()*TurnRate));
-		AddActorLocalRotation(FRotator(OldMouseInput.Y * -TurnRate * DeltaTime, OldMouseInput.X * TurnRate * DeltaTime, 0.0f), false, nullptr);
+
+
+		TargetAngularVelocity = GetActorRotation().RotateVector(FVector(0.0f, OldMouseInput.Y * TurnRate, OldMouseInput.X * TurnRate));
+
+
+
+		//AddActorLocalRotation(FRotator(OldMouseInput.Y * -TurnRate * DeltaTime, OldMouseInput.X * TurnRate * DeltaTime, 0.0f), false, nullptr);
 
 		////Rotate our actor's yaw, which will turn our camera because we're attached to it
 		//{
@@ -154,38 +158,56 @@ void AMainPawn::Tick(float DeltaTime)
 		}*/
 
 		//Handle movement based on our "MoveX" and "MoveY" axes
+
 		{
-			if (!MovementInput.IsZero())
-			{
-				//Scale our movement input axis values by 100 units per second
-				MovementInput = MovementInput.GetSafeNormal() * 10000.0f;
-				FVector NewLocation = GetActorLocation();
-				NewLocation += GetActorForwardVector() * MovementInput.X * DeltaTime;
-				NewLocation += GetActorRightVector() * MovementInput.Y * DeltaTime;
-				//SetActorLocation(NewLocation);
-				FVector Vel = NewLocation - GetActorLocation();
-				ArmorMesh->SetPhysicsLinearVelocity(CurrentPhVel + Vel / DeltaTime);
+			//Scale our movement input axis values by 100 units per second
+			MovementInput = MovementInput.GetSafeNormal() * 3000.0f;
+			FVector NewLocation = GetActorLocation();
+			NewLocation += GetActorForwardVector() * MovementInput.X * DeltaTime;
+			NewLocation += GetActorRightVector() * MovementInput.Y * DeltaTime;
+			//SetActorLocation(NewLocation);
+			FVector Vel = NewLocation - GetActorLocation();
+			TargetLinearVelocity = FVector(Vel / DeltaTime);
 
-
-
-
-			}
 		}
 	}
+
 	if (Role == ROLE_Authority) {
+
+
+
 		TransformOnAuthority = GetTransform();
 		AngularVelocity = ArmorMesh->GetPhysicsAngularVelocity();
 		LinearVelocity = ArmorMesh->GetPhysicsLinearVelocity();
 	}
-	else {
-		//GetPing();
-		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, GetWorld()->DeltaTimeSeconds, FColor::Green, "Ping = " + FString::SanitizeFloat(Ping) + " s");
-		//FTransform newTransform;
 
-		//newTransform.Blend(TransformOnClient, TransformOnAuthority, FMath::Min(Alpha * NetUpdateFrequency*0.9f, 1.0f)); //?
-		//Alpha += DeltaTime;
-		//SetActorTransform(newTransform);
+
+
+	if (Role == ROLE_SimulatedProxy) {
+		//FTransform TargetTransform = TransformOnClient;
+		//TransformBlend += DeltaTime;
+		//TargetTransform.Blend(TargetTransform, TransformOnAuthority, FMath::Min(0.95f,TransformBlend * NetUpdateFrequency));
+
+		//SetActorTransform(TargetTransform);
 	}
+
+	float AngVInterpSpeed = 360.0f;
+	float LinVInterpSpeed = 1000.0f;
+
+	ArmorMesh->SetPhysicsAngularVelocity(FMath::VInterpConstantTo(ArmorMesh->GetPhysicsAngularVelocity(), TargetAngularVelocity, DeltaTime, AngVInterpSpeed));
+	ArmorMesh->SetPhysicsLinearVelocity(FMath::VInterpConstantTo(ArmorMesh->GetPhysicsLinearVelocity(), TargetLinearVelocity, DeltaTime, LinVInterpSpeed));
+
+
+
+
+	//GetPing();
+	//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, GetWorld()->DeltaTimeSeconds, FColor::Green, "Ping = " + FString::SanitizeFloat(Ping) + " s");
+	//FTransform newTransform;
+
+	//newTransform.Blend(TransformOnClient, TransformOnAuthority, FMath::Min(Alpha * NetUpdateFrequency*0.9f, 1.0f)); //?
+	//Alpha += DeltaTime;
+	//SetActorTransform(newTransform);
+
 
 
 }
@@ -197,6 +219,8 @@ void AMainPawn::GetLifetimeReplicatedProps(TArray< FLifetimeProperty > & OutLife
 	DOREPLIFETIME(AMainPawn, TransformOnAuthority);
 	DOREPLIFETIME(AMainPawn, LinearVelocity);
 	DOREPLIFETIME(AMainPawn, AngularVelocity);
+	DOREPLIFETIME(AMainPawn, TargetAngularVelocity);
+	DOREPLIFETIME(AMainPawn, TargetLinearVelocity);
 }
 
 void AMainPawn::OnRep_TransformOnAuthority()
@@ -205,18 +229,16 @@ void AMainPawn::OnRep_TransformOnAuthority()
 	// just notifies you when it changes.
 	if (Role < ROLE_Authority) {
 		//Alpha = GetWorld()->DeltaTimeSeconds;
-		//TransformOnClient = GetTransform();
-
+		TransformOnClient = GetTransform();
+		TransformBlend = 0.0f;
 		SetActorTransform(TransformOnAuthority);
-
-		//SetActorTransform(MissileTransformOnAuthority);
 	}
 }
 
 void AMainPawn::OnRep_LinearVelocity()
 {
-	if (Role < ROLE_Authority ) {
-		if(ArmorMesh) ArmorMesh->SetPhysicsLinearVelocity(LinearVelocity, false);
+	if (Role < ROLE_Authority) {
+		if (ArmorMesh) ArmorMesh->SetPhysicsLinearVelocity(LinearVelocity, false);
 	}
 }
 

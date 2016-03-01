@@ -58,10 +58,7 @@ protected:
 	float ZoomFactor;
 	bool bZoomingIn;
 
-	/** missile velocity in cm/s*/
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
-		float MaxTurnRate = 100.0f;
-	float TurnRate;
+
 
 
 
@@ -106,6 +103,17 @@ protected:
 		FVector AngularVelocity;
 	UFUNCTION()
 		void OnRep_AngularVelocity();
+	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
+		float MaxTurnRate = 100.0f;
+	float TurnRate;
+
+	UPROPERTY(Replicated)
+		FVector TargetAngularVelocity;
+
+	UPROPERTY(Replicated)
+		FVector TargetLinearVelocity;
+	float TransformBlend;
 
 
 
