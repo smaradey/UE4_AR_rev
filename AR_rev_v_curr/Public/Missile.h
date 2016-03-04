@@ -29,9 +29,11 @@ public:
 	void PostInitProperties();
 	void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent);
 
-	UFUNCTION(BlueprintCallable, NetMulticast, Reliable, Category = "Missile")
+	UFUNCTION(BlueprintCallable, Category = "Missile")
+		virtual void MissileHit();
+	UFUNCTION(NetMulticast, Reliable)
 		void ServerMissileHit();
-	virtual void MissileHit();
+
 
 	UFUNCTION()
 		void Explode();
