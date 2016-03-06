@@ -115,6 +115,12 @@ protected:
 		FVector TargetLinearVelocity;
 	float TransformBlend;
 
+	UFUNCTION(Server, Reliable, WithValidation)
+		void Server_GetPlayerInput(float DeltaTime, FVector2D CameraInput, FVector2D MovementInput);
+	virtual void GetPlayerInput(float DeltaTime, FVector2D CameraInput, FVector2D MovementInput); // executed on client
+
+	float lastUpdate;
+
 
 
 

@@ -77,11 +77,8 @@ void AMainPawn::Tick(float DeltaTime)
 	//RelativeArmorTransform.Blend(ArmorMesh->GetComponentTransform(),GetTransform(), 0.5f); //?
 	//ArmorMesh->SetWorldTransform(RootComponent->GetComponentTransform());
 	//RelativeArmorTransform = ArmorMesh->GetComponentTransform();
-
-
-
+	
 	if (IsLocallyControlled()) {
-
 		// get mouse position
 		{
 			if (GetController()) {
@@ -108,8 +105,7 @@ void AMainPawn::Tick(float DeltaTime)
 			// deadzone (5 pixel)
 			if (MouseInput.Size() < (5.0f / ViewPortSize.X)) MouseInput = FVector2D::ZeroVector;
 		}
-
-
+		
 		// smooth turning
 		{
 			float TurnInterpSpeed = 2.0f;
@@ -168,14 +164,11 @@ void AMainPawn::Tick(float DeltaTime)
 			//SetActorLocation(NewLocation);
 			FVector Vel = NewLocation - GetActorLocation();
 			TargetLinearVelocity = FVector(Vel / DeltaTime);
-
 		}
+		GetPlayerInput(DeltaTime,MouseInput, MovementInput);
 	}
 
 	if (Role == ROLE_Authority) {
-
-
-
 		TransformOnAuthority = GetTransform();
 		AngularVelocity = ArmorMesh->GetPhysicsAngularVelocity();
 		LinearVelocity = ArmorMesh->GetPhysicsLinearVelocity();
@@ -342,4 +335,31 @@ void AMainPawn::StopGunFire() {
 void AMainPawn::GunFire() {
 	if (!bCanFireGun) return;
 	if (GEngine) GEngine->AddOnScreenDebugMessage(2, GetWorld()->DeltaTimeSeconds, FColor::White, "Bang");
+}
+
+void AMainPawn::GetPlayerInput(float DeltaTime, FVector2D CameraInput, FVector2D MovementInput)
+{
+	Server_GetPlayerInput(DeltaTime,CameraInput,MovementInput);
+}
+
+bool AMainPawn::Server_GetPlayerInput_Validate(float DeltaTime, FVector2D CameraInput, FVector2D MovementInput)
+{
+	return true;
+}
+
+//Server receives Input
+void AMainPawn::Server_GetPlayerInput_Implementation(float DeltaTime, FVector2D CameraInput, FVector2D MovementInput) {
+	
+	float NetDelta;
+	if (GetWorld()) {
+		NetDelta = GetWorld()->RealTimeSeconds - lastUpdate;
+		lastUpdate = GetWorld()->RealTimeSeconds;
+	}
+	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Green, FString::SanitizeFloat(NetDelta));
+
+
+
+
+
+
 }
