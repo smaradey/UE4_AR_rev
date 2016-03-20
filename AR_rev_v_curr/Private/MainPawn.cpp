@@ -65,46 +65,13 @@ void AMainPawn::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-
-	/*FVector LocArmor = ArmorMesh->GetComponentLocation();
-	FVector DirToRoot = (GetActorLocation() - LocArmor);
-
-	ArmorMesh->AddForce(DirToRoot.GetSafeNormal(), NAME_None, true);*/
-
-
-
-	//ArmorMesh->ResetRelativeTransform();
-	//RelativeArmorTransform.Blend(ArmorMesh->GetComponentTransform(),GetTransform(), 0.5f); //?
-	//ArmorMesh->SetWorldTransform(RootComponent->GetComponentTransform());
-	//RelativeArmorTransform = ArmorMesh->GetComponentTransform();
-	
 	if (IsLocallyControlled()) {
 		// get mouse position
-		{
-			if (GetController()) {
-				if (GetController()->CastToPlayerController()) {
-					if (GetController()->CastToPlayerController()->GetMousePosition(CursorLoc.X, CursorLoc.Y)) {
-						if (GEngine) GEngine->AddOnScreenDebugMessage(3, 3.0f/*seconds*/, FColor::Red, FString::SanitizeFloat(CursorLoc.X) + " " + FString::SanitizeFloat(CursorLoc.Y));
-					}
-				}
-			}
-		}
+		GetCursorLocation(CursorLoc);
 		// get viewport size/center
-		{
-			if (GetWorld()) {
-				if (GetWorld()->GetGameViewport()) {
-					GetWorld()->GetGameViewport()->GetViewportSize(ViewPortSize);
-					ViewPortCenter = ViewPortSize * 0.5f;
-				}
-			}
-		}
+		GetViewportSizeCenter(ViewPortSize, ViewPortCenter);
 		// the resulting mouse input
-		{
-			MouseInput = (CursorLoc - ViewPortCenter) / ViewPortCenter;
-			MouseInput *= MouseInput.GetSafeNormal().GetAbsMax();
-			// deadzone (5 pixel)
-			if (MouseInput.Size() < (5.0f / ViewPortSize.X)) MouseInput = FVector2D::ZeroVector;
-		}
+		GetMouseInput(MouseInput, CursorLoc, ViewPortCenter);
 		
 		// smooth turning
 		{
@@ -157,7 +124,7 @@ void AMainPawn::Tick(float DeltaTime)
 
 		{
 			//Scale our movement input axis values by 100 units per second
-			MovementInput = MovementInput.GetSafeNormal() * 3000.0f;
+			MovementInput = MovementInput.GetSafeNormal() * 10000.0f;
 			FVector NewLocation = GetActorLocation();
 			NewLocation += GetActorForwardVector() * MovementInput.X * DeltaTime;
 			NewLocation += GetActorRightVector() * MovementInput.Y * DeltaTime;
@@ -185,7 +152,7 @@ void AMainPawn::Tick(float DeltaTime)
 	}
 
 	float AngVInterpSpeed = 360.0f;
-	float LinVInterpSpeed = 1000.0f;
+	float LinVInterpSpeed = 10000.0f;
 
 	ArmorMesh->SetPhysicsAngularVelocity(FMath::VInterpConstantTo(ArmorMesh->GetPhysicsAngularVelocity(), TargetAngularVelocity, DeltaTime, AngVInterpSpeed));
 	ArmorMesh->SetPhysicsLinearVelocity(FMath::VInterpConstantTo(ArmorMesh->GetPhysicsLinearVelocity(), TargetLinearVelocity, DeltaTime, LinVInterpSpeed));
@@ -363,3 +330,32 @@ void AMainPawn::Server_GetPlayerInput_Implementation(float DeltaTime, FVector2D 
 
 
 }
+
+inline void AMainPawn::GetCursorLocation(FVector2D & CursorLoc) {
+	if (GetController()) {
+		if (GetController()->CastToPlayerController()) {
+			if (GetController()->CastToPlayerController()->GetMousePosition(CursorLoc.X, CursorLoc.Y)) {
+				if (GEngine) GEngine->AddOnScreenDebugMessage(3, 3.0f/*seconds*/, FColor::Red, FString::SanitizeFloat(CursorLoc.X) + " " + FString::SanitizeFloat(CursorLoc.Y));
+			}
+		}
+	}
+}
+
+inline void AMainPawn::GetViewportSizeCenter(FVector2D & ViewPortSize, FVector2D & ViewPortCenter) {
+	if (GetWorld()) {
+		if (GetWorld()->GetGameViewport()) {
+			GetWorld()->GetGameViewport()->GetViewportSize(ViewPortSize);
+			ViewPortCenter = ViewPortSize * 0.5f;
+		}
+	}
+}
+
+inline void AMainPawn::GetMouseInput(FVector2D & MouseInput, FVector2D & CursorLoc, FVector2D & ViewPortCenter) {
+	{
+		MouseInput = (CursorLoc - ViewPortCenter) / ViewPortCenter;
+		MouseInput *= MouseInput.GetSafeNormal().GetAbsMax();
+		// deadzone (5 pixel)
+		if (MouseInput.Size() < (5.0f / ViewPortSize.X)) MouseInput = FVector2D::ZeroVector;
+	}
+}
+

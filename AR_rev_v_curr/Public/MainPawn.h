@@ -46,9 +46,15 @@ protected:
 
 	//Input variables
 	FVector2D CursorLoc;
+	void GetCursorLocation(FVector2D& CursorLoc);
+
 	FVector2D ViewPortSize;
 	FVector2D ViewPortCenter;
+	void GetViewportSizeCenter(FVector2D& ViewPortSize, FVector2D& ViewPortCenter);
+
 	FVector2D MouseInput;
+	void GetMouseInput(FVector2D& MouseInput, FVector2D& CursorLoc, FVector2D& ViewPortCenter);
+
 	FVector2D OldMouseInput;
 	float InputSize;
 	float NewInputSize;
@@ -120,6 +126,8 @@ protected:
 	virtual void GetPlayerInput(float DeltaTime, FVector2D CameraInput, FVector2D MovementInput); // executed on client
 
 	float lastUpdate;
+
+
 
 
 
