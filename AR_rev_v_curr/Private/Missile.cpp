@@ -40,6 +40,8 @@ AMissile::AMissile(const FObjectInitializer& ObjectInitializer) : Super(ObjectIn
 	MissileTrail = CreateDefaultSubobject<UParticleSystemComponent>(TEXT("MissileTrail"));
 	MissileTrail->bAutoActivate = false;
 
+	
+
 
 	// binding an a function to event OnDestroyed
 	OnDestroyed.AddDynamic(this, &AMissile::MissileDestruction);
@@ -67,14 +69,14 @@ void AMissile::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEven
 void AMissile::GetLifetimeReplicatedProps(TArray< FLifetimeProperty > & OutLifetimeProps) const
 {
 	DOREPLIFETIME_CONDITION(AMissile, MaxTurnrate, COND_InitialOnly);
-	DOREPLIFETIME_CONDITION(AMissile, MaxVelocity, COND_InitialOnly);
+	DOREPLIFETIME(AMissile, MaxVelocity);
 	DOREPLIFETIME_CONDITION(AMissile, InitialVelocity, COND_InitialOnly);
 	DOREPLIFETIME_CONDITION(AMissile, AccelerationTime, COND_InitialOnly);
 	DOREPLIFETIME_CONDITION(AMissile, AdvancedMissileMinRange, COND_InitialOnly);
 	DOREPLIFETIME_CONDITION(AMissile, AdvancedMissileMaxRange, COND_InitialOnly);
 	DOREPLIFETIME(AMissile, MissileLock);
 	DOREPLIFETIME_CONDITION(AMissile, bBombingMode, COND_InitialOnly);
-	DOREPLIFETIME_CONDITION(AMissile, BombingTargetLocation, COND_InitialOnly);
+	DOREPLIFETIME_CONDITION(AMissile, BombingTargetLocation, COND_InitialOnly);	
 
 	DOREPLIFETIME(AMissile, CurrentTarget);
 	DOREPLIFETIME_CONDITION(AMissile, AdvancedHoming, COND_InitialOnly);
@@ -124,6 +126,8 @@ void AMissile::BeginPlay()
 				SpiralVelocity *= FMath::FRandRange(0.5f, 1.5f);
 			}
 		}
+
+		MaxVelocity *= FMath::FRandRange(0.95f, 1.05f);
 
 		// calculate max missile liftime (t = s/v)
 		MaxFlightTime = Range / MaxVelocity;
