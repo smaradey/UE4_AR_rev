@@ -29,19 +29,24 @@ AMainPawn::AMainPawn(const FObjectInitializer& ObjectInitializer) : Super(Object
 	ArmorMesh->SetEnableGravity(false);
 	RootComponent = ArmorMesh;
 
-	OurCameraSpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraSpringArm"));
-	OurCameraSpringArm->AttachTo(RootComponent);
-	OurCameraSpringArm->SetRelativeLocationAndRotation(FVector(-300.0f, 0.0f, 0.0f), FRotator(0.0f, 0.0f, 0.0f));
-	OurCameraSpringArm->TargetArmLength = 0.0f;
-	OurCameraSpringArm->SocketOffset = FVector(0.0f, 0.0f, 75.0f);
-	OurCameraSpringArm->bEnableCameraLag = true;
-	OurCameraSpringArm->CameraLagSpeed = 4.0f;
-	OurCameraSpringArm->CameraLagMaxDistance = 300.0f;
+	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraSpringArm"));
+	SpringArm->AttachTo(RootComponent);
+	SpringArm->SetRelativeLocationAndRotation(FVector(-300.0f, 0.0f, 50.0f), FRotator(0.0f, 0.0f, 0.0f));
+	SpringArm->TargetArmLength = 0.0f;
+	SpringArm->SocketOffset = FVector(0.0f, 0.0f, 75.0f);
+	SpringArm->bEnableCameraLag = true;
+	SpringArm->CameraLagSpeed = 4.0f;
+	SpringArm->CameraLagMaxDistance = 300.0f;
 
-	OurCamera = CreateDefaultSubobject<UCameraComponent>(TEXT("GameCamera"));
-	OurCamera->AttachTo(OurCameraSpringArm, USpringArmComponent::SocketName);
-	OurCamera->PostProcessSettings.bOverride_LensFlareIntensity = true;
-	OurCamera->PostProcessSettings.LensFlareIntensity = 0.0f;
+	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("GameCamera"));
+	Camera->AttachTo(SpringArm, USpringArmComponent::SocketName);
+	// PostProcessSettings
+	Camera->PostProcessSettings.bOverride_LensFlareIntensity = true;
+	Camera->PostProcessSettings.LensFlareIntensity = 0.0f;
+	Camera->PostProcessSettings.bOverride_AntiAliasingMethod = true;
+	Camera->PostProcessSettings.AntiAliasingMethod = EAntiAliasingMethod::AAM_FXAA;
+	Camera->PostProcessSettings.bOverride_MotionBlurAmount = true;
+	Camera->PostProcessSettings.MotionBlurAmount = 0.1f;
 
 
 
@@ -97,34 +102,12 @@ void AMainPawn::Tick(float DeltaTime)
 			//OldInputSize = OldMouseInput.Size();
 		}
 		if (GEngine) GEngine->AddOnScreenDebugMessage(4, 3.0f/*seconds*/, FColor::Green, FString::SanitizeFloat(MouseInput.X) + " " + FString::SanitizeFloat(MouseInput.Y) + " " + FString::SanitizeFloat(OldMouseInput.Size()*TurnRate));
-
-
+		
 		TargetAngularVelocity = GetActorRotation().RotateVector(FVector(0.0f, OldMouseInput.Y * TurnRate, OldMouseInput.X * TurnRate));
-
-
-
-		//AddActorLocalRotation(FRotator(OldMouseInput.Y * -TurnRate * DeltaTime, OldMouseInput.X * TurnRate * DeltaTime, 0.0f), false, nullptr);
-
-		////Rotate our actor's yaw, which will turn our camera because we're attached to it
-		//{
-		//	FRotator NewRotation = GetActorRotation();
-		//	NewRotation.Yaw += CameraInput.X;
-		//	SetActorRotation(NewRotation);
-		//}
-
-		//Rotate our camera's pitch, but limit it so we're always looking downward
-		/*
-		{
-			FRotator NewRotation = OurCameraSpringArm->GetComponentRotation();
-			NewRotation.Pitch = FMath::Clamp(NewRotation.Pitch + CameraInput.Y, -80.0f, -15.0f);
-			OurCameraSpringArm->SetWorldRotation(NewRotation);
-		}*/
-
-		//Handle movement based on our "MoveX" and "MoveY" axes
 
 		{
 			//Scale our movement input axis values by 100 units per second
-			MovementInput = MovementInput.GetSafeNormal() * 10000.0f;
+			MovementInput = MovementInput.GetSafeNormal() * 56000000.0f;
 			FVector NewLocation = GetActorLocation();
 			NewLocation += GetActorForwardVector() * MovementInput.X * DeltaTime;
 			NewLocation += GetActorRightVector() * MovementInput.Y * DeltaTime;
@@ -276,13 +259,13 @@ void AMainPawn::ZoomIn()
 {
 	bZoomingIn = true;
 	if (GEngine) GEngine->AddOnScreenDebugMessage(1, 3.0f/*seconds*/, FColor::Red, "ZoomPressed");
-	OurCamera->FieldOfView = 30.0f;
+	Camera->FieldOfView = 30.0f;
 }
 
 void AMainPawn::ZoomOut()
 {
 	bZoomingIn = false;
-	OurCamera->FieldOfView = 90.0f;
+	Camera->FieldOfView = 90.0f;
 }
 
 void AMainPawn::StartGunFire() {
@@ -321,8 +304,9 @@ void AMainPawn::Server_GetPlayerInput_Implementation(float DeltaTime, FVector2D 
 	if (GetWorld()) {
 		NetDelta = GetWorld()->RealTimeSeconds - lastUpdate;
 		lastUpdate = GetWorld()->RealTimeSeconds;
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Green, FString::SanitizeFloat(NetDelta) + "    " + FString::FromInt(GetVelocity().Size()* 0.036f) + " km/h");
 	}
-	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Green, FString::SanitizeFloat(NetDelta));
+	
 
 
 

@@ -34,15 +34,21 @@ public:
 	UPROPERTY(Category = Mesh, VisibleDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 	class UStaticMeshComponent* ArmorMesh;
 
+	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
+		USpringArmComponent* SpringArm;
+	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
+	UCameraComponent* Camera;
+
 	/** Returns PlaneMesh subobject **/
 	FORCEINLINE class UStaticMeshComponent* GetPlaneMesh() const { return ArmorMesh; }
 
 
 
 protected:
-	UPROPERTY(EditAnywhere)
-		USpringArmComponent* OurCameraSpringArm;
-	UCameraComponent* OurCamera;
+
+
+
+
 
 	//Input variables
 	FVector2D CursorLoc;
