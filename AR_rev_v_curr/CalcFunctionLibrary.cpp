@@ -344,3 +344,13 @@ void UCalcFunctionLibrary::SetCameraFOV(const float newFOV, const bool bVertical
 
 }
 
+void UCalcFunctionLibrary::GetReplicatedMovement(AActor * Actor,FVector &LinearVelocity, FVector &AngularVelocity)
+{
+	
+	if (Actor) {
+		AngularVelocity = Actor->ReplicatedMovement.AngularVelocity;
+		LinearVelocity = Actor->ReplicatedMovement.LinearVelocity;
+	}
+	
+}
+

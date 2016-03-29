@@ -127,5 +127,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Math_C++ | Camera")
 		static void SetCameraFOV(const float newFOV, const bool bVertical, const bool bDiagonal, float &CameraFOV, const bool bHorizontal = true);
 	
+	UFUNCTION(BlueprintCallable, Category = "Actor | Replication")
+		static void GetReplicatedMovement(AActor* Actor, FVector &LinearVelocity, FVector &AngularVelocity );
+
+
 
 };
