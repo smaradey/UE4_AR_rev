@@ -218,91 +218,74 @@ float UCalcFunctionLibrary::FInterpFromToInTime(float Beginning, float Current, 
 
 //10
 bool UCalcFunctionLibrary::TracerMotionBlur(
-	APlayerController* Player,
-	USceneComponent *BPProjectileType,
-	const FVector2D &OldScreenLocation,
-	FVector2D &NewScreenLocation,
-	const FVector &OldProjectileLocation,
-	const FVector &NewProjectileLocation,
-	FVector &MovedOldProjectileLocation,
-	bool FoundNewScreenLocation)
+	APlayerController* InPlayer,
+	//USceneComponent *BPProjectileType,
+	const FVector2D &InOldScreenPos,
+	const bool &InHasScreenPos,
+	FVector &OutWorldPosition,
+	FVector &OutWorldDirection,
+	FVector &OutLocationForOldScreenPos,
+	//FVector2D &OutScreenPosition)
+	//FVector2D &NewScreenLocation,
+	const FVector &InOldProjectileLocation,
+	const FVector &InNewProjectileLocation,
+	FRotator &OutTracerRotation,
+	FVector2D &OutScreenPosition)
+	//const FVector &NewProjectileLocation,
+	//FVector &MovedOldProjectileLocation,
+	//bool &NewScreenLocFound
+	//)
 {
-	Player->GetWorld()->GetFirstPlayerController();
-	bool FoundWorldLocation = false;
-	if (FoundNewScreenLocation) {
 
-		//A
-
-		//APlayerController::DeprojectScreenPositionToWorld(float ScreenX, float ScreenY, FVector& WorldLocation, FVector& WorldDirection)
-
-		ULocalPlayer* LocalPlayer = Cast<ULocalPlayer>(Player);
-
-		if (LocalPlayer && LocalPlayer->ViewportClient && LocalPlayer->ViewportClient->Viewport)
+	ULocalPlayer* const LP = InPlayer ? InPlayer->GetLocalPlayer() : nullptr;
+	
+	if (InHasScreenPos) {
+		bool success = false;
+		if (LP && LP->ViewportClient)
 		{
-			// Create a view family for the game viewport
-			FSceneViewFamilyContext ViewFamily(FSceneViewFamily::ConstructionValues(
-				LocalPlayer->ViewportClient->Viewport,
-				LocalPlayer->GetWorld()->Scene,
-				LocalPlayer->ViewportClient->EngineShowFlags)
-				.SetRealtimeUpdate(true));
-
-			// Calculate a view where the player is to update the streaming from the players start location
-			FVector ViewLocation;
-			FRotator ViewRotation;
-			FSceneView* SceneView = LocalPlayer->CalcSceneView(&ViewFamily, /*out*/ ViewLocation, /*out*/ ViewRotation, LocalPlayer->ViewportClient->Viewport);
-			FVector WorldLocation;
-			FVector WorldDirection;
-			if (SceneView)
+			// get the projection data
+			FSceneViewProjectionData ProjectionData;
+			if (LP->GetProjectionData(LP->ViewportClient->Viewport, eSSP_FULL, /*out*/ ProjectionData))
 			{
-				//B
+				FMatrix const InvViewProjMatrix = ProjectionData.ComputeViewProjectionMatrix().InverseFast();
+				FSceneView::DeprojectScreenToWorld(InOldScreenPos, ProjectionData.GetConstrainedViewRect(), InvViewProjMatrix, /*out*/ OutWorldPosition, /*out*/ OutWorldDirection);
+				success = true;
+				// successfully converted screenpos to worldlocation
 
-				const FVector2D ScreenPosition(OldScreenLocation.X, OldScreenLocation.Y);
-				SceneView->DeprojectFVector2D(ScreenPosition, WorldLocation, WorldDirection);
+				float length = (InOldProjectileLocation - OutWorldPosition).SizeSquared();
+				FVector &LineStart = OutWorldPosition;
+				FVector LineEnd = OutWorldDirection * length + LineStart;
+				
+				FVector OutLocationForOldScreenPos = FMath::ClosestPointOnLine(LineStart, LineEnd, InOldProjectileLocation);
 
-				//C
-
-				MovedOldProjectileLocation = FMath::ClosestPointOnLine(WorldLocation, WorldLocation + (WorldDirection * (100.f * FVector::Dist(OldProjectileLocation, WorldLocation))), OldProjectileLocation);
-
-				FRotator TracerRotation = FRotationMatrix::MakeFromX(MovedOldProjectileLocation - OldProjectileLocation).Rotator();
-
-				TracerRotation.Pitch += 90.f;
-
-				BPProjectileType->SetWorldRotation(TracerRotation);
-				FoundWorldLocation = true;
+				OutTracerRotation = FRotationMatrix::MakeFromX((InNewProjectileLocation - OutLocationForOldScreenPos).GetSafeNormal()).Rotator();
+			
+				FMatrix const ViewProjectionMatrix = ProjectionData.ComputeViewProjectionMatrix();
+				FSceneView::ProjectWorldToScreen(InNewProjectileLocation, ProjectionData.GetConstrainedViewRect(), ViewProjectionMatrix, OutScreenPosition);
+				return true;
+			}
+			else {
+				// something went wrong, zero things and return false
+				OutWorldPosition = FVector::ZeroVector;
+				OutWorldDirection = FVector::ZeroVector;
+				OutScreenPosition = FVector2D::ZeroVector;
+				return false;
+			}
+		}			
+	}
+	else {
+		if (LP && LP->ViewportClient)
+		{
+			FSceneViewProjectionData ProjectionData;
+			if (LP->GetProjectionData(LP->ViewportClient->Viewport, eSSP_FULL, /*out*/ ProjectionData))
+			{
+				FMatrix const ViewProjectionMatrix = ProjectionData.ComputeViewProjectionMatrix();
+				FSceneView::ProjectWorldToScreen(InNewProjectileLocation, ProjectionData.GetConstrainedViewRect(), ViewProjectionMatrix, OutScreenPosition);
+				return true;
 			}
 		}
 	}
-
-	ULocalPlayer* LocalPlayer = Cast<ULocalPlayer>(Player);
-	if (LocalPlayer != NULL && LocalPlayer->ViewportClient != NULL && LocalPlayer->ViewportClient->Viewport != NULL)
-	{
-		// Create a view family for the game viewport
-		FSceneViewFamilyContext ViewFamily(FSceneViewFamily::ConstructionValues(
-			LocalPlayer->ViewportClient->Viewport,
-			LocalPlayer->GetWorld()->Scene,
-			LocalPlayer->ViewportClient->EngineShowFlags)
-			.SetRealtimeUpdate(true));
-
-		// Calculate a view where the player is to update the streaming from the players start location
-		FVector ViewLocation;
-		FRotator ViewRotation;
-		FSceneView* SceneView = LocalPlayer->CalcSceneView(&ViewFamily, /*out*/ ViewLocation, /*out*/ ViewRotation, LocalPlayer->ViewportClient->Viewport);
-
-		if (SceneView)
-		{
-			return SceneView->WorldToPixel(NewProjectileLocation, NewScreenLocation);
-		}
-		else {
-			NewScreenLocation = FVector2D(0.f, 0.f);
-		}
-	}
-
-
-	if (!FoundWorldLocation)
-		MovedOldProjectileLocation = OldProjectileLocation;
-
-
-	return FoundWorldLocation;
+	return false;
 }
 
 //11

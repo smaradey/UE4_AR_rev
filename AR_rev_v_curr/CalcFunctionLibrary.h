@@ -94,19 +94,19 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Interpolation_C++")
 		static float FInterpFromToInTime(float Beginning, float Current, float Target, float DeltaTime, float InterpTime);
 	//10
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Projectile_C++")
+	UFUNCTION(BlueprintCallable, Category = "Projectile_C++")
 		static bool TracerMotionBlur(
-		APlayerController* Player,
-		USceneComponent *BPProjectileType,
-
-		const FVector2D &OldScreenLocation,
-		FVector2D &NewScreenLocation,
-
-		const FVector &OldProjectileLocation,
-		const FVector &NewProjectileLocation,
-		FVector &MovedOldProjectileLocation,
-
-		bool FoundNewScreenLocation);
+			APlayerController* InPlayer,
+			const FVector2D &InOldScreenPos,
+			const bool &InHasScreenPos,
+			FVector &OutWorldPosition,
+			FVector &OutWorldDirection,
+			FVector &OutLocationForOldScreenPos,
+			const FVector &InOldProjectileLocation,
+			const FVector &InNewProjectileLocation,
+			FRotator &OutTracerRotation,
+			FVector2D &OutScreenPosition);
+		
 
 	//11
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Math_C++")
