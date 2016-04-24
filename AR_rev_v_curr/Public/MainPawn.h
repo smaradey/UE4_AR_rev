@@ -43,6 +43,12 @@ public:
 	FORCEINLINE class UStaticMeshComponent* GetPlaneMesh() const { return ArmorMesh; }
 
 
+	/** Smoothing defines how many updates the client lags behind: 1/1 = 1.0f; 2 = 1/2 = 0.5f; 3 = 1/3 = 0.33f; 4 = 1/4 = 0.25f
+	use more lag with higher networkfrequency */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
+		float Smoothing = 0.5f;
+
+
 
 protected:
 
@@ -132,6 +138,11 @@ protected:
 	virtual void GetPlayerInput(float DeltaTime, FVector2D CameraInput, FVector2D MovementInput); // executed on client
 
 	float lastUpdate;
+	FVector PrevLocationOnServer;
+	FTransform PrevReceivedTransform;
+	float LinVelServer;
+	float NetDelta;
+
 
 
 
