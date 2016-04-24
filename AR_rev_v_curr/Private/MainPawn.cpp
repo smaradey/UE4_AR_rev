@@ -9,7 +9,7 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
     // Set this pawn to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
     PrimaryActorTick.bCanEverTick = true;
     bReplicates = true;
-    bAlwaysRelevant = true;
+    bAlwaysRelevant = false;
     bReplicateMovement = false;
 
     //SetActorEnableCollision(true);
@@ -19,15 +19,17 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
 
     // Create static mesh component
     ArmorMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ArmorMesh"));
+
+	RootComponent = ArmorMesh;
     //ArmorMesh->AttachTo(RootComponent);
-    //ArmorMesh->SetCollisionObjectType(ECC_Pawn);
-    //ArmorMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+    ArmorMesh->SetCollisionObjectType(ECC_Pawn);
+    ArmorMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
     ArmorMesh->SetCollisionProfileName(TEXT("BlockAll"));
 
     ArmorMesh->SetSimulatePhysics(true);
     ArmorMesh->SetEnableGravity(false);
-    RootComponent = ArmorMesh;
-
+    
+	
     SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraSpringArm"));
     SpringArm->AttachTo(RootComponent);
     SpringArm->SetRelativeLocationAndRotation(FVector(-300.0f, 0.0f, 50.0f), FRotator(0.0f, 0.0f, 0.0f));
@@ -36,8 +38,10 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
     SpringArm->bEnableCameraLag = true;
     SpringArm->CameraLagSpeed = 4.0f;
     SpringArm->CameraLagMaxDistance = 300.0f;
+	
 
     Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("GameCamera"));
+	//Camera->AttachTo(RootComponent);
     Camera->AttachTo(SpringArm, USpringArmComponent::SocketName);
     // PostProcessSettings
     Camera->PostProcessSettings.bOverride_LensFlareIntensity = true;
@@ -46,6 +50,7 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
     Camera->PostProcessSettings.AntiAliasingMethod = EAntiAliasingMethod::AAM_FXAA;
     Camera->PostProcessSettings.bOverride_MotionBlurAmount = true;
     Camera->PostProcessSettings.MotionBlurAmount = 0.1f;
+	
 
 
 
@@ -60,6 +65,11 @@ void AMainPawn::BeginPlay() {
 
     // movement
     TurnRate = MaxTurnRate;
+	if (Role < ROLE_Authority) {
+		lastUpdate = GetWorld()->RealTimeSeconds;
+		PrevReceivedTransform = GetTransform();
+		ArmorMesh->SetSimulatePhysics(false);
+	}
 
 }
 
@@ -123,39 +133,31 @@ void AMainPawn::Tick(float DeltaTime) {
 		ArmorMesh->SetPhysicsLinearVelocity(
 			FMath::VInterpConstantTo(ArmorMesh->GetPhysicsLinearVelocity(), TargetLinearVelocity, DeltaTime,
 				LinVInterpSpeed));
-    }
+    } else if (Role == ROLE_Authority) {
+		float AngVInterpSpeed = 10.f;
+		float LinVInterpSpeed = 100.f;
 
-    if (Role == ROLE_Authority) {
+		ArmorMesh->SetPhysicsAngularVelocity(
+			FMath::VInterpConstantTo(ArmorMesh->GetPhysicsAngularVelocity(), FVector::ZeroVector, DeltaTime,
+				AngVInterpSpeed));
+		ArmorMesh->SetPhysicsLinearVelocity(
+			FMath::VInterpConstantTo(ArmorMesh->GetPhysicsLinearVelocity(), FVector::ZeroVector, DeltaTime,
+				LinVInterpSpeed));
+
+
         TransformOnAuthority = GetTransform();
-       // AngularVelocity = ArmorMesh->GetPhysicsAngularVelocity();
-       // LinearVelocity = ArmorMesh->GetPhysicsLinearVelocity();
-    }
+       AngularVelocity = ArmorMesh->GetPhysicsAngularVelocity();
+       LinearVelocity = ArmorMesh->GetPhysicsLinearVelocity();
+    } else {
+		FTransform NewTransform;
 
+		TransformBlend += DeltaTime;
+		//NewTransform.Blend(TransformOnClient, TransformOnAuthority, TransformBlend / NetDelta);
 
-    if (!(Role == ROLE_Authority || IsLocallyControlled())) {
-		
-		float interpSpeed = 100.0f;
-		FVector newLocation = FMath::VInterpTo(GetActorLocation(), TransformOnAuthority.GetLocation(), DeltaTime, interpSpeed);
-		// TODO: clamp to server lin Velocity
-		FVector movement = (newLocation - GetActorLocation()).GetClampedToMaxSize(1000.0f*DeltaTime);
-		newLocation = GetActorLocation() + movement;
-		SetActorLocation(newLocation, false, nullptr);
-		// TODO: interp rotation
-		FRotator newRotation = FMath::VInterpNormalRotationTo(GetActorRotation().Vector(), TransformOnAuthority.GetRotation().Vector(), DeltaTime, AngularVelocity.Size()* DeltaTime).Rotation();
-		SetActorRotation(newRotation);
-
-
-
-        //FTransform TargetTransform = TransformOnClient;
-        //TransformBlend += DeltaTime;
-        //TargetTransform.Blend(TargetTransform, TransformOnAuthority, FMath::Min(0.95f,TransformBlend * NetUpdateFrequency));
-
-        //SetActorTransform(TargetTransform);
-	}
-	else {
-
-
-
+		//NewTransform.Blend(TransformOnClient, TransformOnAuthority, /*FMath::Min(1.0f,*/(TransformBlend / NetDelta) * 0.8f);
+		NewTransform.Blend(TransformOnClient, TransformOnAuthority, FMath::Min(1.f,TransformBlend * NetUpdateFrequency*Smoothing));
+		//TransformBlend += DeltaTime;
+        SetActorTransform(NewTransform,false,nullptr,ETeleportType::TeleportPhysics);
 	}
 
 
@@ -189,21 +191,34 @@ void AMainPawn::OnRep_TransformOnAuthority() {
     // just notifies you when it changes.
     if (Role < ROLE_Authority) {
         //Alpha = GetWorld()->DeltaTimeSeconds;
-        TransformOnClient = GetTransform();
-        TransformBlend = 0.0f;
-        // "temp" SetActorTransform(TransformOnAuthority);
+		
+		if (GetWorld()) {
+			NetDelta = GetWorld()->RealTimeSeconds - lastUpdate;
+			lastUpdate = GetWorld()->RealTimeSeconds;
+		}
+		//TransformOnClient = PrevReceivedTransform;
+		TransformOnClient = GetTransform();
+		//PrevReceivedTransform = TransformOnAuthority;
+		TransformBlend = 0.0f;
+
+
+		//LinVelServer = ((TransformOnAuthority.GetLocation() - PrevLocationOnServer) / NetDelta).Size();
+		//PrevLocationOnServer = TransformOnAuthority.GetLocation();
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, NetDelta/*seconds*/, FColor::Red, "Transform received");
+
+
     }
 }
 
 void AMainPawn::OnRep_LinearVelocity() {
     if (Role < ROLE_Authority) {
-        if (ArmorMesh) ArmorMesh->SetPhysicsLinearVelocity(LinearVelocity, false);
+       // if (ArmorMesh) ArmorMesh->SetPhysicsLinearVelocity(LinearVelocity, false);
     }
 }
 
 void AMainPawn::OnRep_AngularVelocity() {
     if (Role < ROLE_Authority) {
-        if (ArmorMesh) ArmorMesh->SetPhysicsAngularVelocity(AngularVelocity, false);
+       // if (ArmorMesh) ArmorMesh->SetPhysicsAngularVelocity(AngularVelocity, false);
     }
 }
 
