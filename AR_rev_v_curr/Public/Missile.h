@@ -107,11 +107,11 @@ public:
 		float AccelerationTime = 1.0f;
 
 	/** distance to target where prediction is working at full strength */
-	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Missile")
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
 		float AdvancedMissileMinRange = 5000.0f;
 
 	/** distance to target where prediction will be deactivated */
-	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Missile")
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
 		float AdvancedMissileMaxRange = 15000.0f;
 
 	/** missile range in cm */
