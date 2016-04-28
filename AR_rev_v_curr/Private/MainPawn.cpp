@@ -63,118 +63,125 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
 void AMainPawn::BeginPlay() {
     Super::BeginPlay();
 
+	lastUpdate = GetWorld()->RealTimeSeconds;
+	PrevReceivedTransform = GetTransform();
+
     // movement
     TurnRate = MaxTurnRate;
 	if (Role < ROLE_Authority) {
-		lastUpdate = GetWorld()->RealTimeSeconds;
-		PrevReceivedTransform = GetTransform();
+
+		// deactivate physics on clients
 		ArmorMesh->SetSimulatePhysics(false);
+		NumberOfBufferedNetUpdates = FMath::RoundToInt(Smoothing * NetUpdateFrequency);
+		NumberOfBufferedNetUpdates = FMath::Max(NumberOfBufferedNetUpdates, 2);		
+		LerpVelocity = NetUpdateFrequency / NumberOfBufferedNetUpdates;		
+		PredictionAmount = (NumberOfBufferedNetUpdates + AdditionalUpdatePredictions) / NetUpdateFrequency;
 	}
 
 }
 
 // Called every frame
 void AMainPawn::Tick(float DeltaTime) {
-    Super::Tick(DeltaTime);
+	Super::Tick(DeltaTime);
 
-    if (IsLocallyControlled() && Role == ROLE_Authority) {
-        // get mouse position
-        GetCursorLocation(CursorLoc);
-        // get viewport size/center
-        GetViewportSizeCenter(ViewPortSize, ViewPortCenter);
-        // the resulting mouse input
-        GetMouseInput(MouseInput, CursorLoc, ViewPortCenter);
+	switch (Role) {
+	case ROLE_Authority:
+	{
+		if (IsLocallyControlled()) {
+			// get mouse position
+			GetCursorLocation(CursorLoc);
+			// get viewport size/center
+			GetViewportSizeCenter(ViewPortSize, ViewPortCenter);
+			// the resulting mouse input
+			GetMouseInput(MouseInput, CursorLoc, ViewPortCenter);
 
-        // smooth turning
-        {
-            float TurnInterpSpeed = 2.0f;
-            //InputSize = MouseInput.Size();
-            bool q1 = OldMouseInput.X < 0.0f && MouseInput.X < 0.0f && MouseInput.X - OldMouseInput.X > 0.0f;
-            bool q2 = OldMouseInput.X > 0.0f && MouseInput.X > 0.0f && MouseInput.X - OldMouseInput.X < 0.0f;
-            bool q3 = OldMouseInput.Y < 0.0f && MouseInput.Y < 0.0f && MouseInput.Y - OldMouseInput.Y > 0.0f;
-            bool q4 = OldMouseInput.Y > 0.0f && MouseInput.Y > 0.0f && MouseInput.Y - OldMouseInput.Y < 0.0f;
+			// smooth turning
+			{
+				float TurnInterpSpeed = 2.0f;
+				//InputSize = MouseInput.Size();
+				bool q1 = OldMouseInput.X < 0.0f && MouseInput.X < 0.0f && MouseInput.X - OldMouseInput.X > 0.0f;
+				bool q2 = OldMouseInput.X > 0.0f && MouseInput.X > 0.0f && MouseInput.X - OldMouseInput.X < 0.0f;
+				bool q3 = OldMouseInput.Y < 0.0f && MouseInput.Y < 0.0f && MouseInput.Y - OldMouseInput.Y > 0.0f;
+				bool q4 = OldMouseInput.Y > 0.0f && MouseInput.Y > 0.0f && MouseInput.Y - OldMouseInput.Y < 0.0f;
 
-            if (q1 || q2) {
-                OldMouseInput.X = MouseInput.X;
-            }
-            else {
-                OldMouseInput.X = FMath::FInterpConstantTo(OldMouseInput.X, MouseInput.X, DeltaTime, TurnInterpSpeed);
-            }
-            if (q3 || q4) {
-                OldMouseInput.Y = MouseInput.Y;
-            }
-            else {
-                OldMouseInput.Y = FMath::FInterpConstantTo(OldMouseInput.Y, MouseInput.Y, DeltaTime, TurnInterpSpeed);
-            }
-            //OldInputSize = OldMouseInput.Size();
-        }
+				if (q1 || q2) {
+					OldMouseInput.X = MouseInput.X;
+				}
+				else {
+					OldMouseInput.X = FMath::FInterpConstantTo(OldMouseInput.X, MouseInput.X, DeltaTime, TurnInterpSpeed);
+				}
+				if (q3 || q4) {
+					OldMouseInput.Y = MouseInput.Y;
+				}
+				else {
+					OldMouseInput.Y = FMath::FInterpConstantTo(OldMouseInput.Y, MouseInput.Y, DeltaTime, TurnInterpSpeed);
+				}
+				//OldInputSize = OldMouseInput.Size();
+			}
 
-        TargetAngularVelocity = GetActorRotation().RotateVector(FVector(0.0f, OldMouseInput.Y * TurnRate, OldMouseInput.X * TurnRate));
+			TargetAngularVelocity = GetActorRotation().RotateVector(FVector(0.0f, OldMouseInput.Y * TurnRate, OldMouseInput.X * TurnRate));
 
-        {
-            //Scale movement input axis values by 100 units per second
-            MovementInput = MovementInput.GetSafeNormal() * 56000000.0f;
-            FVector NewLocation = GetActorLocation();
-            NewLocation += (GetActorForwardVector() * MovementInput.X + GetActorRightVector() * MovementInput.Y) * DeltaTime;
-            //SetActorLocation(NewLocation);
+			{
+				//Scale movement input axis values by 100 units per second
+				MovementInput = MovementInput.GetSafeNormal() * 56000000.0f;
+				FVector NewLocation = GetActorLocation();
+				NewLocation += (GetActorForwardVector() * MovementInput.X + GetActorRightVector() * MovementInput.Y) * DeltaTime;
+				//SetActorLocation(NewLocation);
 
-            FVector Velocity = NewLocation - GetActorLocation();
-            TargetLinearVelocity = FVector(Velocity / DeltaTime);
-        }
+				FVector Velocity = NewLocation - GetActorLocation();
+				TargetLinearVelocity = FVector(Velocity / DeltaTime);
+			}
 
-        GetPlayerInput(DeltaTime, MouseInput, MovementInput);
+			GetPlayerInput(DeltaTime, MouseInput, MovementInput);
 
-		float AngVInterpSpeed = 360.0f;
-		float LinVInterpSpeed = 10000.0f;
+			float AngVInterpSpeed = 360.0f;
+			float LinVInterpSpeed = 10000.0f;
 
-		ArmorMesh->SetPhysicsAngularVelocity(
-			FMath::VInterpConstantTo(ArmorMesh->GetPhysicsAngularVelocity(), TargetAngularVelocity, DeltaTime,
-				AngVInterpSpeed));
-		ArmorMesh->SetPhysicsLinearVelocity(
-			FMath::VInterpConstantTo(ArmorMesh->GetPhysicsLinearVelocity(), TargetLinearVelocity, DeltaTime,
-				LinVInterpSpeed));
-    } else if (Role == ROLE_Authority) {
-		float AngVInterpSpeed = 10.f;
-		float LinVInterpSpeed = 100.f;
+			ArmorMesh->SetPhysicsAngularVelocity(
+				FMath::VInterpConstantTo(ArmorMesh->GetPhysicsAngularVelocity(), TargetAngularVelocity, DeltaTime,
+					AngVInterpSpeed));
+			ArmorMesh->SetPhysicsLinearVelocity(
+				FMath::VInterpConstantTo(ArmorMesh->GetPhysicsLinearVelocity(), TargetLinearVelocity, DeltaTime,
+					LinVInterpSpeed));
+		}
 
-		ArmorMesh->SetPhysicsAngularVelocity(
-			FMath::VInterpConstantTo(ArmorMesh->GetPhysicsAngularVelocity(), FVector::ZeroVector, DeltaTime,
-				AngVInterpSpeed));
-		ArmorMesh->SetPhysicsLinearVelocity(
-			FMath::VInterpConstantTo(ArmorMesh->GetPhysicsLinearVelocity(), FVector::ZeroVector, DeltaTime,
-				LinVInterpSpeed));
-
-
-        TransformOnAuthority = GetTransform();
-       AngularVelocity = ArmorMesh->GetPhysicsAngularVelocity();
-       LinearVelocity = ArmorMesh->GetPhysicsLinearVelocity();
-    } else {
-		FTransform NewTransform;
-
-		TransformBlend += DeltaTime;
-		//NewTransform.Blend(TransformOnClient, TransformOnAuthority, TransformBlend / NetDelta);
-
-		//NewTransform.Blend(TransformOnClient, TransformOnAuthority, /*FMath::Min(1.0f,*/(TransformBlend / NetDelta) * 0.8f);
-		NewTransform.Blend(TransformOnClient, TransformOnAuthority, FMath::Min(1.f,TransformBlend * NetUpdateFrequency*Smoothing));
-		//TransformBlend += DeltaTime;
-        SetActorTransform(NewTransform,false,nullptr,ETeleportType::TeleportPhysics);
+		// movement replication
+		TransformOnAuthority = GetTransform();
+		LinearVelocity = ArmorMesh->GetPhysicsLinearVelocity();
+		AngularVelocity = ArmorMesh->GetPhysicsAngularVelocity();
 	}
+	break;
 
+	case ROLE_SimulatedProxy:
+	{
+		// proxyclient movement
+		LerpProgress += DeltaTime;
+		float convertedLerpFactor = FMath::Clamp(LerpProgress * LerpVelocity, 0.0f, 1.0f);
+		FTransform NewTransform;
+		NewTransform.Blend(TransformOnClient, TargetTransform, convertedLerpFactor);
+		// transform actor to new location/rotation
+		SetActorTransform(NewTransform, false, nullptr, ETeleportType::None);
+	}
+	break;
 
+	case ROLE_AutonomousProxy:
+	{
+		//GetPing();
+		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, GetWorld()->DeltaTimeSeconds, FColor::Green, "Ping = " + FString::SanitizeFloat(Ping) + " s");
+		//FTransform newTransform;
 
+		//newTransform.Blend(TransformOnClient, TransformOnAuthority, FMath::Min(Alpha * NetUpdateFrequency*0.9f, 1.0f)); //?
+		//Alpha += DeltaTime;
+		//SetActorTransform(newTransform);
+	}
+	break;
 
-
-    //GetPing();
-    //if (GEngine) GEngine->AddOnScreenDebugMessage(-1, GetWorld()->DeltaTimeSeconds, FColor::Green, "Ping = " + FString::SanitizeFloat(Ping) + " s");
-    //FTransform newTransform;
-
-    //newTransform.Blend(TransformOnClient, TransformOnAuthority, FMath::Min(Alpha * NetUpdateFrequency*0.9f, 1.0f)); //?
-    //Alpha += DeltaTime;
-    //SetActorTransform(newTransform);
-
-
-
+	default:
+	{
+	}
+	}
 }
+
 
 // replication of variables
 void AMainPawn::GetLifetimeReplicatedProps(TArray <FLifetimeProperty> &OutLifetimeProps) const {
@@ -187,27 +194,41 @@ void AMainPawn::GetLifetimeReplicatedProps(TArray <FLifetimeProperty> &OutLifeti
 }
 
 void AMainPawn::OnRep_TransformOnAuthority() {
-    // When this is called, bFlag already contains the new value. This
-    // just notifies you when it changes.
-    if (Role < ROLE_Authority) {
-        //Alpha = GetWorld()->DeltaTimeSeconds;
-		
+	// When this is called, bFlag already contains the new value. This
+	// just notifies you when it changes.
+	switch (Role) {
+	case ROLE_SimulatedProxy:
+	{
+		//Alpha = GetWorld()->DeltaTimeSeconds;
+		/*
 		if (GetWorld()) {
 			NetDelta = GetWorld()->RealTimeSeconds - lastUpdate;
 			lastUpdate = GetWorld()->RealTimeSeconds;
 		}
-		//TransformOnClient = PrevReceivedTransform;
+		*/
+
+		// store starttransform
 		TransformOnClient = GetTransform();
-		//PrevReceivedTransform = TransformOnAuthority;
-		TransformBlend = 0.0f;
+		// reset blendfactor
+		LerpProgress = 0.0f;
 
+		FVector Direction = LinearVelocity.GetSafeNormal();
+		float Velocity = LinearVelocity.Size() * PredictionAmount;
 
-		//LinVelServer = ((TransformOnAuthority.GetLocation() - PrevLocationOnServer) / NetDelta).Size();
-		//PrevLocationOnServer = TransformOnAuthority.GetLocation();
-		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, NetDelta/*seconds*/, FColor::Red, "Transform received");
+		TargetTransform = FTransform(TransformOnAuthority);
+		TargetTransform.AddToTranslation(Direction * Velocity);
 
-
-    }
+		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, NetDelta/*seconds*/, FColor::Red, "Transform received");
+	}
+		break;
+	case ROLE_Authority:
+	{
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, NetDelta/*seconds*/, FColor::Red, "Transform sent");
+	}
+	break;
+	default:
+		break;
+}
 }
 
 void AMainPawn::OnRep_LinearVelocity() {

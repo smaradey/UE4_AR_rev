@@ -43,10 +43,8 @@ public:
 	FORCEINLINE class UStaticMeshComponent* GetPlaneMesh() const { return ArmorMesh; }
 
 
-	/** Smoothing defines how many updates the client lags behind: 1/1 = 1.0f; 2 = 1/2 = 0.5f; 3 = 1/3 = 0.33f; 4 = 1/4 = 0.25f
-	use more lag with higher networkfrequency */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
-		float Smoothing = 0.5f;
+
+
 
 
 
@@ -103,19 +101,12 @@ protected:
 
 	int lagCounter = 0;
 
-	// movement
-	UPROPERTY(ReplicatedUsing = OnRep_TransformOnAuthority, EditAnywhere, BlueprintReadWrite, Category = "MainPawn")
-		FTransform TransformOnAuthority;
-	UFUNCTION()
-		void OnRep_TransformOnAuthority();
 
-	FTransform TransformOnClient;
+
+	
 	FTransform RelativeArmorTransform;
 
-	UPROPERTY(ReplicatedUsing = OnRep_LinearVelocity, EditAnywhere, BlueprintReadWrite, Category = "MainPawn")
-		FVector LinearVelocity;
-	UFUNCTION()
-		void OnRep_LinearVelocity();
+
 
 	UPROPERTY(ReplicatedUsing = OnRep_AngularVelocity, EditAnywhere, BlueprintReadWrite, Category = "MainPawn")
 		FVector AngularVelocity;
@@ -136,6 +127,46 @@ protected:
 	UFUNCTION(Server, Reliable, WithValidation)
 		void Server_GetPlayerInput(float DeltaTime, FVector2D CameraInput, FVector2D MovementInput);
 	virtual void GetPlayerInput(float DeltaTime, FVector2D CameraInput, FVector2D MovementInput); // executed on client
+
+	
+	// Replicated Movement
+	// {
+	/** Smoothing defines how many seconds the client will continue to move after an update was received */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Replication", meta = (ClampMin = "0.0", ClampMax = "3.0", UIMin = "0.0", UIMax = "1.0"))
+	float Smoothing = 0.5f;
+
+	/** defines how many updates will be predicted */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Replication", meta = (ClampMin = "-1", ClampMax = "100", UIMin = "-1", UIMax = "3"))
+		int AdditionalUpdatePredictions = -1;
+
+	private:
+		// how many updates to buffer
+		int NumberOfBufferedNetUpdates;
+		// factor to slow down movement to compensate long buffertime
+		float LerpVelocity;
+		// how far the received Location will be predicted into the future
+		float PredictionAmount;
+		// how far the client has transitioned between the current transform and the target transform */
+		float LerpProgress;
+		// start transform used for lerp-movement */
+		FTransform TransformOnClient;
+		// end transform used for lerp-movement */
+		FTransform TargetTransform;
+
+		/** last Transform received by the client/sent by the server/authority */
+		UPROPERTY(ReplicatedUsing = OnRep_TransformOnAuthority)
+			FTransform TransformOnAuthority;
+		UFUNCTION()
+			void OnRep_TransformOnAuthority();
+
+		/**  last linear physics velocity by the client/sent by the server/authority */
+		UPROPERTY(ReplicatedUsing = OnRep_LinearVelocity)
+			FVector LinearVelocity;
+		UFUNCTION()
+			void OnRep_LinearVelocity();
+
+
+	// }
 
 	float lastUpdate;
 	FVector PrevLocationOnServer;

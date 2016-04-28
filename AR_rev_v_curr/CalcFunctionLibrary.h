@@ -2,6 +2,7 @@
 
 #pragma once
 
+#include "AR_rev_v_curr.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "CalcFunctionLibrary.generated.h"
 
