@@ -9,12 +9,29 @@
 #include "UnrealNetwork.h"
 #include "MainPawn.generated.h"
 
+USTRUCT()
+struct FPacket {
+	GENERATED_USTRUCT_BODY()
+		UPROPERTY()
+		int16 PacketNo;
+	UPROPERTY()
+		int16 Ack;
+	UPROPERTY()
+		FVector2D MouseInput;
+	UPROPERTY()
+		FVector2D MovementInput;
+
+
+};
+
 UCLASS()
 class AR_REV_V_CURR_API AMainPawn : public APawn
 {
 	GENERATED_BODY()
 
 public:
+
+
 	// Sets default values for this pawn's properties
 	AMainPawn();
 
@@ -124,9 +141,16 @@ protected:
 		FVector TargetLinearVelocity;
 	float TransformBlend;
 
-	UFUNCTION(Server, Reliable, WithValidation)
-		void Server_GetPlayerInput(float DeltaTime, FVector2D CameraInput, FVector2D MovementInput);
-	virtual void GetPlayerInput(float DeltaTime, FVector2D CameraInput, FVector2D MovementInput); // executed on client
+	UFUNCTION(Server, unreliable, WithValidation)
+		void Server_GetPlayerInput(FPacket inputData);
+	virtual void GetPlayerInput(FPacket inputData); // executed on client
+
+	UFUNCTION(Client, Reliable)
+		void Client_LastAcceptedPacket(int16 Ack);
+	virtual void LastAcceptedPacket(int16 Ack);
+	FPacket inputData;
+	int16 Ack;
+
 
 	
 	// Replicated Movement

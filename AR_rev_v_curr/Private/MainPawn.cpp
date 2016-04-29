@@ -84,40 +84,51 @@ void AMainPawn::BeginPlay() {
 void AMainPawn::Tick(float DeltaTime) {
 	Super::Tick(DeltaTime);
 
+	if (IsLocallyControlled()) {
+
+		// get mouse position
+		GetCursorLocation(CursorLoc);
+		// get viewport size/center
+		GetViewportSizeCenter(ViewPortSize, ViewPortCenter);
+		// the resulting mouse input
+		GetMouseInput(MouseInput, CursorLoc, ViewPortCenter);
+
+		// smooth turning
+		{
+			float TurnInterpSpeed = 2.0f;
+			//InputSize = MouseInput.Size();
+			bool q1 = OldMouseInput.X < 0.0f && MouseInput.X < 0.0f && MouseInput.X - OldMouseInput.X > 0.0f;
+			bool q2 = OldMouseInput.X > 0.0f && MouseInput.X > 0.0f && MouseInput.X - OldMouseInput.X < 0.0f;
+			bool q3 = OldMouseInput.Y < 0.0f && MouseInput.Y < 0.0f && MouseInput.Y - OldMouseInput.Y > 0.0f;
+			bool q4 = OldMouseInput.Y > 0.0f && MouseInput.Y > 0.0f && MouseInput.Y - OldMouseInput.Y < 0.0f;
+
+			if (q1 || q2) {
+				OldMouseInput.X = MouseInput.X;
+			}
+			else {
+				OldMouseInput.X = FMath::FInterpConstantTo(OldMouseInput.X, MouseInput.X, DeltaTime, TurnInterpSpeed);
+			}
+			if (q3 || q4) {
+				OldMouseInput.Y = MouseInput.Y;
+			}
+			else {
+				OldMouseInput.Y = FMath::FInterpConstantTo(OldMouseInput.Y, MouseInput.Y, DeltaTime, TurnInterpSpeed);
+			}
+			//OldInputSize = OldMouseInput.Size();
+		}
+
+		inputData.PacketNo = inputData.PacketNo + 1;
+		inputData.MouseInput = OldMouseInput;
+		inputData.MovementInput = MovementInput;
+		inputData.Ack = Ack;
+		GetPlayerInput(inputData);
+	}
+
 	switch (Role) {
 	case ROLE_Authority:
 	{
-		if (IsLocallyControlled()) {
-			// get mouse position
-			GetCursorLocation(CursorLoc);
-			// get viewport size/center
-			GetViewportSizeCenter(ViewPortSize, ViewPortCenter);
-			// the resulting mouse input
-			GetMouseInput(MouseInput, CursorLoc, ViewPortCenter);
-
-			// smooth turning
-			{
-				float TurnInterpSpeed = 2.0f;
-				//InputSize = MouseInput.Size();
-				bool q1 = OldMouseInput.X < 0.0f && MouseInput.X < 0.0f && MouseInput.X - OldMouseInput.X > 0.0f;
-				bool q2 = OldMouseInput.X > 0.0f && MouseInput.X > 0.0f && MouseInput.X - OldMouseInput.X < 0.0f;
-				bool q3 = OldMouseInput.Y < 0.0f && MouseInput.Y < 0.0f && MouseInput.Y - OldMouseInput.Y > 0.0f;
-				bool q4 = OldMouseInput.Y > 0.0f && MouseInput.Y > 0.0f && MouseInput.Y - OldMouseInput.Y < 0.0f;
-
-				if (q1 || q2) {
-					OldMouseInput.X = MouseInput.X;
-				}
-				else {
-					OldMouseInput.X = FMath::FInterpConstantTo(OldMouseInput.X, MouseInput.X, DeltaTime, TurnInterpSpeed);
-				}
-				if (q3 || q4) {
-					OldMouseInput.Y = MouseInput.Y;
-				}
-				else {
-					OldMouseInput.Y = FMath::FInterpConstantTo(OldMouseInput.Y, MouseInput.Y, DeltaTime, TurnInterpSpeed);
-				}
-				//OldInputSize = OldMouseInput.Size();
-			}
+		OldMouseInput = inputData.MouseInput;
+		MovementInput = inputData.MovementInput;
 
 			TargetAngularVelocity = GetActorRotation().RotateVector(FVector(0.0f, OldMouseInput.Y * TurnRate, OldMouseInput.X * TurnRate));
 
@@ -132,7 +143,7 @@ void AMainPawn::Tick(float DeltaTime) {
 				TargetLinearVelocity = FVector(Velocity / DeltaTime);
 			}
 
-			GetPlayerInput(DeltaTime, MouseInput, MovementInput);
+
 
 			float AngVInterpSpeed = 360.0f;
 			float LinVInterpSpeed = 10000.0f;
@@ -143,7 +154,7 @@ void AMainPawn::Tick(float DeltaTime) {
 			ArmorMesh->SetPhysicsLinearVelocity(
 				FMath::VInterpConstantTo(ArmorMesh->GetPhysicsLinearVelocity(), TargetLinearVelocity, DeltaTime,
 					LinVInterpSpeed));
-		}
+		
 
 		// movement replication
 		TransformOnAuthority = GetTransform();
@@ -166,6 +177,8 @@ void AMainPawn::Tick(float DeltaTime) {
 
 	case ROLE_AutonomousProxy:
 	{
+
+
 		//GetPing();
 		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, GetWorld()->DeltaTimeSeconds, FColor::Green, "Ping = " + FString::SanitizeFloat(Ping) + " s");
 		//FTransform newTransform;
@@ -178,6 +191,7 @@ void AMainPawn::Tick(float DeltaTime) {
 
 	default:
 	{
+
 	}
 	}
 }
@@ -196,9 +210,7 @@ void AMainPawn::GetLifetimeReplicatedProps(TArray <FLifetimeProperty> &OutLifeti
 void AMainPawn::OnRep_TransformOnAuthority() {
 	// When this is called, bFlag already contains the new value. This
 	// just notifies you when it changes.
-	switch (Role) {
-	case ROLE_SimulatedProxy:
-	{
+	if (Role < ROLE_Authority){
 		//Alpha = GetWorld()->DeltaTimeSeconds;
 		/*
 		if (GetWorld()) {
@@ -220,15 +232,7 @@ void AMainPawn::OnRep_TransformOnAuthority() {
 
 		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, NetDelta/*seconds*/, FColor::Red, "Transform received");
 	}
-		break;
-	case ROLE_Authority:
-	{
-		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, NetDelta/*seconds*/, FColor::Red, "Transform sent");
-	}
-	break;
-	default:
-		break;
-}
+
 }
 
 void AMainPawn::OnRep_LinearVelocity() {
@@ -334,16 +338,16 @@ void AMainPawn::GunFire() {
 }
 
 // sends Playerinput to server
-void AMainPawn::GetPlayerInput(float DeltaTime, FVector2D CameraInput, FVector2D MovementInput) {
-    Server_GetPlayerInput(DeltaTime, CameraInput, MovementInput);
+void AMainPawn::GetPlayerInput(FPacket inputData) {
+    Server_GetPlayerInput(inputData);
 }
 
-bool AMainPawn::Server_GetPlayerInput_Validate(float DeltaTime, FVector2D CameraInput, FVector2D MovementInput) {
+bool AMainPawn::Server_GetPlayerInput_Validate(FPacket inputData) {
     return true;
 }
 
 //Server receives Input
-void AMainPawn::Server_GetPlayerInput_Implementation(float DeltaTime, FVector2D CameraInput, FVector2D MovementInput) {
+void AMainPawn::Server_GetPlayerInput_Implementation(FPacket receivedInputData) {
     float NetDelta;
     if (GetWorld()) {
         NetDelta = GetWorld()->RealTimeSeconds - lastUpdate;
@@ -353,6 +357,17 @@ void AMainPawn::Server_GetPlayerInput_Implementation(float DeltaTime, FVector2D 
                                              FString::SanitizeFloat(NetDelta) + "    " +
                                              FString::FromInt(GetVelocity().Size() * 0.036f) + " km/h");
     }
+	this->inputData = receivedInputData;
+	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Blue, "accepting Packet = " + FString::FromInt(receivedInputData.PacketNo));
+	LastAcceptedPacket(receivedInputData.PacketNo);
+}
+
+void AMainPawn::LastAcceptedPacket(int16 Ack) {
+	Client_LastAcceptedPacket(Ack);
+}
+void AMainPawn::Client_LastAcceptedPacket_Implementation(int16 acceptedPacket) {
+	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Green, "Last acceptet Packet = " + FString::FromInt(acceptedPacket));
+	this->Ack = acceptedPacket;
 }
 
 inline void AMainPawn::GetCursorLocation(FVector2D &CursorLoc) {
@@ -361,7 +376,7 @@ inline void AMainPawn::GetCursorLocation(FVector2D &CursorLoc) {
         if (controller) {
             controller->GetMousePosition(CursorLoc.X, CursorLoc.Y);
             if (GEngine)
-                GEngine->AddOnScreenDebugMessage(3, 3.0f/*seconds*/, FColor::Red,
+                GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Red,
                                                  FString::SanitizeFloat(CursorLoc.X) + " " +
                                                  FString::SanitizeFloat(CursorLoc.Y));
         }
