@@ -3,25 +3,35 @@
 #pragma once
 
 
+#include "AR_rev_v_curr.h"
 #include "GameFramework/Pawn.h"
 #include "Engine.h"
 #include "GameFramework/DamageType.h"
 #include "UnrealNetwork.h"
 #include "MainPawn.generated.h"
 
+
+
 USTRUCT()
-struct FPacket {
+struct FInput {
+	GENERATED_USTRUCT_BODY()
+		UPROPERTY()
+		int16 PacketNo;
+		UPROPERTY()
+		FVector2D MouseInput;
+	UPROPERTY()
+		FVector2D MovementInput;
+};
+
+USTRUCT()
+struct FInputsPackage {
 	GENERATED_USTRUCT_BODY()
 		UPROPERTY()
 		int16 PacketNo;
 	UPROPERTY()
 		int16 Ack;
 	UPROPERTY()
-		FVector2D MouseInput;
-	UPROPERTY()
-		FVector2D MovementInput;
-
-
+		TArray<FInput> InputDataList = TArray<FInput>();
 };
 
 UCLASS()
@@ -49,12 +59,12 @@ public:
 
 	/** StaticMesh component that will be the visuals for the missile */
 	UPROPERTY(Category = Mesh, VisibleDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
-	class UStaticMeshComponent* ArmorMesh;
+		class UStaticMeshComponent* ArmorMesh;
 
 	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 		USpringArmComponent* SpringArm;
 	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
-	UCameraComponent* Camera;
+		UCameraComponent* Camera;
 
 	/** Returns PlaneMesh subobject **/
 	FORCEINLINE class UStaticMeshComponent* GetPlaneMesh() const { return ArmorMesh; }
@@ -120,7 +130,7 @@ protected:
 
 
 
-	
+
 	FTransform RelativeArmorTransform;
 
 
@@ -129,7 +139,7 @@ protected:
 		FVector AngularVelocity;
 	UFUNCTION()
 		void OnRep_AngularVelocity();
-	
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
 		float MaxTurnRate = 100.0f;
 	float TurnRate;
@@ -142,52 +152,56 @@ protected:
 	float TransformBlend;
 
 	UFUNCTION(Server, unreliable, WithValidation)
-		void Server_GetPlayerInput(FPacket inputData);
-	virtual void GetPlayerInput(FPacket inputData); // executed on client
+		void Server_GetPlayerInput(FInputsPackage inputData);
+	virtual void GetPlayerInput(FInputsPackage inputData); // executed on client
 
-	UFUNCTION(Client, Reliable)
+	UFUNCTION(Client, reliable)
 		void Client_LastAcceptedPacket(int16 Ack);
 	virtual void LastAcceptedPacket(int16 Ack);
-	FPacket inputData;
-	int16 Ack;
+	UPROPERTY()
+		TArray<FInput> PlayerInputs = TArray<FInput>();
+	UPROPERTY()
+		FInputsPackage InputPackage;
+	UPROPERTY()
+		int16 Ack;
 
 
-	
+
 	// Replicated Movement
 	// {
 	/** Smoothing defines how many seconds the client will continue to move after an update was received */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Replication", meta = (ClampMin = "0.0", ClampMax = "3.0", UIMin = "0.0", UIMax = "1.0"))
-	float Smoothing = 0.5f;
+		float Smoothing = 0.5f;
 
 	/** defines how many updates will be predicted */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Replication", meta = (ClampMin = "-1", ClampMax = "100", UIMin = "-1", UIMax = "3"))
 		int AdditionalUpdatePredictions = -1;
 
-	private:
-		// how many updates to buffer
-		int NumberOfBufferedNetUpdates;
-		// factor to slow down movement to compensate long buffertime
-		float LerpVelocity;
-		// how far the received Location will be predicted into the future
-		float PredictionAmount;
-		// how far the client has transitioned between the current transform and the target transform */
-		float LerpProgress;
-		// start transform used for lerp-movement */
-		FTransform TransformOnClient;
-		// end transform used for lerp-movement */
-		FTransform TargetTransform;
+private:
+	// how many updates to buffer
+	int NumberOfBufferedNetUpdates;
+	// factor to slow down movement to compensate long buffertime
+	float LerpVelocity;
+	// how far the received Location will be predicted into the future
+	float PredictionAmount;
+	// how far the client has transitioned between the current transform and the target transform */
+	float LerpProgress;
+	// start transform used for lerp-movement */
+	FTransform TransformOnClient;
+	// end transform used for lerp-movement */
+	FTransform TargetTransform;
 
-		/** last Transform received by the client/sent by the server/authority */
-		UPROPERTY(ReplicatedUsing = OnRep_TransformOnAuthority)
-			FTransform TransformOnAuthority;
-		UFUNCTION()
-			void OnRep_TransformOnAuthority();
+	/** last Transform received by the client/sent by the server/authority */
+	UPROPERTY(ReplicatedUsing = OnRep_TransformOnAuthority)
+		FTransform TransformOnAuthority;
+	UFUNCTION()
+		void OnRep_TransformOnAuthority();
 
-		/**  last linear physics velocity by the client/sent by the server/authority */
-		UPROPERTY(ReplicatedUsing = OnRep_LinearVelocity)
-			FVector LinearVelocity;
-		UFUNCTION()
-			void OnRep_LinearVelocity();
+	/**  last linear physics velocity by the client/sent by the server/authority */
+	UPROPERTY(ReplicatedUsing = OnRep_LinearVelocity)
+		FVector LinearVelocity;
+	UFUNCTION()
+		void OnRep_LinearVelocity();
 
 
 	// }
