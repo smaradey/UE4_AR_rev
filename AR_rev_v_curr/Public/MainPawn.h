@@ -61,6 +61,10 @@ public:
 	UPROPERTY(Category = Mesh, VisibleDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 		class UStaticMeshComponent* ArmorMesh;
 
+	/** StaticMesh component that will be the visuals for the missile */
+	UPROPERTY(Category = Mesh, VisibleDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
+		class UStaticMeshComponent* Root;
+
 	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 		USpringArmComponent* SpringArm;
 	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
@@ -68,6 +72,9 @@ public:
 
 	/** Returns PlaneMesh subobject **/
 	FORCEINLINE class UStaticMeshComponent* GetPlaneMesh() const { return ArmorMesh; }
+
+	/** Returns Root subobject **/
+	FORCEINLINE class UStaticMeshComponent* GetRootMesh() const { return Root; }
 
 
 
@@ -125,6 +132,15 @@ protected:
 	void GunFire();
 	void StartGunFire();
 	void StopGunFire();
+
+	void StopMovement();
+	UFUNCTION(Server, reliable, WithValidation)
+		void Server_StopPlayerMovement();
+	virtual void StopPlayerMovement(); // executed on client
+	UPROPERTY(Replicated)
+		bool bCanReceivePlayerInput = true;
+
+
 
 	int lagCounter = 0;
 

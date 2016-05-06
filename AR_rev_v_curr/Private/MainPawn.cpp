@@ -20,6 +20,8 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
 	// Create static mesh component
 	ArmorMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ArmorMesh"));
 
+	Root = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Root"));
+	//RootComponent = Root;
 	RootComponent = ArmorMesh;
 	//ArmorMesh->AttachTo(RootComponent);
 	ArmorMesh->SetCollisionObjectType(ECC_Pawn);
@@ -32,7 +34,7 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
 
 	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraSpringArm"));
 	SpringArm->AttachTo(RootComponent);
-	SpringArm->SetRelativeLocationAndRotation(FVector(-300.0f, 0.0f, 50.0f), FRotator(0.0f, 0.0f, 0.0f));
+	//SpringArm->SetRelativeLocationAndRotation(FVector(-300.0f, 0.0f, 50.0f), FRotator(0.0f, 0.0f, 0.0f));
 	SpringArm->TargetArmLength = 0.0f;
 	SpringArm->SocketOffset = FVector(0.0f, 0.0f, 75.0f);
 	SpringArm->bEnableCameraLag = true;
@@ -84,7 +86,7 @@ void AMainPawn::BeginPlay() {
 void AMainPawn::Tick(float DeltaTime) {
 	Super::Tick(DeltaTime);
 
-	if (IsLocallyControlled()) {
+	if (IsLocallyControlled() && bCanReceivePlayerInput) {
 
 		// get mouse position
 		GetCursorLocation(CursorLoc);
@@ -131,7 +133,7 @@ void AMainPawn::Tick(float DeltaTime) {
 		InputPackage.InputDataList.Add(currentInput);
 		InputPackage.Ack = Ack;
 
-		if (GEngine) GEngine->AddOnScreenDebugMessage(-1,0.0f, FColor::White, "Length of Array = " + FString::FromInt(InputPackage.InputDataList.Num()));
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, "Length of Array = " + FString::FromInt(InputPackage.InputDataList.Num()));
 
 		GetPlayerInput(InputPackage);
 	}
@@ -140,11 +142,21 @@ void AMainPawn::Tick(float DeltaTime) {
 	case ROLE_Authority:
 	{
 		if (InputPackage.InputDataList.Num() > 0) {
+
 			const FInput &currentInput = InputPackage.InputDataList.Last();
 
 			OldMouseInput = InputPackage.InputDataList.Last().MouseInput;
 			MovementInput = InputPackage.InputDataList.Last().MovementInput;
+
 		}
+		if (!bCanReceivePlayerInput) {
+			OldMouseInput.X = 0.f;
+			OldMouseInput.Y = 0.f;
+			MovementInput.X = 0.f;
+			MovementInput.Y = 0.f;
+		}
+
+
 		TargetAngularVelocity = GetActorRotation().RotateVector(FVector(0.0f, OldMouseInput.Y * TurnRate, OldMouseInput.X * TurnRate));
 
 		{
@@ -220,6 +232,7 @@ void AMainPawn::GetLifetimeReplicatedProps(TArray <FLifetimeProperty> &OutLifeti
 	DOREPLIFETIME(AMainPawn, AngularVelocity);
 	DOREPLIFETIME(AMainPawn, TargetAngularVelocity);
 	DOREPLIFETIME(AMainPawn, TargetLinearVelocity);
+	DOREPLIFETIME(AMainPawn, bCanReceivePlayerInput);
 }
 
 void AMainPawn::OnRep_TransformOnAuthority() {
@@ -287,6 +300,7 @@ void AMainPawn::SetupPlayerInputComponent(class UInputComponent *InputComponent)
 	InputComponent->BindAction("ZoomIn", IE_Released, this, &AMainPawn::ZoomOut);
 	InputComponent->BindAction("Fire Gun Action", IE_Pressed, this, &AMainPawn::StartGunFire);
 	InputComponent->BindAction("Fire Gun Action", IE_Released, this, &AMainPawn::StopGunFire);
+	InputComponent->BindAction("StopMovement", IE_Pressed, this, &AMainPawn::StopMovement);
 
 
 	//Hook up every-frame handling for our four axes
@@ -323,7 +337,7 @@ void AMainPawn::YawCamera(float AxisValue) {
 
 void AMainPawn::ZoomIn() {
 	bZoomingIn = true;
-	if (GEngine) GEngine->AddOnScreenDebugMessage(1,0.0f/*seconds*/, FColor::Red, "ZoomPressed");
+	if (GEngine) GEngine->AddOnScreenDebugMessage(1, 0.0f/*seconds*/, FColor::Red, "ZoomPressed");
 	Camera->FieldOfView = 30.0f;
 }
 
@@ -349,13 +363,27 @@ void AMainPawn::StopGunFire() {
 
 void AMainPawn::GunFire() {
 	if (!bCanFireGun) return;
-	if (GEngine) GEngine->AddOnScreenDebugMessage(2,0, FColor::White, "Bang");
+	if (GEngine) GEngine->AddOnScreenDebugMessage(2, 0, FColor::White, "Bang");
+}
+
+void AMainPawn::StopMovement() {
+	StopPlayerMovement();
+}
+
+void AMainPawn::StopPlayerMovement() {
+	Server_StopPlayerMovement();
+}
+bool AMainPawn::Server_StopPlayerMovement_Validate() {
+	return true;
+}
+void AMainPawn::Server_StopPlayerMovement_Implementation() {
+	bCanReceivePlayerInput = bCanReceivePlayerInput ? false : true;
 }
 
 // sends Playerinput to server
 void AMainPawn::GetPlayerInput(FInputsPackage inputData) {
 
-		Server_GetPlayerInput(inputData);
+	Server_GetPlayerInput(inputData);
 
 }
 
@@ -378,10 +406,10 @@ void AMainPawn::Server_GetPlayerInput_Implementation(FInputsPackage receivedInpu
 	if (receivedInputData.PacketNo > Ack) {
 		Ack = receivedInputData.PacketNo;
 		this->InputPackage = receivedInputData;
-		if (GEngine) GEngine->AddOnScreenDebugMessage(-1,0, FColor::Blue, "accepting Packet = " + FString::FromInt(receivedInputData.PacketNo));
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Blue, "accepting Packet = " + FString::FromInt(receivedInputData.PacketNo));
 	}
 	else {
-		if (GEngine) GEngine->AddOnScreenDebugMessage(-1,0, FColor::Red, "Packet not Accepted");
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Red, "Packet not Accepted");
 	}
 
 	LastAcceptedPacket(Ack);
