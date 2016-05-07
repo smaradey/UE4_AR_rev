@@ -88,6 +88,8 @@ void AMainPawn::Tick(float DeltaTime) {
 
 	if (IsLocallyControlled() && bCanReceivePlayerInput) {
 
+		const bool bUseOrigTurning = true;
+
 		// get mouse position
 		GetCursorLocation(CursorLoc);
 		// get viewport size/center
@@ -95,28 +97,72 @@ void AMainPawn::Tick(float DeltaTime) {
 		// the resulting mouse input
 		GetMouseInput(MouseInput, CursorLoc, ViewPortCenter);
 
-		// smooth turning
-		{
-			float TurnInterpSpeed = 2.0f;
-			//InputSize = MouseInput.Size();
-			bool q1 = OldMouseInput.X < 0.0f && MouseInput.X < 0.0f && MouseInput.X - OldMouseInput.X > 0.0f;
-			bool q2 = OldMouseInput.X > 0.0f && MouseInput.X > 0.0f && MouseInput.X - OldMouseInput.X < 0.0f;
-			bool q3 = OldMouseInput.Y < 0.0f && MouseInput.Y < 0.0f && MouseInput.Y - OldMouseInput.Y > 0.0f;
-			bool q4 = OldMouseInput.Y > 0.0f && MouseInput.Y > 0.0f && MouseInput.Y - OldMouseInput.Y < 0.0f;
 
-			if (q1 || q2) {
-				OldMouseInput.X = MouseInput.X;
+		if (bUseOrigTurning) {
+
+			//FVector CursorDirInWorld;
+			//// Get local player
+			//ULocalPlayer* const LP = GetWorld()->GetFirstLocalPlayerFromController();
+			//if (LP && LP->ViewportClient)
+			//{
+			//	// get the projection data
+			//	FSceneViewProjectionData ProjectionData;
+			//	if (LP->GetProjectionData(LP->ViewportClient->Viewport, eSSP_FULL, /*out*/ ProjectionData))
+			//	{
+			//		FMatrix const InvViewProjMatrix = ProjectionData.ComputeViewProjectionMatrix().InverseFast();
+			//		FVector OutPos;
+			//		FSceneView::DeprojectScreenToWorld(CursorLoc, ProjectionData.GetConstrainedViewRect(), InvViewProjMatrix, /*out*/ OutPos, /*out*/ CursorDirInWorld);
+			//	}
+			//	else {
+			//		// something went wrong, interpret input as zero						
+			//		CursorDirInWorld = Camera->GetForwardVector();
+			//	}
+			//}
+
+
+			FVector2D InputAxis = (CursorLoc - ViewPortCenter) / ViewPortCenter;
+			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Black, FString::SanitizeFloat(InputAxis.X) + " x " + FString::SanitizeFloat(InputAxis.Y));
+			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Black, FString::SanitizeFloat(InputAxis.Size()));
+
+			const float HalfPIPrecision = 0.5f * PI * CenterPrecision;
+
+			MouseInput.X = FMath::Sin(InputAxis.X * HalfPIPrecision);
+			MouseInput.Y = FMath::Sin(InputAxis.Y * HalfPIPrecision);
+			MouseInput /= FMath::Sin(HalfPIPrecision);
+			MouseInput *= MouseInput.GetSafeNormal().GetAbsMax();
+
+			// deadzone (1%)
+			if (MouseInput.Size() < 0.01f) MouseInput = FVector2D::ZeroVector;
+
+			OldMouseInput = MouseInput;
+
+
+		}
+		else {
+
+			// smooth turning
+			{
+				float TurnInterpSpeed = 2.0f;
+				//InputSize = MouseInput.Size();
+				bool q1 = OldMouseInput.X < 0.0f && MouseInput.X < 0.0f && MouseInput.X - OldMouseInput.X > 0.0f;
+				bool q2 = OldMouseInput.X > 0.0f && MouseInput.X > 0.0f && MouseInput.X - OldMouseInput.X < 0.0f;
+				bool q3 = OldMouseInput.Y < 0.0f && MouseInput.Y < 0.0f && MouseInput.Y - OldMouseInput.Y > 0.0f;
+				bool q4 = OldMouseInput.Y > 0.0f && MouseInput.Y > 0.0f && MouseInput.Y - OldMouseInput.Y < 0.0f;
+
+				if (q1 || q2) {
+					OldMouseInput.X = MouseInput.X;
+				}
+				else {
+					OldMouseInput.X = FMath::FInterpConstantTo(OldMouseInput.X, MouseInput.X, DeltaTime, TurnInterpSpeed);
+				}
+				if (q3 || q4) {
+					OldMouseInput.Y = MouseInput.Y;
+				}
+				else {
+					OldMouseInput.Y = FMath::FInterpConstantTo(OldMouseInput.Y, MouseInput.Y, DeltaTime, TurnInterpSpeed);
+				}
+				//OldInputSize = OldMouseInput.Size();
 			}
-			else {
-				OldMouseInput.X = FMath::FInterpConstantTo(OldMouseInput.X, MouseInput.X, DeltaTime, TurnInterpSpeed);
-			}
-			if (q3 || q4) {
-				OldMouseInput.Y = MouseInput.Y;
-			}
-			else {
-				OldMouseInput.Y = FMath::FInterpConstantTo(OldMouseInput.Y, MouseInput.Y, DeltaTime, TurnInterpSpeed);
-			}
-			//OldInputSize = OldMouseInput.Size();
 		}
 
 		InputPackage.PacketNo++;
@@ -124,6 +170,8 @@ void AMainPawn::Tick(float DeltaTime) {
 		FInput currentInput;
 		currentInput.PacketNo = InputPackage.PacketNo;
 		currentInput.MouseInput = OldMouseInput;
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, FString::SanitizeFloat(OldMouseInput.X) + " x " + FString::SanitizeFloat(OldMouseInput.Y));
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, FString::SanitizeFloat(OldMouseInput.Size()));
 		currentInput.MovementInput = MovementInput;
 
 		while (InputPackage.InputDataList.Num() >= 1) {
@@ -133,7 +181,7 @@ void AMainPawn::Tick(float DeltaTime) {
 		InputPackage.InputDataList.Add(currentInput);
 		InputPackage.Ack = Ack;
 
-		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, "Length of Array = " + FString::FromInt(InputPackage.InputDataList.Num()));
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, "Length of Array = " + FString::FromInt(InputPackage.InputDataList.Num()));
 
 		GetPlayerInput(InputPackage);
 	}
@@ -158,7 +206,8 @@ void AMainPawn::Tick(float DeltaTime) {
 
 
 		TargetAngularVelocity = GetActorRotation().RotateVector(FVector(0.0f, OldMouseInput.Y * TurnRate, OldMouseInput.X * TurnRate));
-
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, FString::SanitizeFloat(TargetAngularVelocity.Size()) + " deg/sec");
+		
 		{
 			//Scale movement input axis values by 100 units per second
 			MovementInput = MovementInput.GetSafeNormal() * 56000000.0f;
@@ -172,11 +221,11 @@ void AMainPawn::Tick(float DeltaTime) {
 
 
 
-		float AngVInterpSpeed = 360.0f;
+		float AngVInterpSpeed = 5.0f;
 		float LinVInterpSpeed = 10000.0f;
 
 		ArmorMesh->SetPhysicsAngularVelocity(
-			FMath::VInterpConstantTo(ArmorMesh->GetPhysicsAngularVelocity(), TargetAngularVelocity, DeltaTime,
+			FMath::VInterpTo(ArmorMesh->GetPhysicsAngularVelocity(), TargetAngularVelocity, DeltaTime,
 				AngVInterpSpeed));
 		ArmorMesh->SetPhysicsLinearVelocity(
 			FMath::VInterpConstantTo(ArmorMesh->GetPhysicsLinearVelocity(), TargetLinearVelocity, DeltaTime,
@@ -337,7 +386,7 @@ void AMainPawn::YawCamera(float AxisValue) {
 
 void AMainPawn::ZoomIn() {
 	bZoomingIn = true;
-	if (GEngine) GEngine->AddOnScreenDebugMessage(1, 0.0f/*seconds*/, FColor::Red, "ZoomPressed");
+	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(1, 0.0f/*seconds*/, FColor::Red, "ZoomPressed");
 	Camera->FieldOfView = 30.0f;
 }
 
@@ -348,7 +397,7 @@ void AMainPawn::ZoomOut() {
 
 void AMainPawn::StartGunFire() {
 	bGunFire = true;
-	if (GEngine) GEngine->AddOnScreenDebugMessage(1, 0, FColor::Green, "Gun ON");
+	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(1, 0, FColor::Green, "Gun ON");
 	GunFire();
 	GetWorldTimerManager().SetTimer(GunFireHandle, this, &AMainPawn::GunFire, FireRateGun, true);
 }
@@ -358,12 +407,12 @@ void AMainPawn::StopGunFire() {
 	if (GunFireHandle.IsValid()) {
 		GetWorldTimerManager().ClearTimer(GunFireHandle);
 	}
-	if (GEngine) GEngine->AddOnScreenDebugMessage(1, 0, FColor::Red, "Gun OFF");
+	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(1, 0, FColor::Red, "Gun OFF");
 }
 
 void AMainPawn::GunFire() {
 	if (!bCanFireGun) return;
-	if (GEngine) GEngine->AddOnScreenDebugMessage(2, 0, FColor::White, "Bang");
+	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(2, 0, FColor::White, "Bang");
 }
 
 void AMainPawn::StopMovement() {
@@ -397,7 +446,7 @@ void AMainPawn::Server_GetPlayerInput_Implementation(FInputsPackage receivedInpu
 	if (GetWorld()) {
 		NetDelta = GetWorld()->RealTimeSeconds - lastUpdate;
 		lastUpdate = GetWorld()->RealTimeSeconds;
-		if (GEngine)
+		if (GEngine && DEBUG)
 			GEngine->AddOnScreenDebugMessage(-1, 0/*seconds*/, FColor::Green,
 				FString::SanitizeFloat(NetDelta) + "    " +
 				FString::FromInt(GetVelocity().Size() * 0.036f) + " km/h");
@@ -406,10 +455,10 @@ void AMainPawn::Server_GetPlayerInput_Implementation(FInputsPackage receivedInpu
 	if (receivedInputData.PacketNo > Ack) {
 		Ack = receivedInputData.PacketNo;
 		this->InputPackage = receivedInputData;
-		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Blue, "accepting Packet = " + FString::FromInt(receivedInputData.PacketNo));
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Blue, "accepting Packet = " + FString::FromInt(receivedInputData.PacketNo));
 	}
 	else {
-		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Red, "Packet not Accepted");
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Red, "Packet not Accepted");
 	}
 
 	LastAcceptedPacket(Ack);
@@ -436,7 +485,7 @@ void AMainPawn::Client_LastAcceptedPacket_Implementation(int16 acceptedPacket) {
 
 
 
-	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Green, "Last acceptet Packet = " + FString::FromInt(acceptedPacket));
+	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Green, "Last acceptet Packet = " + FString::FromInt(acceptedPacket));
 	this->Ack = acceptedPacket;
 }
 
@@ -445,7 +494,7 @@ inline void AMainPawn::GetCursorLocation(FVector2D &CursorLoc) {
 		APlayerController *controller = Cast<APlayerController>(GetController());
 		if (controller) {
 			controller->GetMousePosition(CursorLoc.X, CursorLoc.Y);
-			if (GEngine)
+			if (GEngine && DEBUG)
 				GEngine->AddOnScreenDebugMessage(-1, 0/*seconds*/, FColor::Red,
 					FString::SanitizeFloat(CursorLoc.X) + " " +
 					FString::SanitizeFloat(CursorLoc.Y));

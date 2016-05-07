@@ -77,8 +77,12 @@ public:
 	FORCEINLINE class UStaticMeshComponent* GetRootMesh() const { return Root; }
 
 
-
-
+	/** toogle on screen debug messages */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug")
+		bool DEBUG = false;
+	/** switch between turn implementations */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug")
+	bool bUseOrigTurning = true;
 
 
 
@@ -156,7 +160,7 @@ protected:
 	UFUNCTION()
 		void OnRep_AngularVelocity();
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Turning")
 		float MaxTurnRate = 100.0f;
 	float TurnRate;
 
@@ -192,6 +196,11 @@ protected:
 	/** defines how many updates will be predicted */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Replication", meta = (ClampMin = "-1", ClampMax = "100", UIMin = "-1", UIMax = "3"))
 		int AdditionalUpdatePredictions = -1;
+
+	/** CenterPrecision defines how sensitive the turning is around the center of the screen, towards 0: linear turning, towards 1: sin(x * pi/2) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Turning", meta = (ClampMin = "0.01", ClampMax = "1.0", UIMin = "0.01", UIMax = "1.0"))
+		float CenterPrecision = 0.5f;
+
 
 private:
 	// how many updates to buffer
