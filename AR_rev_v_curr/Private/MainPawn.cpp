@@ -134,7 +134,7 @@ void AMainPawn::Tick(float DeltaTime) {
 			// deadzone (1%)
 			if (MouseInput.Size() < 0.01f) MouseInput = FVector2D::ZeroVector;
 
-			OldMouseInput = MouseInput;
+			PreviousMouseInput = MouseInput;
 
 
 		}
@@ -143,23 +143,23 @@ void AMainPawn::Tick(float DeltaTime) {
 			// smooth turning
 			{
 				float TurnInterpSpeed = 2.0f;
-				//InputSize = MouseInput.Size();
-				bool q1 = OldMouseInput.X < 0.0f && MouseInput.X < 0.0f && MouseInput.X - OldMouseInput.X > 0.0f;
-				bool q2 = OldMouseInput.X > 0.0f && MouseInput.X > 0.0f && MouseInput.X - OldMouseInput.X < 0.0f;
-				bool q3 = OldMouseInput.Y < 0.0f && MouseInput.Y < 0.0f && MouseInput.Y - OldMouseInput.Y > 0.0f;
-				bool q4 = OldMouseInput.Y > 0.0f && MouseInput.Y > 0.0f && MouseInput.Y - OldMouseInput.Y < 0.0f;
+				//InputSize = MouseInput.Size();	
 
-				if (q1 || q2) {
-					OldMouseInput.X = MouseInput.X;
+				if (PreviousMouseInput.X * MouseInput.X > 0.0f
+					&& MouseInput.X * MouseInput.X < PreviousMouseInput.X * PreviousMouseInput.X) // new x is smaller
+				{
+					PreviousMouseInput.X = MouseInput.X;
 				}
 				else {
-					OldMouseInput.X = FMath::FInterpConstantTo(OldMouseInput.X, MouseInput.X, DeltaTime, TurnInterpSpeed);
+					PreviousMouseInput.X = FMath::FInterpConstantTo(PreviousMouseInput.X, MouseInput.X, DeltaTime, TurnInterpSpeed);
 				}
-				if (q3 || q4) {
-					OldMouseInput.Y = MouseInput.Y;
+				if (PreviousMouseInput.Y * MouseInput.Y > 0.0f
+					&& MouseInput.Y * MouseInput.Y < PreviousMouseInput.Y * PreviousMouseInput.Y) // new y is smaller
+				{
+					PreviousMouseInput.Y = MouseInput.Y;
 				}
 				else {
-					OldMouseInput.Y = FMath::FInterpConstantTo(OldMouseInput.Y, MouseInput.Y, DeltaTime, TurnInterpSpeed);
+					PreviousMouseInput.Y = FMath::FInterpConstantTo(PreviousMouseInput.Y, MouseInput.Y, DeltaTime, TurnInterpSpeed);
 				}
 				//OldInputSize = OldMouseInput.Size();
 			}
@@ -169,9 +169,9 @@ void AMainPawn::Tick(float DeltaTime) {
 
 		FInput currentInput;
 		currentInput.PacketNo = InputPackage.PacketNo;
-		currentInput.MouseInput = OldMouseInput;
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, FString::SanitizeFloat(OldMouseInput.X) + " x " + FString::SanitizeFloat(OldMouseInput.Y));
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, FString::SanitizeFloat(OldMouseInput.Size()));
+		currentInput.MouseInput = PreviousMouseInput;
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, FString::SanitizeFloat(PreviousMouseInput.X) + " x " + FString::SanitizeFloat(PreviousMouseInput.Y));
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, FString::SanitizeFloat(PreviousMouseInput.Size()));
 		currentInput.MovementInput = MovementInput;
 
 		while (InputPackage.InputDataList.Num() >= 1) {
@@ -193,19 +193,19 @@ void AMainPawn::Tick(float DeltaTime) {
 
 			const FInput &currentInput = InputPackage.InputDataList.Last();
 
-			OldMouseInput = InputPackage.InputDataList.Last().MouseInput;
+			PreviousMouseInput = InputPackage.InputDataList.Last().MouseInput;
 			MovementInput = InputPackage.InputDataList.Last().MovementInput;
 
 		}
 		if (!bCanReceivePlayerInput) {
-			OldMouseInput.X = 0.f;
-			OldMouseInput.Y = 0.f;
+			PreviousMouseInput.X = 0.f;
+			PreviousMouseInput.Y = 0.f;
 			MovementInput.X = 0.f;
 			MovementInput.Y = 0.f;
 		}
 
 
-		TargetAngularVelocity = GetActorRotation().RotateVector(FVector(0.0f, OldMouseInput.Y * TurnRate, OldMouseInput.X * TurnRate));
+		TargetAngularVelocity = GetActorRotation().RotateVector(FVector(0.0f, PreviousMouseInput.Y * TurnRate, PreviousMouseInput.X * TurnRate));
 		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, FString::SanitizeFloat(TargetAngularVelocity.Size()) + " deg/sec");
 		
 		{

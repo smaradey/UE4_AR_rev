@@ -103,7 +103,7 @@ protected:
 	FVector2D MouseInput;
 	void GetMouseInput(FVector2D& MouseInput, FVector2D& CursorLoc, FVector2D& ViewPortCenter);
 
-	FVector2D OldMouseInput;
+	FVector2D PreviousMouseInput;
 	float InputSize;
 	float NewInputSize;
 	float OldInputSize;
