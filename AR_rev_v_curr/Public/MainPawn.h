@@ -10,7 +10,13 @@
 #include "UnrealNetwork.h"
 #include "MainPawn.generated.h"
 
-
+UENUM(BlueprintType)		//"BlueprintType" is essential to include
+enum class DebugTurning : uint8
+{
+	Default 	UMETA(DisplayName = "Default"),
+	SmoothWithFastStop 	UMETA(DisplayName = "SmoothWithFastStop"),
+	Smooth	UMETA(DisplayName = "Smooth")
+};
 
 USTRUCT()
 struct FInput {
@@ -82,7 +88,14 @@ public:
 		bool DEBUG = false;
 	/** switch between turn implementations */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug")
-	bool bUseOrigTurning = true;
+	bool bUseSmoothedTurning = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Enum)
+		DebugTurning TurnOption;
+
+	/** Turnacceleration */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Turning", meta = (ClampMin = "0.01", ClampMax = "10.0", UIMin = "0.01", UIMax = "10.0"))
+	float TurnInterpSpeed = 1.0f;
 
 
 
@@ -104,6 +117,10 @@ protected:
 	void GetMouseInput(FVector2D& MouseInput, FVector2D& CursorLoc, FVector2D& ViewPortCenter);
 
 	FVector2D PreviousMouseInput;
+
+
+
+
 	float InputSize;
 	float NewInputSize;
 	float OldInputSize;
@@ -160,10 +177,6 @@ protected:
 	UFUNCTION()
 		void OnRep_AngularVelocity();
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Turning")
-		float MaxTurnRate = 100.0f;
-	float TurnRate;
-
 	UPROPERTY(Replicated)
 		FVector TargetAngularVelocity;
 
@@ -197,10 +210,17 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Replication", meta = (ClampMin = "-1", ClampMax = "100", UIMin = "-1", UIMax = "3"))
 		int AdditionalUpdatePredictions = -1;
 
-	/** CenterPrecision defines how sensitive the turning is around the center of the screen, towards 0: linear turning, towards 1: sin(x * pi/2) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Turning", meta = (ClampMin = "0.01", ClampMax = "1.0", UIMin = "0.01", UIMax = "1.0"))
+	/** CenterPrecision defines how sensitive the turning is around the center of the screen, towards 0: linear turning, towards 1: [1.0 - cos(x * CP * pi/2)] */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Turning", meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
 		float CenterPrecision = 0.5f;
 
+	/** max turnrate in deg/second */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Turning", meta = (ClampMin = "40.0", ClampMax = "360.0", UIMin = "40.0", UIMax = "180.0"))
+		float MaxTurnRate = 50.0f;
+
+	/** deadzone area with no turning, factor is percentage of screen width in range of 0 to 1 (100%) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Turning", meta = (ClampMin = "0.0", ClampMax = "0.1", UIMin = "0.0", UIMax = "0.05"))
+		float Deadzone = 0.01f;
 
 private:
 	// how many updates to buffer
@@ -231,6 +251,11 @@ private:
 
 	// }
 
+
+	// general {
+	// PI / 2
+	const float HalfPI = 0.5f * PI;
+	// }
 	float lastUpdate;
 	FVector PrevLocationOnServer;
 	FTransform PrevReceivedTransform;

@@ -68,8 +68,6 @@ void AMainPawn::BeginPlay() {
 	lastUpdate = GetWorld()->RealTimeSeconds;
 	PrevReceivedTransform = GetTransform();
 
-	// movement
-	TurnRate = MaxTurnRate;
 	if (Role < ROLE_Authority) {
 
 		// deactivate physics on clients
@@ -88,90 +86,62 @@ void AMainPawn::Tick(float DeltaTime) {
 
 	if (IsLocallyControlled() && bCanReceivePlayerInput) {
 
-		const bool bUseOrigTurning = true;
-
 		// get mouse position
 		GetCursorLocation(CursorLoc);
 		// get viewport size/center
 		GetViewportSizeCenter(ViewPortSize, ViewPortCenter);
-		// the resulting mouse input
-		GetMouseInput(MouseInput, CursorLoc, ViewPortCenter);
+
+		//FVector CursorDirInWorld;
+		//// Get local player
+		//ULocalPlayer* const LP = GetWorld()->GetFirstLocalPlayerFromController();
+		//if (LP && LP->ViewportClient)
+		//{
+		//	// get the projection data
+		//	FSceneViewProjectionData ProjectionData;
+		//	if (LP->GetProjectionData(LP->ViewportClient->Viewport, eSSP_FULL, /*out*/ ProjectionData))
+		//	{
+		//		FMatrix const InvViewProjMatrix = ProjectionData.ComputeViewProjectionMatrix().InverseFast();
+		//		FVector OutPos;
+		//		FSceneView::DeprojectScreenToWorld(CursorLoc, ProjectionData.GetConstrainedViewRect(), InvViewProjMatrix, /*out*/ OutPos, /*out*/ CursorDirInWorld);
+		//	}
+		//	else {
+		//		// something went wrong, interpret input as zero						
+		//		CursorDirInWorld = Camera->GetForwardVector();
+		//	}
+		//}
 
 
-		if (bUseOrigTurning) {
+		FVector2D InputAxis = (CursorLoc - ViewPortCenter) / ViewPortCenter;
+		MouseInput = InputAxis * InputAxis.GetSafeNormal().GetAbsMax();
 
-			//FVector CursorDirInWorld;
-			//// Get local player
-			//ULocalPlayer* const LP = GetWorld()->GetFirstLocalPlayerFromController();
-			//if (LP && LP->ViewportClient)
-			//{
-			//	// get the projection data
-			//	FSceneViewProjectionData ProjectionData;
-			//	if (LP->GetProjectionData(LP->ViewportClient->Viewport, eSSP_FULL, /*out*/ ProjectionData))
-			//	{
-			//		FMatrix const InvViewProjMatrix = ProjectionData.ComputeViewProjectionMatrix().InverseFast();
-			//		FVector OutPos;
-			//		FSceneView::DeprojectScreenToWorld(CursorLoc, ProjectionData.GetConstrainedViewRect(), InvViewProjMatrix, /*out*/ OutPos, /*out*/ CursorDirInWorld);
-			//	}
-			//	else {
-			//		// something went wrong, interpret input as zero						
-			//		CursorDirInWorld = Camera->GetForwardVector();
-			//	}
-			//}
+		// { DEBUG
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Black, FString::SanitizeFloat(InputAxis.X) + " x " + FString::SanitizeFloat(InputAxis.Y));
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Black, FString::SanitizeFloat((InputAxis * InputAxis.GetSafeNormal().GetAbsMax()).Size()));
+		// }
 
-
-			FVector2D InputAxis = (CursorLoc - ViewPortCenter) / ViewPortCenter;
-			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Black, FString::SanitizeFloat(InputAxis.X) + " x " + FString::SanitizeFloat(InputAxis.Y));
-			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Black, FString::SanitizeFloat(InputAxis.Size()));
-
-			const float HalfPIPrecision = 0.5f * PI * CenterPrecision;
-
-			MouseInput.X = FMath::Sin(InputAxis.X * HalfPIPrecision);
-			MouseInput.Y = FMath::Sin(InputAxis.Y * HalfPIPrecision);
-			MouseInput /= FMath::Sin(HalfPIPrecision);
-			MouseInput *= MouseInput.GetSafeNormal().GetAbsMax();
-
-			// deadzone (1%)
-			if (MouseInput.Size() < 0.01f) MouseInput = FVector2D::ZeroVector;
-
-			PreviousMouseInput = MouseInput;
-
-
+		// deadzone with no turning -> mouseinput interpreted as zero
+		if (MouseInput.SizeSquared() < Deadzone*Deadzone) {
+			MouseInput = FVector2D::ZeroVector;
 		}
 		else {
+			// converting the mouseinput to use more precise turning around the screencenter
+			MouseInput.X = (1.0f - FMath::Cos(InputAxis.X * HalfPI)) * FMath::Sign(InputAxis.X);
+			MouseInput.Y = (1.0f - FMath::Cos(InputAxis.Y * HalfPI))* FMath::Sign(InputAxis.Y);
 
-			// smooth turning
-			{
-				float TurnInterpSpeed = 2.0f;
-				//InputSize = MouseInput.Size();	
+			// lerping with the customizable Precisionfactor
+			MouseInput.X = FMath::Lerp(InputAxis.X, MouseInput.X, CenterPrecision);
+			MouseInput.Y = FMath::Lerp(InputAxis.Y, MouseInput.Y, CenterPrecision);
 
-				if (PreviousMouseInput.X * MouseInput.X > 0.0f
-					&& MouseInput.X * MouseInput.X < PreviousMouseInput.X * PreviousMouseInput.X) // new x is smaller
-				{
-					PreviousMouseInput.X = MouseInput.X;
-				}
-				else {
-					PreviousMouseInput.X = FMath::FInterpConstantTo(PreviousMouseInput.X, MouseInput.X, DeltaTime, TurnInterpSpeed);
-				}
-				if (PreviousMouseInput.Y * MouseInput.Y > 0.0f
-					&& MouseInput.Y * MouseInput.Y < PreviousMouseInput.Y * PreviousMouseInput.Y) // new y is smaller
-				{
-					PreviousMouseInput.Y = MouseInput.Y;
-				}
-				else {
-					PreviousMouseInput.Y = FMath::FInterpConstantTo(PreviousMouseInput.Y, MouseInput.Y, DeltaTime, TurnInterpSpeed);
-				}
-				//OldInputSize = OldMouseInput.Size();
-			}
+			MouseInput *= MouseInput.GetSafeNormal().GetAbsMax();
 		}
 
 		InputPackage.PacketNo++;
 
 		FInput currentInput;
 		currentInput.PacketNo = InputPackage.PacketNo;
-		currentInput.MouseInput = PreviousMouseInput;
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, FString::SanitizeFloat(PreviousMouseInput.X) + " x " + FString::SanitizeFloat(PreviousMouseInput.Y));
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, FString::SanitizeFloat(PreviousMouseInput.Size()));
+		currentInput.MouseInput = MouseInput;
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, FString::SanitizeFloat(MouseInput.X) + " x " + FString::SanitizeFloat(MouseInput.Y));
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, FString::SanitizeFloat(MouseInput.Size()));
 		currentInput.MovementInput = MovementInput;
 
 		while (InputPackage.InputDataList.Num() >= 1) {
@@ -184,58 +154,128 @@ void AMainPawn::Tick(float DeltaTime) {
 		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, "Length of Array = " + FString::FromInt(InputPackage.InputDataList.Num()));
 
 		GetPlayerInput(InputPackage);
+
+
 	}
 
 	switch (Role) {
 	case ROLE_Authority:
 	{
+		FVector2D PrevUsedMouseInput = PreviousMouseInput;
+
 		if (InputPackage.InputDataList.Num() > 0) {
 
 			const FInput &currentInput = InputPackage.InputDataList.Last();
 
-			PreviousMouseInput = InputPackage.InputDataList.Last().MouseInput;
+			MouseInput = InputPackage.InputDataList.Last().MouseInput;
+
 			MovementInput = InputPackage.InputDataList.Last().MovementInput;
 
 		}
+		// keep a copy of the mouseinput
+		const FVector2D RawMouseInput = MouseInput;
+
 		if (!bCanReceivePlayerInput) {
-			PreviousMouseInput.X = 0.f;
-			PreviousMouseInput.Y = 0.f;
+			MouseInput.X = 0.f;
+			MouseInput.Y = 0.f;
 			MovementInput.X = 0.f;
 			MovementInput.Y = 0.f;
 		}
 
+		float UsedTurnInterSpeed = TurnInterpSpeed;
 
-		TargetAngularVelocity = GetActorRotation().RotateVector(FVector(0.0f, PreviousMouseInput.Y * TurnRate, PreviousMouseInput.X * TurnRate));
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, FString::SanitizeFloat(TargetAngularVelocity.Size()) + " deg/sec");
-		
+		// smooth turning DEBUG
+		switch (TurnOption) {
+		case DebugTurning::SmoothWithFastStop: {
+			if (PrevUsedMouseInput.X * MouseInput.X > 0.0f
+				&& MouseInput.X * MouseInput.X < PrevUsedMouseInput.X * PrevUsedMouseInput.X) // new x is smaller
+			{
+				MouseInput.X = MouseInput.X;
+			}
+			else {
+				MouseInput.X = FMath::FInterpTo(PrevUsedMouseInput.X, MouseInput.X, DeltaTime, UsedTurnInterSpeed);
+			}
+			if (PrevUsedMouseInput.Y * MouseInput.Y > 0.0f
+				&& MouseInput.Y * MouseInput.Y < PrevUsedMouseInput.Y * PrevUsedMouseInput.Y) // new y is smaller
+			{
+				MouseInput.Y = MouseInput.Y;
+			}
+			else {
+				MouseInput.Y = FMath::FInterpTo(PrevUsedMouseInput.Y, MouseInput.Y, DeltaTime, UsedTurnInterSpeed);
+			}
+		}
+											   break;
+		case DebugTurning::Smooth: {
+			// very smooth
+			const float ResetSpeed = 3.0f;
+			if (PrevUsedMouseInput.X * MouseInput.X > 0.0f
+				&& MouseInput.X * MouseInput.X < PrevUsedMouseInput.X * PrevUsedMouseInput.X) // new x is smaller
+			{
+				MouseInput.X = FMath::FInterpTo(PrevUsedMouseInput.X, MouseInput.X, DeltaTime, UsedTurnInterSpeed * ResetSpeed);
+			}
+			else {
+				MouseInput.X = FMath::FInterpTo(PrevUsedMouseInput.X, MouseInput.X, DeltaTime, UsedTurnInterSpeed);
+			}
+			if (PrevUsedMouseInput.Y * MouseInput.Y > 0.0f
+				&& MouseInput.Y * MouseInput.Y < PrevUsedMouseInput.Y * PrevUsedMouseInput.Y) // new y is smaller
+			{
+				MouseInput.Y = FMath::FInterpTo(PrevUsedMouseInput.Y, MouseInput.Y, DeltaTime, UsedTurnInterSpeed * ResetSpeed);
+			}
+			else {
+				MouseInput.Y = FMath::FInterpTo(PrevUsedMouseInput.Y, MouseInput.Y, DeltaTime, UsedTurnInterSpeed);
+			}
+		}
+								   break;
+		default:
+		{
+		}
+		}
+
+
+
+		// rotation
+		{
+			TargetAngularVelocity = GetActorRotation().RotateVector(FVector(0.0f, MouseInput.Y * MaxTurnRate, MouseInput.X * MaxTurnRate));
+			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, FString::SanitizeFloat(TargetAngularVelocity.Size()) + " deg/sec");
+
+			if (TurnOption == DebugTurning::SmoothWithFastStop) {
+				ArmorMesh->SetPhysicsAngularVelocity(
+					FMath::VInterpTo(ArmorMesh->GetPhysicsAngularVelocity(), TargetAngularVelocity, DeltaTime,
+						UsedTurnInterSpeed));
+			}
+			else {
+				ArmorMesh->SetPhysicsAngularVelocity(TargetAngularVelocity);
+			}
+		}
+
+		// location
 		{
 			//Scale movement input axis values by 100 units per second
 			MovementInput = MovementInput.GetSafeNormal() * 56000000.0f;
 			FVector NewLocation = GetActorLocation();
 			NewLocation += (GetActorForwardVector() * MovementInput.X + GetActorRightVector() * MovementInput.Y) * DeltaTime;
+
 			//SetActorLocation(NewLocation);
 
 			FVector Velocity = NewLocation - GetActorLocation();
 			TargetLinearVelocity = FVector(Velocity / DeltaTime);
+			float LinVInterpSpeed = 10000.0f;
+			ArmorMesh->SetPhysicsLinearVelocity(
+				FMath::VInterpConstantTo(ArmorMesh->GetPhysicsLinearVelocity(), TargetLinearVelocity, DeltaTime,
+					LinVInterpSpeed));
+
 		}
 
-
-
-		float AngVInterpSpeed = 5.0f;
-		float LinVInterpSpeed = 10000.0f;
-
-		ArmorMesh->SetPhysicsAngularVelocity(
-			FMath::VInterpTo(ArmorMesh->GetPhysicsAngularVelocity(), TargetAngularVelocity, DeltaTime,
-				AngVInterpSpeed));
-		ArmorMesh->SetPhysicsLinearVelocity(
-			FMath::VInterpConstantTo(ArmorMesh->GetPhysicsLinearVelocity(), TargetLinearVelocity, DeltaTime,
-				LinVInterpSpeed));
-
-
 		// movement replication
-		TransformOnAuthority = GetTransform();
-		LinearVelocity = ArmorMesh->GetPhysicsLinearVelocity();
-		AngularVelocity = ArmorMesh->GetPhysicsAngularVelocity();
+		{
+			TransformOnAuthority = GetTransform();
+			LinearVelocity = ArmorMesh->GetPhysicsLinearVelocity();
+			AngularVelocity = ArmorMesh->GetPhysicsAngularVelocity();
+		}
+
+		// preparation for next tick
+		PreviousMouseInput = MouseInput;
+
 	}
 	break;
 
