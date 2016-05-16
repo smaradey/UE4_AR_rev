@@ -19,10 +19,15 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
 
 	// Create static mesh component
 	ArmorMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ArmorMesh"));
-
-	Root = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Root"));
-	//RootComponent = Root;
 	RootComponent = ArmorMesh;
+
+	Dummy = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Root"));
+	
+	//RootComponent = Root;
+
+	Dummy->AttachTo(ArmorMesh, NAME_None);
+
+
 	//ArmorMesh->AttachTo(RootComponent);
 	ArmorMesh->SetCollisionObjectType(ECC_Pawn);
 	ArmorMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
@@ -33,7 +38,7 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
 
 
 	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraSpringArm"));
-	SpringArm->AttachTo(RootComponent);
+	SpringArm->AttachTo(RootComponent, NAME_None);
 	//SpringArm->SetRelativeLocationAndRotation(FVector(-300.0f, 0.0f, 50.0f), FRotator(0.0f, 0.0f, 0.0f));
 	SpringArm->TargetArmLength = 0.0f;
 	SpringArm->SocketOffset = FVector(0.0f, 0.0f, 75.0f);
@@ -250,28 +255,36 @@ void AMainPawn::Tick(float DeltaTime) {
 					FMath::VInterpTo(ArmorMesh->GetPhysicsAngularVelocity(), WorldAngVel, DeltaTime, UsedTurnInterSpeed));
 			}
 			else {
-				RotControlStrength = FMath::FInterpConstantTo(RotControlStrength, 360.0f, DeltaTime, 100.0f);
 
-				const FVector UsedAngVel = FMath::VInterpConstantTo(ArmorMesh->GetPhysicsAngularVelocity(), WorldAngVel, DeltaTime, RotControlStrength);
-				ArmorMesh->SetPhysicsAngularVelocity(UsedAngVel);
+				RotControlStrength = FMath::FInterpConstantTo(RotControlStrength, 2.0f, DeltaTime, 1.0f);
+				if (RotControlStrength > 1.0f && RotControlStrength < 2.0f) {
+					ArmorMesh->SetPhysicsAngularVelocity(FMath::Lerp(ArmorMesh->GetPhysicsAngularVelocity(), WorldAngVel, RotControlStrength - 1.0f));
+				}
+				else if (RotControlStrength == 2.0f) {
+					ArmorMesh->SetPhysicsAngularVelocity(WorldAngVel);
+				}
 			}
 		}
 
 		// location
 		{
 			//Scale movement input axis values by 100 units per second
-			MovementInput = MovementInput.GetSafeNormal() * 56000000.0f;
-			FVector NewLocation = GetActorLocation();
-			NewLocation += (GetActorForwardVector() * MovementInput.X + GetActorRightVector() * MovementInput.Y) * DeltaTime;
+			//MovementInput;
 
-			//SetActorLocation(NewLocation);
+			ForwardInput = FMath::FInterpTo(ForwardInput, MovementInput.X * 10000.0f, DeltaTime, 1.0f);
+			SideInput = FMath::FInterpTo(SideInput, MovementInput.Y * 3000.0f, DeltaTime, 2.0f);
+			
+			//ArmorMesh->SetRelativeRotation(GetActorRotation().RotateVector(FVector(0,0, SideInput)).Rotation());
 
-			FVector Velocity = NewLocation - GetActorLocation();
-			TargetLinearVelocity = FVector(Velocity / DeltaTime);
-			float LinVInterpSpeed = 10000.0f;
-			ArmorMesh->SetPhysicsLinearVelocity(
-				FMath::VInterpConstantTo(ArmorMesh->GetPhysicsLinearVelocity(), TargetLinearVelocity, DeltaTime,
-					LinVInterpSpeed));
+			TargetLinearVelocity = GetActorForwardVector() * ForwardInput + GetActorRightVector() * SideInput;
+
+			MovControlStrength = FMath::FInterpConstantTo(MovControlStrength, 2.0f, DeltaTime, 1.0f);
+			if (MovControlStrength > 1.0f && MovControlStrength < 2.0f) {
+				ArmorMesh->SetPhysicsLinearVelocity(FMath::Lerp(ArmorMesh->GetPhysicsLinearVelocity(), TargetLinearVelocity, MovControlStrength - 1.0f));
+			}
+			else if(MovControlStrength == 2.0f) {
+				ArmorMesh->SetPhysicsLinearVelocity(TargetLinearVelocity);
+			}
 
 		}
 

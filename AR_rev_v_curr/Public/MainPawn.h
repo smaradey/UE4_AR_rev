@@ -69,7 +69,7 @@ public:
 
 	/** StaticMesh component that will be the visuals for the missile */
 	UPROPERTY(Category = Mesh, VisibleDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
-		class UStaticMeshComponent* Root;
+		class UStaticMeshComponent* Dummy;
 
 	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 		USpringArmComponent* SpringArm;
@@ -80,7 +80,7 @@ public:
 	FORCEINLINE class UStaticMeshComponent* GetPlaneMesh() const { return ArmorMesh; }
 
 	/** Returns Root subobject **/
-	FORCEINLINE class UStaticMeshComponent* GetRootMesh() const { return Root; }
+	FORCEINLINE class UStaticMeshComponent* GetDummyMesh() const { return Dummy; }
 
 
 	/** toogle on screen debug messages */
@@ -96,10 +96,12 @@ public:
 	/** Turnacceleration */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Turning", meta = (ClampMin = "0.01", ClampMax = "10.0", UIMin = "0.01", UIMax = "10.0"))
 		float TurnInterpSpeed = 1.0f;
-	
-	/** Turnacceleration */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Turning", meta = (ClampMin = "40.0", ClampMax = "360.0", UIMin = "40.0", UIMax = "360.0"))
-	float RotControlStrength = 360.0f;
+
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		float RotControlStrength = 1.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		float MovControlStrength = 1.0f;
 
 
 
@@ -121,6 +123,9 @@ protected:
 	void GetMouseInput(FVector2D& MouseInput, FVector2D& CursorLoc, FVector2D& ViewPortCenter);
 
 	FVector2D PreviousMouseInput;
+
+	float ForwardInput;
+	float SideInput;
 
 
 
