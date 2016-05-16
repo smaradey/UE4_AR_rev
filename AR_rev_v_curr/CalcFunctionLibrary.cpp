@@ -94,7 +94,11 @@ float UCalcFunctionLibrary::ProjectileThickness(
 	//V3
 	//return ProjectileThickness * (1.f + FVector::Dist(ProjectileLocation, CameraLocation) * FMath::Tan(FOV * SizeFactor));
 	//V4
-	return (FMath::Clamp<float>(FVector::Dist(ProjectileLocation, CameraLocation), 1.f, MaxGrowingDistance) * FMath::Tan(FOV * SizeFactor));
+	const float distance = FVector::Dist(ProjectileLocation, CameraLocation);
+
+	return ProjectileThickness * FMath::Clamp<float>(distance, 1.f, MaxGrowingDistance)/* * FMath::Tan(FOV * SizeFactor)*/;
+
+	//FMath::Atan(distance) * TwoDivPI;
 }
 
 //06
@@ -109,7 +113,7 @@ FVector UCalcFunctionLibrary::ProjectileScale(
 	const float MaxGrowingDistance,
 	const float ProjectileThickness)
 {
-	//Tracer Thickness (in this case it is axis x an y)
+	//Tracer Thickness (in this case it is axis x and y)
 	float Thickness = UCalcFunctionLibrary::ProjectileThickness(
 		NewLocation,
 		CameraLocation,
@@ -117,14 +121,19 @@ FVector UCalcFunctionLibrary::ProjectileScale(
 		SizeFactor,
 		MaxGrowingDistance,
 		ProjectileThickness);
+
 	//distance between old and current projectile location
 	float dist = FVector::Dist(OldLocation, NewLocation);
 
 	//prevent the tracer from being shorter then thick
-	if ((dist * TracerLengthFactor) > Thickness)
+	if ((dist * TracerLengthFactor) > Thickness) {
 		return FVector::FVector(Thickness, Thickness, dist / ProjectileMeshLengthInCm * TracerLengthFactor);
+	}
+	// else case
 	return FVector::FVector(Thickness, Thickness, Thickness / ProjectileMeshLengthInCm);
 }
+
+
 //07
 FVector UCalcFunctionLibrary::LinearTargetPrediction(
 	const FVector &TargetLocation,
@@ -182,39 +191,6 @@ FRotator UCalcFunctionLibrary::DetermineTurnDirection(
 			0.f);
 	}
 }
-//09
-float UCalcFunctionLibrary::FInterpFromToInTime(float Beginning, float Current, float Target, float DeltaTime, float InterpTime)
-{
-	// If no interp speed, jump to target value
-	if (InterpTime == 0.f)
-	{
-		return Target;
-	}
-
-	// Distance left
-	//10 - 11 = -1
-	const float DeltaDist = Target - Current;
-	// all time distance
-	//10 - 0 = 10
-	const float Dist = Target - Beginning;
-
-	if (DeltaDist*Dist < 0.f)
-		return Target;
-
-	// If deltadistance is too small, just set the desired location
-	if (FMath::Square(DeltaDist) < SMALL_NUMBER)
-	{
-		return Target;
-	}
-
-	// Delta Move, Clamp so we do not over shoot.
-	//10 * 0.1 * 1/10 = 
-	//10 * 0.01 = 0.1
-	const float DeltaMove = Dist * DeltaTime * 1.f / InterpTime;
-
-	//the new current value will ALWAYS be between beginning an target!
-	return FMath::Clamp<float>(Current + DeltaMove, Beginning, Target);
-}
 
 //10
 bool UCalcFunctionLibrary::TracerMotionBlur(
@@ -238,7 +214,7 @@ bool UCalcFunctionLibrary::TracerMotionBlur(
 {
 
 	ULocalPlayer* const LP = InPlayer ? InPlayer->GetLocalPlayer() : nullptr;
-	
+
 	if (InHasScreenPos) {
 		bool success = false;
 		if (LP && LP->ViewportClient)
@@ -255,11 +231,11 @@ bool UCalcFunctionLibrary::TracerMotionBlur(
 				float length = (InOldProjectileLocation - OutWorldPosition).SizeSquared();
 				FVector &LineStart = OutWorldPosition;
 				FVector LineEnd = OutWorldDirection * length + LineStart;
-				
+
 				FVector OutLocationForOldScreenPos = FMath::ClosestPointOnLine(LineStart, LineEnd, InOldProjectileLocation);
 
 				OutTracerRotation = FRotationMatrix::MakeFromX((InNewProjectileLocation - OutLocationForOldScreenPos).GetSafeNormal()).Rotator();
-			
+
 				FMatrix const ViewProjectionMatrix = ProjectionData.ComputeViewProjectionMatrix();
 				FSceneView::ProjectWorldToScreen(InNewProjectileLocation, ProjectionData.GetConstrainedViewRect(), ViewProjectionMatrix, OutScreenPosition);
 				return true;
@@ -271,7 +247,7 @@ bool UCalcFunctionLibrary::TracerMotionBlur(
 				OutScreenPosition = FVector2D::ZeroVector;
 				return false;
 			}
-		}			
+		}
 	}
 	else {
 		if (LP && LP->ViewportClient)
@@ -327,13 +303,13 @@ void UCalcFunctionLibrary::SetCameraFOV(const float newFOV, const bool bVertical
 
 }
 
-void UCalcFunctionLibrary::GetReplicatedMovement(AActor * Actor,FVector &LinearVelocity, FVector &AngularVelocity)
+void UCalcFunctionLibrary::GetReplicatedMovement(AActor * Actor, FVector &LinearVelocity, FVector &AngularVelocity)
 {
-	
+
 	if (Actor) {
 		AngularVelocity = Actor->ReplicatedMovement.AngularVelocity;
 		LinearVelocity = Actor->ReplicatedMovement.LinearVelocity;
 	}
-	
+
 }
 

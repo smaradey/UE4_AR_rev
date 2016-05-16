@@ -6,6 +6,7 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "CalcFunctionLibrary.generated.h"
 
+#define TwoDivPI (2.0f / PI)
 /**
  *
  */
@@ -15,6 +16,7 @@ class AR_REV_V_CURR_API UCalcFunctionLibrary : public UObject //UBlueprintFuncti
 	GENERATED_BODY()
 
 public:
+
 
 	//Test
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Fusseln_C++")
@@ -91,9 +93,7 @@ public:
 		const FVector &ActorRightVector,
 		const float DeltaSeconds,
 		const float TurnrateDegreePerSecond = 90.0f);
-	//09
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Interpolation_C++")
-		static float FInterpFromToInTime(float Beginning, float Current, float Target, float DeltaTime, float InterpTime);
+	
 	//10
 	UFUNCTION(BlueprintCallable, Category = "Projectile_C++")
 		static bool TracerMotionBlur(
