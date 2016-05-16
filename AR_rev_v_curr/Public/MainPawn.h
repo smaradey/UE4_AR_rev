@@ -13,9 +13,9 @@
 UENUM(BlueprintType)		//"BlueprintType" is essential to include
 enum class DebugTurning : uint8
 {
-	Default 	UMETA(DisplayName = "Default"),
+	Default 	        UMETA(DisplayName = "Default"),
 	SmoothWithFastStop 	UMETA(DisplayName = "SmoothWithFastStop"),
-	Smooth	UMETA(DisplayName = "Smooth")
+	Smooth	            UMETA(DisplayName = "Smooth")
 };
 
 USTRUCT()
@@ -23,7 +23,7 @@ struct FInput {
 	GENERATED_USTRUCT_BODY()
 		UPROPERTY()
 		int16 PacketNo;
-		UPROPERTY()
+	UPROPERTY()
 		FVector2D MouseInput;
 	UPROPERTY()
 		FVector2D MovementInput;
@@ -88,14 +88,18 @@ public:
 		bool DEBUG = false;
 	/** switch between turn implementations */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug")
-	bool bUseSmoothedTurning = true;
+		bool bUseSmoothedTurning = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Enum)
 		DebugTurning TurnOption;
 
 	/** Turnacceleration */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Turning", meta = (ClampMin = "0.01", ClampMax = "10.0", UIMin = "0.01", UIMax = "10.0"))
-	float TurnInterpSpeed = 1.0f;
+		float TurnInterpSpeed = 1.0f;
+	
+	/** Turnacceleration */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Turning", meta = (ClampMin = "40.0", ClampMax = "360.0", UIMin = "40.0", UIMax = "360.0"))
+	float RotControlStrength = 360.0f;
 
 
 
@@ -178,7 +182,7 @@ protected:
 		void OnRep_AngularVelocity();
 
 	UPROPERTY(Replicated)
-		FVector TargetAngularVelocity;
+		FVector WorldAngVel;
 
 	UPROPERTY(Replicated)
 		FVector TargetLinearVelocity;

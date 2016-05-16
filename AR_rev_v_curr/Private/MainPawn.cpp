@@ -208,6 +208,8 @@ void AMainPawn::Tick(float DeltaTime) {
 		case DebugTurning::Smooth: {
 			// very smooth
 			const float ResetSpeed = 3.0f;
+
+			// yaw smoothing
 			if (PrevUsedMouseInput.X * MouseInput.X > 0.0f
 				&& MouseInput.X * MouseInput.X < PrevUsedMouseInput.X * PrevUsedMouseInput.X) // new x is smaller
 			{
@@ -216,6 +218,8 @@ void AMainPawn::Tick(float DeltaTime) {
 			else {
 				MouseInput.X = FMath::FInterpTo(PrevUsedMouseInput.X, MouseInput.X, DeltaTime, UsedTurnInterSpeed);
 			}
+
+			// pitch smoothing
 			if (PrevUsedMouseInput.Y * MouseInput.Y > 0.0f
 				&& MouseInput.Y * MouseInput.Y < PrevUsedMouseInput.Y * PrevUsedMouseInput.Y) // new y is smaller
 			{
@@ -231,20 +235,25 @@ void AMainPawn::Tick(float DeltaTime) {
 		}
 		}
 
-
-
 		// rotation
 		{
-			TargetAngularVelocity = GetActorRotation().RotateVector(FVector(0.0f, MouseInput.Y * MaxTurnRate, MouseInput.X * MaxTurnRate));
-			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, FString::SanitizeFloat(TargetAngularVelocity.Size()) + " deg/sec");
+			// rotationrate in actor local space
+			const FVector LocalRotVel = FVector(0.0f, MouseInput.Y * MaxTurnRate, MouseInput.X * MaxTurnRate);
+
+			// local rotationrate in worldspace
+			WorldAngVel = GetActorRotation().RotateVector(LocalRotVel);
+
+			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, FString::SanitizeFloat(WorldAngVel.Size()) + " deg/sec");
 
 			if (TurnOption == DebugTurning::SmoothWithFastStop) {
 				ArmorMesh->SetPhysicsAngularVelocity(
-					FMath::VInterpTo(ArmorMesh->GetPhysicsAngularVelocity(), TargetAngularVelocity, DeltaTime,
-						UsedTurnInterSpeed));
+					FMath::VInterpTo(ArmorMesh->GetPhysicsAngularVelocity(), WorldAngVel, DeltaTime, UsedTurnInterSpeed));
 			}
 			else {
-				ArmorMesh->SetPhysicsAngularVelocity(TargetAngularVelocity);
+				RotControlStrength = FMath::FInterpConstantTo(RotControlStrength, 360.0f, DeltaTime, 100.0f);
+
+				const FVector UsedAngVel = FMath::VInterpConstantTo(ArmorMesh->GetPhysicsAngularVelocity(), WorldAngVel, DeltaTime, RotControlStrength);
+				ArmorMesh->SetPhysicsAngularVelocity(UsedAngVel);
 			}
 		}
 
@@ -319,7 +328,7 @@ void AMainPawn::GetLifetimeReplicatedProps(TArray <FLifetimeProperty> &OutLifeti
 	DOREPLIFETIME(AMainPawn, TransformOnAuthority);
 	DOREPLIFETIME(AMainPawn, LinearVelocity);
 	DOREPLIFETIME(AMainPawn, AngularVelocity);
-	DOREPLIFETIME(AMainPawn, TargetAngularVelocity);
+	DOREPLIFETIME(AMainPawn, WorldAngVel);
 	DOREPLIFETIME(AMainPawn, TargetLinearVelocity);
 	DOREPLIFETIME(AMainPawn, bCanReceivePlayerInput);
 }
