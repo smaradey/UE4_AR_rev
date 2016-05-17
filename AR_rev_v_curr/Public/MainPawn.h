@@ -124,12 +124,9 @@ protected:
 
 	FVector2D PreviousMouseInput;
 
-	float ForwardInput;
-	float StrafeInput;
-	float PrevStrafeInput;
-
-
-
+	float ForwardVel;
+	float StrafeVel;
+	float PrevStrafeRot;
 
 	float InputSize;
 	float NewInputSize;
@@ -138,10 +135,6 @@ protected:
 	FVector2D CameraInput;
 	float ZoomFactor;
 	bool bZoomingIn;
-
-
-
-
 
 	//Weapons
 	bool bGunFire;
@@ -171,16 +164,9 @@ protected:
 	UPROPERTY(Replicated)
 		bool bCanReceivePlayerInput = true;
 
-
-
 	int lagCounter = 0;
 
-
-
-
 	FTransform RelativeArmorTransform;
-
-
 
 	UPROPERTY(ReplicatedUsing = OnRep_AngularVelocity, EditAnywhere, BlueprintReadWrite, Category = "MainPawn")
 		FVector AngularVelocity;
@@ -207,8 +193,6 @@ protected:
 		FInputsPackage InputPackage;
 	UPROPERTY()
 		int16 Ack;
-
-
 
 	// Replicated Movement
 	// {
@@ -271,12 +255,6 @@ private:
 	FTransform PrevReceivedTransform;
 	float LinVelServer;
 	float NetDelta;
-
-
-
-
-
-
 
 	// playerstate
 	UPROPERTY()
