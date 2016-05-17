@@ -22,7 +22,7 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
 	RootComponent = ArmorMesh;
 
 	Dummy = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Root"));
-	
+
 	//RootComponent = Root;
 
 	Dummy->AttachTo(ArmorMesh, NAME_None);
@@ -43,8 +43,8 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
 	SpringArm->TargetArmLength = 0.0f;
 	SpringArm->SocketOffset = FVector(0.0f, 0.0f, 75.0f);
 	SpringArm->bEnableCameraLag = true;
-	SpringArm->CameraLagSpeed = 4.0f;
-	SpringArm->CameraLagMaxDistance = 300.0f;
+	SpringArm->CameraLagSpeed = 10.0f;
+	SpringArm->CameraLagMaxDistance = 3000.0f;
 
 
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("GameCamera"));
@@ -133,11 +133,14 @@ void AMainPawn::Tick(float DeltaTime) {
 			MouseInput.X = (1.0f - FMath::Cos(InputAxis.X * HalfPI)) * FMath::Sign(InputAxis.X);
 			MouseInput.Y = (1.0f - FMath::Cos(InputAxis.Y * HalfPI))* FMath::Sign(InputAxis.Y);
 
+
 			// lerping with the customizable Precisionfactor
 			MouseInput.X = FMath::Lerp(InputAxis.X, MouseInput.X, CenterPrecision);
 			MouseInput.Y = FMath::Lerp(InputAxis.Y, MouseInput.Y, CenterPrecision);
 
 			MouseInput *= MouseInput.GetSafeNormal().GetAbsMax();
+
+
 		}
 
 		InputPackage.PacketNo++;
@@ -212,7 +215,7 @@ void AMainPawn::Tick(float DeltaTime) {
 											   break;
 		case DebugTurning::Smooth: {
 			// very smooth
-			const float ResetSpeed = 3.0f;
+			const float ResetSpeed = 5.0f;
 
 			// yaw smoothing
 			if (PrevUsedMouseInput.X * MouseInput.X > 0.0f
@@ -240,13 +243,36 @@ void AMainPawn::Tick(float DeltaTime) {
 		}
 		}
 
+
+		// input calculations for rotation, strafing, moving
+		// rotationrate in actor local space
+		const FVector LocalRotVel = FVector(0.0f, MouseInput.Y * MaxTurnRate, MouseInput.X * MaxTurnRate);
+
+		// foward
+		ForwardInput = FMath::FInterpTo(ForwardInput, MovementInput.X * 50000.0f, DeltaTime, 1.0f);
+
+		const float StrafeVel = 10000.0f;
+		// strafing
+		StrafeInput = FMath::FInterpTo(StrafeInput, MovementInput.Y * StrafeVel, DeltaTime, 2.0f);
+
+		// curr straferotation angle in range of -72 to 72 deg (roll)
+		// TODO: fix issue with interp when passing zero
+		const float CurrStrafeInput = FMath::FInterpTo(PrevStrafeInput, (MovementInput.Y != 0.0f ? StrafeInput / StrafeVel : MouseInput.X) * -72.0f, DeltaTime, 5.0f);
+		// deltarotation to previous tick
+		const float DeltaRot = PrevStrafeInput - CurrStrafeInput;
+		PrevStrafeInput = CurrStrafeInput;
+
+
 		// rotation
 		{
-			// rotationrate in actor local space
-			const FVector LocalRotVel = FVector(0.0f, MouseInput.Y * MaxTurnRate, MouseInput.X * MaxTurnRate);
+			// strafe rotation
+			SpringArm->SetRelativeRotation(FRotator(0, 0, CurrStrafeInput), false, nullptr, ETeleportType::None);
+			ArmorMesh->AddRelativeRotation(FRotator(0, 0, DeltaRot), false, nullptr, ETeleportType::None);
 
 			// local rotationrate in worldspace
 			WorldAngVel = GetActorRotation().RotateVector(LocalRotVel);
+			// compensate strafe rotation
+			WorldAngVel = WorldAngVel.RotateAngleAxis(-CurrStrafeInput, GetActorForwardVector());
 
 			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, FString::SanitizeFloat(WorldAngVel.Size()) + " deg/sec");
 
@@ -268,21 +294,16 @@ void AMainPawn::Tick(float DeltaTime) {
 
 		// location
 		{
-			//Scale movement input axis values by 100 units per second
-			//MovementInput;
+			TargetLinearVelocity = GetActorForwardVector() * ForwardInput + GetActorRightVector() * StrafeInput;
 
-			ForwardInput = FMath::FInterpTo(ForwardInput, MovementInput.X * 10000.0f, DeltaTime, 1.0f);
-			SideInput = FMath::FInterpTo(SideInput, MovementInput.Y * 3000.0f, DeltaTime, 2.0f);
-			
-			//ArmorMesh->SetRelativeRotation(GetActorRotation().RotateVector(FVector(0,0, SideInput)).Rotation());
-
-			TargetLinearVelocity = GetActorForwardVector() * ForwardInput + GetActorRightVector() * SideInput;
+			// straferotation compensation compensation
+			TargetLinearVelocity = TargetLinearVelocity.RotateAngleAxis(-CurrStrafeInput, GetActorForwardVector());
 
 			MovControlStrength = FMath::FInterpConstantTo(MovControlStrength, 2.0f, DeltaTime, 1.0f);
 			if (MovControlStrength > 1.0f && MovControlStrength < 2.0f) {
 				ArmorMesh->SetPhysicsLinearVelocity(FMath::Lerp(ArmorMesh->GetPhysicsLinearVelocity(), TargetLinearVelocity, MovControlStrength - 1.0f));
 			}
-			else if(MovControlStrength == 2.0f) {
+			else if (MovControlStrength == 2.0f) {
 				ArmorMesh->SetPhysicsLinearVelocity(TargetLinearVelocity);
 			}
 

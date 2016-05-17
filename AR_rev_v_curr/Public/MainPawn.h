@@ -125,7 +125,8 @@ protected:
 	FVector2D PreviousMouseInput;
 
 	float ForwardInput;
-	float SideInput;
+	float StrafeInput;
+	float PrevStrafeInput;
 
 
 
