@@ -242,16 +242,6 @@ void AMainPawn::Tick(float DeltaTime) {
 		}
 
 
-		// input calculations for rotation, strafing, moving
-		// rotationrate in actor local space
-		const FVector LocalRotVel = FVector(0.0f, MouseInput.Y * MaxTurnRate, MouseInput.X * MaxTurnRate);
-
-		// Velocity when input is zero
-		const float DefaultForwardVel = 5000.0f;
-		const float MaxForwardVel = 50000.0f;
-		const float MaxBackwardsVel = DefaultForwardVel;
-		const float MaxStrafeVel = 10000.0f;
-
 		// player is flying and not stopped
 		if (bCanReceivePlayerInput) {
 			// Forward Velocity during flight
@@ -277,63 +267,77 @@ void AMainPawn::Tick(float DeltaTime) {
 			ForwardVel = StrafeVel = 0.0f;
 		}
 
-		// curr straferotation angle in range of -72 to 72 deg (roll)
-		const float MaxStrafeBankAngle = 72.0f;
 
 		float CurrStrafeRot;
-
+		// select new bankrotation either from strafe input or from current turnvalue 
 		if (MovementInput.Y != 0) {
+			// rot from strafeinput
 			CurrStrafeRot = FMath::FInterpTo(PrevStrafeRot, MovementInput.Y * -MaxStrafeBankAngle, DeltaTime, 2.0f);
-			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Red, FString::SanitizeFloat(MovementInput.Y * -MaxStrafeBankAngle) + " deg  TargetStrafe Rotation");
 		}
 		else {
+			// rot from turning
 			CurrStrafeRot = FMath::FInterpTo(PrevStrafeRot, MouseInput.X * -MaxStrafeBankAngle, DeltaTime, 3.0f);
-			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, FString::SanitizeFloat(MouseInput.X * -MaxStrafeBankAngle) + " deg  TargetStrafe Rotation");
 		}
-
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, FString::SanitizeFloat(CurrStrafeRot) + " deg Strafe Rotation");
 
 		// deltarotation to previous tick
 		const float DeltaRot = PrevStrafeRot - CurrStrafeRot;
+
+		// store current bankrotation for next tick
 		PrevStrafeRot = CurrStrafeRot;
 
 
 		// rotation
 		{
-			// strafe rotation
+			// rotate springarm/camera in local space to compensate for straferotation 
 			SpringArm->SetRelativeRotation(FRotator(0, 0, CurrStrafeRot), false, nullptr, ETeleportType::None);
-			//ArmorMesh->AddRelativeRotation(FRotator(0, 0, DeltaRot), false, nullptr, ETeleportType::None);
+			// apply the new straferotation to the rootcomponent (using the delta rotation to previous tick)
+			// TODO: replace AddRotation with AddTorque or AddImpuls
+			//ArmorMesh->AddRelativeRotation(FRotator(0, 0, DeltaRot), false, nullptr, ETeleportType::None); // relative and local the same when applied to root???
 			ArmorMesh->AddLocalRotation(FRotator(0, 0, DeltaRot), false, nullptr, ETeleportType::None);
-			// local rotationrate in worldspace
+			
+			// angular velocity from playerinput in actor local space
+			const FVector LocalRotVel = FVector(0.0f, MouseInput.Y * MaxTurnRate, MouseInput.X * MaxTurnRate);
+			// converted angular velocity in worldspace
 			WorldAngVel = GetActorRotation().RotateVector(LocalRotVel);
-			// compensate strafe rotation
+			// compensate for bankrotation
 			WorldAngVel = WorldAngVel.RotateAngleAxis(-CurrStrafeRot, GetActorForwardVector());
 
+			// print current absolut turnrate (angular velocity)
 			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, FString::SanitizeFloat(WorldAngVel.Size()) + " deg/sec");
 
+			// TODO: remove old turn implementations
 			if (TurnOption == DebugTurning::SmoothWithFastStop) {
 				ArmorMesh->SetPhysicsAngularVelocity(
 					FMath::VInterpTo(ArmorMesh->GetPhysicsAngularVelocity(), WorldAngVel, DeltaTime, UsedTurnInterSpeed));
 			}
 			else {
-
+				// collisionhandling: is set to zero on "each" collision and recovers in 2 seconds
 				RotControlStrength = FMath::FInterpConstantTo(RotControlStrength, 2.0f, DeltaTime, 1.0f);
 
+				// if 1 second has passed and not yet fully recovered
 				if (RotControlStrength > 1.0f && RotControlStrength < 2.0f) {
+					// blend between pure physics velocities and player caused velocity
 					ArmorMesh->SetPhysicsAngularVelocity(FMath::Lerp(ArmorMesh->GetPhysicsAngularVelocity(), WorldAngVel, RotControlStrength - 1.0f));
 				}
+				// no collision handling (normal flight)
 				else if (RotControlStrength == 2.0f) {
+					// player input is directly translated into movement
 					ArmorMesh->SetPhysicsAngularVelocity(WorldAngVel);
 				}
+				/*
+				else {
+				// RotControlStrength is between 0 and 1 -> player has no control: collision 
+				}
+				*/
 			}
 
-			// how fast the roll component of the current rotation is compensated for
-			const float LevelVel = 2.0f;
-
-			float DotUpRight = FVector::DotProduct(Camera->GetRightVector(), FVector(0, 0, 1.0f));
-			float LevelHorizonVel = 90.0f - FMath::Acos(DotUpRight) * 180.0f / PI;
-			ArmorMesh->AddLocalRotation(FRotator(0, 0, LevelVel * LevelHorizonVel * DeltaTime), false, nullptr, ETeleportType::None);
-
+			// auto level function  
+			if(LevelVel > 0.0f) {
+				// TODO: get rid of Acos
+				const float DotUpRight = FVector::DotProduct(Camera->GetRightVector(), AutoLevelAxis);
+				const float LevelHorizonVel = 90.0f - FMath::Acos(DotUpRight) * 180.0f / PI;
+				ArmorMesh->AddLocalRotation(FRotator(0, 0, LevelVel * LevelHorizonVel * DeltaTime), false, nullptr, ETeleportType::None);
+			}
 		}
 
 		// location

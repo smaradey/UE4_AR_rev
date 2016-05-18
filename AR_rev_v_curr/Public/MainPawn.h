@@ -216,6 +216,31 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Turning", meta = (ClampMin = "0.0", ClampMax = "0.1", UIMin = "0.0", UIMax = "0.05"))
 		float Deadzone = 0.01f;
 
+		/** default Velocity when input is zero */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
+		float DefaultForwardVel = 5000.0f;
+		/** max flight velocity */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
+		float MaxForwardVel = 50000.0f;
+		/** max backwards velocity, resulting velocity is (DefaultForwardVel - MaxBackwardsVel) e.g. 5000.0 - 5000.0 = 0.0 [cm/s] */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
+		float MaxBackwardsVel = 5000.0f;
+		/** max velocity to the right and to the left */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
+		float MaxStrafeVel = 10000.0f;
+
+	/** how fast the roll component of the actor current rotation is compensated for; set to 0 to deactivate autolevel */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight", meta = (ClampMin = "0.0", ClampMax = "100.0", UIMin = "0.0", UIMax = "10.0"))
+		float LevelVel = 2.0f;
+	/** Axis which is used to level the aircraft, e.g. if there was a planet with gravity: it is the vector pointing from its center towards the aircraft (up) */
+	/** has to be normalized! */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
+		FVector AutoLevelAxis = FVector(0.0f,0.0f,1.0f);
+
+	/** straferotation angle in range of -72 to 72 deg (roll) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight", meta = (ClampMin = "0.0", ClampMax = "180.0", UIMin = "0.0", UIMax = "180.0"))
+		float MaxStrafeBankAngle = 72.0f;
+
 private:
 	// how many updates to buffer
 	int NumberOfBufferedNetUpdates;
