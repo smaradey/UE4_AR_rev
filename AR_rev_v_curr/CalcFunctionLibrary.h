@@ -131,6 +131,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Actor | Replication")
 		static void GetReplicatedMovement(AActor* Actor, FVector &LinearVelocity, FVector &AngularVelocity );
 
-
+	//12
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Math_C++ | Gravity")
+		static FVector GetWorldGravity(UObject *other) {
+		if(other && other->GetWorld()){
+			return FVector(0, 0, other->GetWorld()->GetGravityZ());
+		}
+		return FVector::ZeroVector;
+	}
 
 };
