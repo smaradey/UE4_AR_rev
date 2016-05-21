@@ -288,19 +288,16 @@ void AMainPawn::Tick(float DeltaTime) {
 
 		// rotation
 		{
-			// rotate springarm/camera in local space to compensate for straferotation 
-			SpringArm->SetRelativeRotation(FRotator(0, 0, CurrStrafeRot), false, nullptr, ETeleportType::None);
-			// apply the new straferotation to the rootcomponent (using the delta rotation to previous tick)
-			// TODO: replace AddRotation with AddTorque or AddImpuls
-			//ArmorMesh->AddRelativeRotation(FRotator(0, 0, DeltaRot), false, nullptr, ETeleportType::None); // relative and local the same when applied to root???
-			ArmorMesh->AddLocalRotation(FRotator(0, 0, DeltaRot), false, nullptr, ETeleportType::None);
-			
+
 			// angular velocity from playerinput in actor local space
 			const FVector LocalRotVel = FVector(0.0f, MouseInput.Y * MaxTurnRate, MouseInput.X * MaxTurnRate);
 			// converted angular velocity in worldspace
 			WorldAngVel = GetActorRotation().RotateVector(LocalRotVel);
 			// compensate for bankrotation
 			WorldAngVel = WorldAngVel.RotateAngleAxis(-CurrStrafeRot, GetActorForwardVector());
+
+			// rotate springarm/camera in local space to compensate for straferotation 
+			SpringArm->SetRelativeRotation(FRotator(0, 0, CurrStrafeRot), false, nullptr, ETeleportType::None);
 
 			// print current absolut turnrate (angular velocity)
 			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, FString::SanitizeFloat(WorldAngVel.Size()) + " deg/sec");
@@ -316,13 +313,25 @@ void AMainPawn::Tick(float DeltaTime) {
 
 				// if 1 second has passed and not yet fully recovered
 				if (RotControlStrength > 1.0f && RotControlStrength < 2.0f) {
+
+					const float LerpProgress = RotControlStrength - 1.0f;
+					
+					const FVector AngVelStrafeCompensation = GetActorRotation().RotateVector(FVector(DeltaRot / DeltaTime, 0, 0));
+
 					// blend between pure physics velocities and player caused velocity
-					ArmorMesh->SetPhysicsAngularVelocity(FMath::Lerp(ArmorMesh->GetPhysicsAngularVelocity(), WorldAngVel, RotControlStrength - 1.0f));
+					ArmorMesh->SetPhysicsAngularVelocity(FMath::Lerp(ArmorMesh->GetPhysicsAngularVelocity(), WorldAngVel - AngVelStrafeCompensation, FMath::Square(LerpProgress)));
+
+
 				}
 				// no collision handling (normal flight)
 				else if (RotControlStrength == 2.0f) {
+
+
+
+					const FVector AngVelStrafeCompensation = GetActorRotation().RotateVector(FVector(DeltaRot / DeltaTime, 0, 0));
+
 					// player input is directly translated into movement
-					ArmorMesh->SetPhysicsAngularVelocity(WorldAngVel);
+					ArmorMesh->SetPhysicsAngularVelocity(WorldAngVel - AngVelStrafeCompensation);
 				}
 				/*
 				else {
