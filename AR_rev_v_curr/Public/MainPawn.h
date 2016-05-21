@@ -85,10 +85,10 @@ public:
 
 	/** toogle on screen debug messages */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug")
-		bool DEBUG = false;
+		bool DEBUG;
 	/** switch between turn implementations */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug")
-		bool bUseSmoothedTurning = true;
+		uint32 bUseSmoothedTurning:1;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Enum)
 		DebugTurning TurnOption;
@@ -133,13 +133,17 @@ protected:
 	float OldInputSize;
 	FVector2D MovementInput;
 	FVector2D CameraInput;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool bFreeCameraActive = false;
 	float ZoomFactor;
-	bool bZoomingIn;
+	uint32 bZoomingIn;
+	float SpringArmLength;
+	FRotator CurrentSpringArmRotation;
 
 	//Weapons
-	bool bGunFire;
+	uint32 bGunFire;
 	UPROPERTY(Replicated)
-		bool bCanFireGun = true;
+		uint32 bCanFireGun:1;
 	float FireRateGun = 0.1f;
 
 	//TimerHandle
@@ -151,6 +155,8 @@ protected:
 	void MoveRight(float AxisValue);
 	void PitchCamera(float AxisValue);
 	void YawCamera(float AxisValue);
+	void ActivateFreeCamera();
+	void DeactivateFreeCamera();
 	void ZoomIn();
 	void ZoomOut();
 	void GunFire();
@@ -240,6 +246,11 @@ protected:
 	/** straferotation angle in range of -72 to 72 deg (roll) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight", meta = (ClampMin = "0.0", ClampMax = "180.0", UIMin = "0.0", UIMax = "180.0"))
 		float MaxStrafeBankAngle = 72.0f;
+
+	/** factor to speed up freelook camera  rotation */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FreeLookCamera", meta = (ClampMin = "0.0", ClampMax = "720.0", UIMin = "0.0", UIMax = "360.0"))
+		float FreeCameraSpeed = 120.0f;
+
 
 private:
 	// how many updates to buffer

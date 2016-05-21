@@ -11,6 +11,7 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
 	bReplicates = true;
 	bAlwaysRelevant = false;
 	bReplicateMovement = false;
+	bCanReceivePlayerInput = true;
 
 	//SetActorEnableCollision(true);
 
@@ -41,6 +42,7 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
 	SpringArm->AttachTo(RootComponent, NAME_None);
 	//SpringArm->SetRelativeLocationAndRotation(FVector(-300.0f, 0.0f, 50.0f), FRotator(0.0f, 0.0f, 0.0f));
 	SpringArm->TargetArmLength = 0.0f;
+	SpringArmLength = SpringArm->TargetArmLength;
 	SpringArm->SocketOffset = FVector(0.0f, 0.0f, 75.0f);
 	SpringArm->bEnableCameraLag = true;
 	SpringArm->CameraLagSpeed = 10.0f;
@@ -85,7 +87,7 @@ void AMainPawn::BeginPlay() {
 void AMainPawn::Tick(float DeltaTime) {
 	Super::Tick(DeltaTime);
 
-	if (IsLocallyControlled() && bCanReceivePlayerInput) {
+	if (IsLocallyControlled()) {
 
 		// get mouse position
 		GetCursorLocation(CursorLoc);
@@ -140,6 +142,22 @@ void AMainPawn::Tick(float DeltaTime) {
 
 		}
 
+		if (bFreeCameraActive) {
+			// rotation from mousemovement (input axis lookup and lookright)
+			CurrentSpringArmRotation.Add(CameraInput.Y * -FreeCameraSpeed * DeltaTime, CameraInput.X * FreeCameraSpeed * DeltaTime, 0.0f);
+			// rotate the camera with the springarm
+			SpringArm->SetWorldRotation(CurrentSpringArmRotation);
+
+			// disable rotationcontrol
+			MouseInput = FVector2D::ZeroVector;
+			// disable strafeinput
+			MovementInput.Y = 0.0f;
+		}
+
+		if (!bCanReceivePlayerInput) {
+			MovementInput = MouseInput = FVector2D::ZeroVector;
+		}
+
 		InputPackage.PacketNo++;
 
 		FInput currentInput;
@@ -182,10 +200,7 @@ void AMainPawn::Tick(float DeltaTime) {
 		const FVector2D RawMouseInput = MouseInput;
 
 		if (!bCanReceivePlayerInput) {
-			MouseInput.X = 0.f;
-			MouseInput.Y = 0.f;
-			MovementInput.X = 0.f;
-			MovementInput.Y = 0.f;
+			MovementInput = MouseInput = FVector2D::ZeroVector;
 		}
 
 		float UsedTurnInterSpeed = TurnInterpSpeed;
@@ -266,8 +281,7 @@ void AMainPawn::Tick(float DeltaTime) {
 		if (MovControlStrength < 1.0f) {
 			ForwardVel = StrafeVel = 0.0f;
 		}
-
-
+		
 		float CurrStrafeRot;
 		// select new bankrotation either from strafe input or from current turnvalue 
 		if (MovementInput.Y != 0) {
@@ -285,7 +299,6 @@ void AMainPawn::Tick(float DeltaTime) {
 		// store current bankrotation for next tick
 		PrevStrafeRot = CurrStrafeRot;
 
-
 		// rotation
 		{
 
@@ -297,7 +310,9 @@ void AMainPawn::Tick(float DeltaTime) {
 			WorldAngVel = WorldAngVel.RotateAngleAxis(-CurrStrafeRot, GetActorForwardVector());
 
 			// rotate springarm/camera in local space to compensate for straferotation 
-			SpringArm->SetRelativeRotation(FRotator(0, 0, CurrStrafeRot), false, nullptr, ETeleportType::None);
+			if (!bFreeCameraActive) {
+				SpringArm->SetRelativeRotation(FRotator(0, 0, CurrStrafeRot), false, nullptr, ETeleportType::None);
+			}
 
 			// print current absolut turnrate (angular velocity)
 			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, FString::SanitizeFloat(WorldAngVel.Size()) + " deg/sec");
@@ -320,14 +335,9 @@ void AMainPawn::Tick(float DeltaTime) {
 
 					// blend between pure physics velocities and player caused velocity
 					ArmorMesh->SetPhysicsAngularVelocity(FMath::Lerp(ArmorMesh->GetPhysicsAngularVelocity(), WorldAngVel - AngVelStrafeCompensation, FMath::Square(LerpProgress)));
-
-
 				}
 				// no collision handling (normal flight)
 				else if (RotControlStrength == 2.0f) {
-
-
-
 					const FVector AngVelStrafeCompensation = GetActorRotation().RotateVector(FVector(DeltaRot / DeltaTime, 0, 0));
 
 					// player input is directly translated into movement
@@ -485,17 +495,19 @@ void AMainPawn::GetPing() {
 void AMainPawn::SetupPlayerInputComponent(class UInputComponent *InputComponent) {
 	Super::SetupPlayerInputComponent(InputComponent);
 
-	//Hook up events for "ZoomIn"
+	// action events
 	InputComponent->BindAction("ZoomIn", IE_Pressed, this, &AMainPawn::ZoomIn);
 	InputComponent->BindAction("ZoomIn", IE_Released, this, &AMainPawn::ZoomOut);
+	InputComponent->BindAction("FreeCamera", IE_Pressed, this, &AMainPawn::ActivateFreeCamera);
+	InputComponent->BindAction("FreeCamera", IE_Released, this, &AMainPawn::DeactivateFreeCamera);
 	InputComponent->BindAction("Fire Gun Action", IE_Pressed, this, &AMainPawn::StartGunFire);
 	InputComponent->BindAction("Fire Gun Action", IE_Released, this, &AMainPawn::StopGunFire);
 	InputComponent->BindAction("StopMovement", IE_Pressed, this, &AMainPawn::StopMovement);
 
-
-	//Hook up every-frame handling for our four axes
+	// axis events
 	InputComponent->BindAxis("MoveForward", this, &AMainPawn::MoveForward);
 	InputComponent->BindAxis("MoveRight", this, &AMainPawn::MoveRight);
+
 	InputComponent->BindAxis("LookUp", this, &AMainPawn::PitchCamera);
 	InputComponent->BindAxis("LookRight", this, &AMainPawn::YawCamera);
 
@@ -535,6 +547,27 @@ void AMainPawn::ZoomOut() {
 	bZoomingIn = false;
 	Camera->FieldOfView = 90.0f;
 }
+
+void AMainPawn::ActivateFreeCamera() {
+	CurrentSpringArmRotation = SpringArm->GetForwardVector().Rotation();
+	bFreeCameraActive = true;
+	SpringArm->SetRelativeRotation(FRotator::ZeroRotator, false, nullptr, ETeleportType::None);
+	SpringArm->TargetArmLength = 2500.0f;
+	SpringArm->bEnableCameraLag = false;
+	SpringArm->bEnableCameraRotationLag = true;
+	SpringArm->CameraRotationLagSpeed = 6.0f;
+}
+
+void AMainPawn::DeactivateFreeCamera() {
+	bFreeCameraActive = false;
+	SpringArm->bEnableCameraLag = true;
+	SpringArm->TargetArmLength = SpringArmLength;
+	SpringArm->bEnableCameraRotationLag = false;
+	SpringArm->SetRelativeRotation(FRotator::ZeroRotator, false, nullptr, ETeleportType::None);
+}
+
+
+
 
 void AMainPawn::StartGunFire() {
 	bGunFire = true;
