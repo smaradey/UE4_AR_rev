@@ -136,6 +136,8 @@ protected:
 	FQuat CurrentSpringArmRotation;
 
 	//Weapons
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons")
+	TArray<FName> GunSockets;
 	uint32 bGunFire;
 	UPROPERTY(Replicated)
 		uint32 bCanFireGun:1;
@@ -144,6 +146,8 @@ protected:
 	/** time in Seconds */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons")
 	float FireRateGun = 1.0f;
+
+	uint8 CurrGunSocketIndex;
 
 	//TimerHandle
 	UPROPERTY()
@@ -162,7 +166,7 @@ protected:
 	void StartGunFire();
 	void StopGunFire();
 	UFUNCTION(BlueprintNativeEvent, Category = "Weapons")
-		void SpawnProjectile();
+		void SpawnProjectile(const FTransform &SocketTransform);
 	void StartBoost();
 	void StopBoost();
 
@@ -180,7 +184,7 @@ protected:
 
 	FTransform RelativeArmorTransform;
 
-	UPROPERTY(ReplicatedUsing = OnRep_AngularVelocity, EditAnywhere, BlueprintReadWrite, Category = "MainPawn")
+	UPROPERTY(ReplicatedUsing = OnRep_AngularVelocity, EditAnywhere, BlueprintReadWrite)
 		FVector AngularVelocity;
 	UFUNCTION()
 		void OnRep_AngularVelocity();
@@ -240,13 +244,22 @@ protected:
 		/** max velocity to the right and to the left */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
 		float MaxStrafeVel = 10000.0f;
+	/** interpvelocity for forward movement */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
+		float ForwardAcceleration = 1.0f;
+	/** interpvelocity for backwards movement/braking */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
+		float BackwardsAcceleration = 3.0f;
+	/** interpvelocity for side movement */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
+		float StrafeAcceleration = 2.0f;
 
 	/** how fast the roll component of the actor current rotation is compensated for; set to 0 to deactivate autolevel */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight", meta = (ClampMin = "0.0", ClampMax = "100.0", UIMin = "0.0", UIMax = "10.0"))
 		float LevelVel = 2.0f;
 	/** Axis which is used to level the aircraft, e.g. if there was a planet with gravity: it is the vector pointing from its center towards the aircraft (up) */
 	/** has to be normalized! */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		FVector AutoLevelAxis = FVector(0.0f,0.0f,1.0f);
 
 	/** use the gravity of planets to determine what direction is or use world upvector when set to false */

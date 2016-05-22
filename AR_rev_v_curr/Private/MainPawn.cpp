@@ -12,6 +12,7 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
 	bAlwaysRelevant = false;
 	bReplicateMovement = false;
 
+
 	//SetActorEnableCollision(true);
 
 	//Create components
@@ -53,10 +54,16 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
 	// PostProcessSettings
 	Camera->PostProcessSettings.bOverride_LensFlareIntensity = true;
 	Camera->PostProcessSettings.LensFlareIntensity = 0.0f;
+	Camera->PostProcessSettings.bOverride_BloomIntensity = true;
+	Camera->PostProcessSettings.BloomIntensity = 0.5f;
 	Camera->PostProcessSettings.bOverride_AntiAliasingMethod = true;
-	Camera->PostProcessSettings.AntiAliasingMethod = EAntiAliasingMethod::AAM_FXAA;
+	Camera->PostProcessSettings.AntiAliasingMethod = EAntiAliasingMethod::AAM_TemporalAA;
 	Camera->PostProcessSettings.bOverride_MotionBlurAmount = true;
-	Camera->PostProcessSettings.MotionBlurAmount = 0.1f;
+	Camera->PostProcessSettings.MotionBlurAmount = 0.2f;
+
+	GunSockets.Add("gun0");
+	GunSockets.Add("gun1");
+	GunSockets.Shrink();
 
 	//Take control of the default Player
 	//AutoPossessPlayer = EAutoReceiveInput::Player0;
@@ -238,19 +245,19 @@ void AMainPawn::Tick(float DeltaTime) {
 			// Forward Velocity during flight
 			if (MovementInput.X > 0.0f) {
 				// forward
-				ForwardVel = FMath::FInterpTo(ForwardVel, MovementInput.X * MaxForwardVel + DefaultForwardVel, DeltaTime, 0.5f);
+				ForwardVel = FMath::FInterpTo(ForwardVel, MovementInput.X * MaxForwardVel + DefaultForwardVel, DeltaTime, ForwardAcceleration);
 			}
 			else {
 				// backwards
-				ForwardVel = FMath::FInterpTo(ForwardVel, MovementInput.X * MaxBackwardsVel + DefaultForwardVel, DeltaTime, 2.0f);
+				ForwardVel = FMath::FInterpTo(ForwardVel, MovementInput.X * MaxBackwardsVel + DefaultForwardVel, DeltaTime, BackwardsAcceleration);
 			}
 			// Strafe Velocity during flight
-			StrafeVel = FMath::FInterpTo(StrafeVel, MovementInput.Y * MaxStrafeVel, DeltaTime, 2.0f);
+			StrafeVel = FMath::FInterpTo(StrafeVel, MovementInput.Y * MaxStrafeVel, DeltaTime, StrafeAcceleration);
 		}
 		else {
 			// player has stopped
-			ForwardVel = FMath::FInterpTo(ForwardVel, 0.0f, DeltaTime, 1.0f);
-			StrafeVel = FMath::FInterpTo(StrafeVel, 0.0f, DeltaTime, 1.0f);
+			ForwardVel = FMath::FInterpTo(ForwardVel, 0.0f, DeltaTime, BackwardsAcceleration);
+			StrafeVel = FMath::FInterpTo(StrafeVel, 0.0f, DeltaTime, StrafeAcceleration);
 		}
 
 		// after a collision disable playerinput for a second
@@ -262,11 +269,11 @@ void AMainPawn::Tick(float DeltaTime) {
 		// select new bankrotation either from strafe input or from current turnvalue 
 		if (MovementInput.Y != 0) {
 			// rot from strafeinput
-			CurrStrafeRot = FMath::FInterpTo(PrevStrafeRot, MovementInput.Y * -MaxStrafeBankAngle, DeltaTime, 2.0f);
+			CurrStrafeRot = FMath::FInterpTo(PrevStrafeRot, MovementInput.Y * -MaxStrafeBankAngle, DeltaTime, StrafeAcceleration);
 		}
 		else {
 			// rot from turning
-			CurrStrafeRot = FMath::FInterpTo(PrevStrafeRot, MouseInput.X * -MaxStrafeBankAngle, DeltaTime, 3.0f);
+			CurrStrafeRot = FMath::FInterpTo(PrevStrafeRot, MouseInput.X * -MaxStrafeBankAngle, DeltaTime, StrafeAcceleration);
 		}
 
 		// deltarotation to previous tick
@@ -294,6 +301,7 @@ void AMainPawn::Tick(float DeltaTime) {
 
 			// if 1 second has passed and not yet fully recovered
 			if (RotControlStrength > 1.0f && RotControlStrength < 2.0f) {
+				ArmorMesh->SetAngularDamping(0.0f);
 				const float Alpha = FMath::Square(RotControlStrength - 1.0f);
 				if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Orange, "ROTATION control CHARGING " + FString::SanitizeFloat(Alpha));
 
@@ -310,7 +318,7 @@ void AMainPawn::Tick(float DeltaTime) {
 
 			}
 			// no collision handling (normal flight)
-			if (RotControlStrength == 2.0f) {
+			else if (RotControlStrength == 2.0f) {
 				if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Green, "ROTATION control FULL");
 
 				// auto level function  
@@ -325,9 +333,9 @@ void AMainPawn::Tick(float DeltaTime) {
 					// player input is directly translated into movement
 					ArmorMesh->SetPhysicsAngularVelocity(WorldAngVel - AngVelStrafeCompensation);
 					// rotate springarm/camera in local space to compensate for straferotation 
-					if (!bFreeCameraActive) {
+					
 						SpringArm->SetRelativeRotation(FRotator(0, 0, CurrStrafeRot + LevelHorizonVel * DeltaTime), false, nullptr, ETeleportType::None);
-					}
+					
 				}
 				else {
 					const FVector AngVelStrafeCompensation = GetActorRotation().RotateVector(FVector(DeltaRot / DeltaTime, 0, 0));
@@ -342,7 +350,11 @@ void AMainPawn::Tick(float DeltaTime) {
 			}		
 			else {
 			// RotControlStrength is between 0 and 1 -> player has no control: collision
+				ArmorMesh->SetAngularDamping(5.0f);
 				if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1,0, FColor::Red, "ROTATION control DEACTIVATED");
+				if (!bFreeCameraActive) {
+					SpringArm->SetRelativeRotation(FRotator(0, 0, CurrStrafeRot), false, nullptr, ETeleportType::None);
+				}
 			}
 
 
@@ -552,7 +564,7 @@ void AMainPawn::ActivateFreeCamera() {
 	SpringArm->TargetArmLength = 2500.0f;
 	SpringArm->bEnableCameraLag = false;
 	SpringArm->bEnableCameraRotationLag = true;
-	SpringArm->CameraRotationLagSpeed = 6.0f;
+	SpringArm->CameraRotationLagSpeed = 10.0f;
 }
 
 void AMainPawn::DeactivateFreeCamera() {
@@ -592,6 +604,7 @@ void AMainPawn::StopGunFire() {
 	}
 	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Gun OFF");
 }
+
 void AMainPawn::GunCooldownElapsed() {
 	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Blue, "Gun COOLED");
 	bCanFireGun = true;
@@ -604,11 +617,14 @@ void AMainPawn::GunCooldownElapsed() {
 
 void AMainPawn::GunFire() {
 	if (!bCanFireGun) return;
-	SpawnProjectile();
+
+	CurrGunSocketIndex = (CurrGunSocketIndex + 1) % GunSockets.Num();
+	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::White, FString::FromInt(CurrGunSocketIndex));
+	SpawnProjectile(ArmorMesh->GetSocketTransform(GunSockets[CurrGunSocketIndex]));
 	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::White, "Bang");
 }
-void AMainPawn::SpawnProjectile_Implementation() {
 
+void AMainPawn::SpawnProjectile_Implementation(const FTransform &SocketTransform) {
 }
 
 void AMainPawn::StopMovement() {
