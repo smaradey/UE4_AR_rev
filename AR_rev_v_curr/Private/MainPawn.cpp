@@ -11,7 +11,6 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
 	bReplicates = true;
 	bAlwaysRelevant = false;
 	bReplicateMovement = false;
-	bCanReceivePlayerInput = true;
 
 	//SetActorEnableCollision(true);
 
@@ -36,7 +35,6 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
 
 	ArmorMesh->SetSimulatePhysics(true);
 	ArmorMesh->SetEnableGravity(false);
-
 
 	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraSpringArm"));
 	SpringArm->AttachTo(RootComponent, NAME_None);
@@ -144,9 +142,12 @@ void AMainPawn::Tick(float DeltaTime) {
 
 		if (bFreeCameraActive) {
 			// rotation from mousemovement (input axis lookup and lookright)
-			CurrentSpringArmRotation.Add(CameraInput.Y * -FreeCameraSpeed * DeltaTime, CameraInput.X * FreeCameraSpeed * DeltaTime, 0.0f);
+			CurrentSpringArmRotation = CurrentSpringArmRotation * FQuat(FRotator(CameraInput.Y * -FreeCameraSpeed, CameraInput.X * FreeCameraSpeed, 0.0f));
 			// rotate the camera with the springarm
+
 			SpringArm->SetWorldRotation(CurrentSpringArmRotation);
+
+			//SpringArm->SetWorldRotation((AutoLevelAxis.Rotation().Quaternion() * CurrentSpringArmRotation));
 
 			// disable rotationcontrol
 			MouseInput = FVector2D::ZeroVector;
@@ -205,29 +206,9 @@ void AMainPawn::Tick(float DeltaTime) {
 
 		float UsedTurnInterSpeed = TurnInterpSpeed;
 
-		// smooth turning DEBUG
-		switch (TurnOption) {
-		case DebugTurning::SmoothWithFastStop: {
-			if (PrevUsedMouseInput.X * MouseInput.X > 0.0f
-				&& MouseInput.X * MouseInput.X < PrevUsedMouseInput.X * PrevUsedMouseInput.X) // new x is smaller
-			{
-				MouseInput.X = MouseInput.X;
-			}
-			else {
-				MouseInput.X = FMath::FInterpTo(PrevUsedMouseInput.X, MouseInput.X, DeltaTime, UsedTurnInterSpeed);
-			}
-			if (PrevUsedMouseInput.Y * MouseInput.Y > 0.0f
-				&& MouseInput.Y * MouseInput.Y < PrevUsedMouseInput.Y * PrevUsedMouseInput.Y) // new y is smaller
-			{
-				MouseInput.Y = MouseInput.Y;
-			}
-			else {
-				MouseInput.Y = FMath::FInterpTo(PrevUsedMouseInput.Y, MouseInput.Y, DeltaTime, UsedTurnInterSpeed);
-			}
-		}
-											   break;
-		case DebugTurning::Smooth: {
-			// very smooth
+
+		{
+			// very smooth Turning
 			const float ResetSpeed = 5.0f;
 
 			// yaw smoothing
@@ -249,11 +230,6 @@ void AMainPawn::Tick(float DeltaTime) {
 			else {
 				MouseInput.Y = FMath::FInterpTo(PrevUsedMouseInput.Y, MouseInput.Y, DeltaTime, UsedTurnInterSpeed);
 			}
-		}
-								   break;
-		default:
-		{
-		}
 		}
 
 
@@ -281,8 +257,8 @@ void AMainPawn::Tick(float DeltaTime) {
 		if (MovControlStrength < 1.0f) {
 			ForwardVel = StrafeVel = 0.0f;
 		}
+
 		
-		float CurrStrafeRot;
 		// select new bankrotation either from strafe input or from current turnvalue 
 		if (MovementInput.Y != 0) {
 			// rot from strafeinput
@@ -309,54 +285,68 @@ void AMainPawn::Tick(float DeltaTime) {
 			// compensate for bankrotation
 			WorldAngVel = WorldAngVel.RotateAngleAxis(-CurrStrafeRot, GetActorForwardVector());
 
-			// rotate springarm/camera in local space to compensate for straferotation 
-			if (!bFreeCameraActive) {
-				SpringArm->SetRelativeRotation(FRotator(0, 0, CurrStrafeRot), false, nullptr, ETeleportType::None);
-			}
-
 			// print current absolut turnrate (angular velocity)
 			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, FString::SanitizeFloat(WorldAngVel.Size()) + " deg/sec");
 
-			// TODO: remove old turn implementations
-			if (TurnOption == DebugTurning::SmoothWithFastStop) {
-				ArmorMesh->SetPhysicsAngularVelocity(
-					FMath::VInterpTo(ArmorMesh->GetPhysicsAngularVelocity(), WorldAngVel, DeltaTime, UsedTurnInterSpeed));
-			}
-			else {
-				// collisionhandling: is set to zero on "each" collision and recovers in 2 seconds
-				RotControlStrength = FMath::FInterpConstantTo(RotControlStrength, 2.0f, DeltaTime, 1.0f);
 
-				// if 1 second has passed and not yet fully recovered
-				if (RotControlStrength > 1.0f && RotControlStrength < 2.0f) {
+			// collisionhandling: is set to zero on "each" collision and recovers in 2 seconds
+			RotControlStrength = FMath::FInterpConstantTo(RotControlStrength, 2.0f, DeltaTime, 1.0f);
 
-					const float LerpProgress = RotControlStrength - 1.0f;
-					
-					const FVector AngVelStrafeCompensation = GetActorRotation().RotateVector(FVector(DeltaRot / DeltaTime, 0, 0));
+			// if 1 second has passed and not yet fully recovered
+			if (RotControlStrength > 1.0f && RotControlStrength < 2.0f) {
+				const float Alpha = FMath::Square(RotControlStrength - 1.0f);
+				if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Orange, "ROTATION control CHARGING " + FString::SanitizeFloat(Alpha));
 
-					// blend between pure physics velocities and player caused velocity
-					ArmorMesh->SetPhysicsAngularVelocity(FMath::Lerp(ArmorMesh->GetPhysicsAngularVelocity(), WorldAngVel - AngVelStrafeCompensation, FMath::Square(LerpProgress)));
+				const FVector AngVelStrafeCompensation = GetActorRotation().RotateVector(FVector(DeltaRot / DeltaTime, 0.0f, 0.0f));
+
+				// blend between pure physics velocities and player caused velocity				
+				const FVector NewAngVel = FMath::Lerp(ArmorMesh->GetPhysicsAngularVelocity(), WorldAngVel - AngVelStrafeCompensation, Alpha);
+				ArmorMesh->SetPhysicsAngularVelocity(NewAngVel);
+
+				// rotate springarm/camera in local space to compensate for straferotation 
+				if (!bFreeCameraActive) {
+					SpringArm->SetRelativeRotation(FRotator(0, 0, CurrStrafeRot), false, nullptr, ETeleportType::None);
 				}
-				// no collision handling (normal flight)
-				else if (RotControlStrength == 2.0f) {
+
+			}
+			// no collision handling (normal flight)
+			if (RotControlStrength == 2.0f) {
+				if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Green, "ROTATION control FULL");
+
+				// auto level function  
+				if (LevelVel > 0.0f && !bFreeCameraActive) {
+					// TODO: get rid of Acos
+
+					const float DotUpRight = FVector::DotProduct(Camera->GetRightVector(), bUseGravityDirForAutoLevel ? AutoLevelAxis : FVector(0.0f, 0.0f, 1.0f));
+					const float LevelHorizonVel = LevelVel * (90.0f - FMath::Acos(DotUpRight) * 180.0f / PI);
+
+					const FVector AngVelStrafeCompensation = GetActorRotation().RotateVector(FVector(DeltaRot / DeltaTime + LevelHorizonVel, 0, 0));
+
+					// player input is directly translated into movement
+					ArmorMesh->SetPhysicsAngularVelocity(WorldAngVel - AngVelStrafeCompensation);
+					// rotate springarm/camera in local space to compensate for straferotation 
+					if (!bFreeCameraActive) {
+						SpringArm->SetRelativeRotation(FRotator(0, 0, CurrStrafeRot + LevelHorizonVel * DeltaTime), false, nullptr, ETeleportType::None);
+					}
+				}
+				else {
 					const FVector AngVelStrafeCompensation = GetActorRotation().RotateVector(FVector(DeltaRot / DeltaTime, 0, 0));
 
 					// player input is directly translated into movement
 					ArmorMesh->SetPhysicsAngularVelocity(WorldAngVel - AngVelStrafeCompensation);
+					// rotate springarm/camera in local space to compensate for straferotation 
+					if (!bFreeCameraActive) {
+						SpringArm->SetRelativeRotation(FRotator(0, 0, CurrStrafeRot), false, nullptr, ETeleportType::None);
+					}
 				}
-				/*
-				else {
-				// RotControlStrength is between 0 and 1 -> player has no control: collision 
-				}
-				*/
+			}		
+			else {
+			// RotControlStrength is between 0 and 1 -> player has no control: collision
+				if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1,0, FColor::Red, "ROTATION control DEACTIVATED");
 			}
 
-			// auto level function  
-			if(LevelVel > 0.0f) {
-				// TODO: get rid of Acos
-				const float DotUpRight = FVector::DotProduct(Camera->GetRightVector(), AutoLevelAxis);
-				const float LevelHorizonVel = 90.0f - FMath::Acos(DotUpRight) * 180.0f / PI;
-				ArmorMesh->AddLocalRotation(FRotator(0, 0, LevelVel * LevelHorizonVel * DeltaTime), false, nullptr, ETeleportType::None);
-			}
+
+			
 		}
 
 		// location
@@ -503,6 +493,8 @@ void AMainPawn::SetupPlayerInputComponent(class UInputComponent *InputComponent)
 	InputComponent->BindAction("Fire Gun Action", IE_Pressed, this, &AMainPawn::StartGunFire);
 	InputComponent->BindAction("Fire Gun Action", IE_Released, this, &AMainPawn::StopGunFire);
 	InputComponent->BindAction("StopMovement", IE_Pressed, this, &AMainPawn::StopMovement);
+	InputComponent->BindAction("Boost", IE_Pressed, this, &AMainPawn::StartBoost);
+	InputComponent->BindAction("Boost", IE_Released, this, &AMainPawn::StopBoost);
 
 	// axis events
 	InputComponent->BindAxis("MoveForward", this, &AMainPawn::MoveForward);
@@ -515,7 +507,12 @@ void AMainPawn::SetupPlayerInputComponent(class UInputComponent *InputComponent)
 
 //Input functions
 void AMainPawn::MoveForward(float AxisValue) {
-	MovementInput.X = FMath::Clamp<float>(AxisValue, -1.0f, 1.0f);
+	if (bBoostPressed) {
+		MovementInput.X = 1.0f;
+	}
+	else {
+		MovementInput.X = FMath::Clamp<float>(AxisValue, -1.0f, 1.0f);
+	}
 }
 
 void AMainPawn::MoveRight(float AxisValue) {
@@ -549,9 +546,9 @@ void AMainPawn::ZoomOut() {
 }
 
 void AMainPawn::ActivateFreeCamera() {
-	CurrentSpringArmRotation = SpringArm->GetForwardVector().Rotation();
 	bFreeCameraActive = true;
 	SpringArm->SetRelativeRotation(FRotator::ZeroRotator, false, nullptr, ETeleportType::None);
+	CurrentSpringArmRotation = SpringArm->GetComponentQuat();
 	SpringArm->TargetArmLength = 2500.0f;
 	SpringArm->bEnableCameraLag = false;
 	SpringArm->bEnableCameraRotationLag = true;
@@ -571,22 +568,47 @@ void AMainPawn::DeactivateFreeCamera() {
 
 void AMainPawn::StartGunFire() {
 	bGunFire = true;
-	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(1, 0, FColor::Green, "Gun ON");
-	GunFire();
-	GetWorldTimerManager().SetTimer(GunFireHandle, this, &AMainPawn::GunFire, FireRateGun, true);
+	if (bCanFireGun) {
+		GunFire();
+		GetWorldTimerManager().SetTimer(GunFireHandle, this, &AMainPawn::GunFire, FireRateGun, true);
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Green, "Gun ON");
+	}
+	else if(!GetWorldTimerManager().IsTimerActive(GunFireCooldown)){
+		bCanFireGun = true;
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Gun COOLDOWN NOT ACTIVATED");
+		StartGunFire();
+	}
+	else {
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Gun STILL COOLING DOWN");
+	}
 }
 
 void AMainPawn::StopGunFire() {
 	bGunFire = false;
-	if (GunFireHandle.IsValid()) {
+	if (GetWorldTimerManager().IsTimerActive(GunFireHandle)){
+		bCanFireGun = false;
+		GetWorldTimerManager().SetTimer(GunFireCooldown, this, &AMainPawn::GunCooldownElapsed, GetWorldTimerManager().GetTimerRemaining(GunFireHandle), false);
 		GetWorldTimerManager().ClearTimer(GunFireHandle);
 	}
-	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(1, 0, FColor::Red, "Gun OFF");
+	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Gun OFF");
+}
+void AMainPawn::GunCooldownElapsed() {
+	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Blue, "Gun COOLED");
+	bCanFireGun = true;
+	if (bGunFire) {
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Green, "Gun CONTINUE");
+		StartGunFire();
+	}
+	
 }
 
 void AMainPawn::GunFire() {
 	if (!bCanFireGun) return;
-	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(2, 0, FColor::White, "Bang");
+	SpawnProjectile();
+	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::White, "Bang");
+}
+void AMainPawn::SpawnProjectile_Implementation() {
+
 }
 
 void AMainPawn::StopMovement() {
@@ -600,7 +622,33 @@ bool AMainPawn::Server_StopPlayerMovement_Validate() {
 	return true;
 }
 void AMainPawn::Server_StopPlayerMovement_Implementation() {
-	bCanReceivePlayerInput = bCanReceivePlayerInput ? false : true;
+	if (bCanReceivePlayerInput) {
+		bCanFireGun = false;
+		// make sure there is no pending movement activation
+		GetWorldTimerManager().ClearTimer(StartMovementTimerHandle);
+		bCanReceivePlayerInput = false;
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, "Movement STOPPED");
+	}
+	else {
+		GetWorldTimerManager().SetTimer(StartMovementTimerHandle, this, &AMainPawn::StartMovementCoolDownElapsed, 1.0f, false);
+	}
+}
+
+void AMainPawn::StartMovementCoolDownElapsed() {
+	bCanFireGun = true;
+	bCanReceivePlayerInput = true;
+	RotControlStrength = 1.0f;
+	MovControlStrength = 1.0f;
+	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Green, "Movement STARTED");
+}
+
+
+void AMainPawn::StartBoost() {
+	bBoostPressed = true;
+}
+
+void AMainPawn::StopBoost() {
+	bBoostPressed = false;
 }
 
 // sends Playerinput to server

@@ -86,12 +86,6 @@ public:
 	/** toogle on screen debug messages */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug")
 		bool DEBUG;
-	/** switch between turn implementations */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug")
-		uint32 bUseSmoothedTurning:1;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Enum)
-		DebugTurning TurnOption;
 
 	/** Turnacceleration */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Turning", meta = (ClampMin = "0.01", ClampMax = "10.0", UIMin = "0.01", UIMax = "10.0"))
@@ -127,7 +121,7 @@ protected:
 	float ForwardVel;
 	float StrafeVel;
 	float PrevStrafeRot;
-
+	float CurrStrafeRot;
 	float InputSize;
 	float NewInputSize;
 	float OldInputSize;
@@ -137,14 +131,19 @@ protected:
 	bool bFreeCameraActive = false;
 	float ZoomFactor;
 	uint32 bZoomingIn;
+	uint32 bBoostPressed;
 	float SpringArmLength;
-	FRotator CurrentSpringArmRotation;
+	FQuat CurrentSpringArmRotation;
 
 	//Weapons
 	uint32 bGunFire;
 	UPROPERTY(Replicated)
 		uint32 bCanFireGun:1;
-	float FireRateGun = 0.1f;
+	FTimerHandle GunFireCooldown;
+	void GunCooldownElapsed();
+	/** time in Seconds */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons")
+	float FireRateGun = 1.0f;
 
 	//TimerHandle
 	UPROPERTY()
@@ -158,10 +157,14 @@ protected:
 	void ActivateFreeCamera();
 	void DeactivateFreeCamera();
 	void ZoomIn();
-	void ZoomOut();
+	void ZoomOut();	
 	void GunFire();
 	void StartGunFire();
 	void StopGunFire();
+	UFUNCTION(BlueprintNativeEvent, Category = "Weapons")
+		void SpawnProjectile();
+	void StartBoost();
+	void StopBoost();
 
 	void StopMovement();
 	UFUNCTION(Server, reliable, WithValidation)
@@ -169,6 +172,9 @@ protected:
 	virtual void StopPlayerMovement(); // executed on client
 	UPROPERTY(Replicated)
 		bool bCanReceivePlayerInput = true;
+	UFUNCTION()
+		void StartMovementCoolDownElapsed();
+	FTimerHandle StartMovementTimerHandle;
 
 	int lagCounter = 0;
 
@@ -243,13 +249,17 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
 		FVector AutoLevelAxis = FVector(0.0f,0.0f,1.0f);
 
+	/** use the gravity of planets to determine what direction is or use world upvector when set to false */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
+	bool bUseGravityDirForAutoLevel = true;
+
 	/** straferotation angle in range of -72 to 72 deg (roll) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight", meta = (ClampMin = "0.0", ClampMax = "180.0", UIMin = "0.0", UIMax = "180.0"))
 		float MaxStrafeBankAngle = 72.0f;
 
 	/** factor to speed up freelook camera  rotation */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FreeLookCamera", meta = (ClampMin = "0.0", ClampMax = "720.0", UIMin = "0.0", UIMax = "360.0"))
-		float FreeCameraSpeed = 120.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FreeLookCamera", meta = (ClampMin = "0.0", ClampMax = "720.0", UIMin = "0.0", UIMax = "100.0"))
+		float FreeCameraSpeed = 10.0f;
 
 
 private:
@@ -277,6 +287,8 @@ private:
 		FVector LinearVelocity;
 	UFUNCTION()
 		void OnRep_LinearVelocity();
+
+
 
 
 	// }
