@@ -128,30 +128,66 @@ protected:
 	FVector2D MovementInput;
 	FVector2D CameraInput;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-	bool bFreeCameraActive = false;
+		bool bFreeCameraActive = false;
 	float ZoomFactor;
 	uint32 bZoomingIn;
 	uint32 bBoostPressed;
 	float SpringArmLength;
 	FQuat CurrentSpringArmRotation;
 
-	//Weapons
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons")
-	TArray<FName> GunSockets;
+	// Weapons 
+	void StartGunFire();
+	void StopGunFire();
 	uint32 bGunFire;
 	UPROPERTY(Replicated)
-		uint32 bCanFireGun:1;
-	FTimerHandle GunFireCooldown;
-	void GunCooldownElapsed();
+		uint32 bGunReady : 1;
+
+
+	void GunFire();
+	FTimerHandle GunFireHandle;
 	/** time in Seconds */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons")
-	float FireRateGun = 1.0f;
+		float FireRateGun = 1.0f;
 
+	void GunCooldownElapsed();
+	FTimerHandle GunFireCooldown; 
+
+	void FireSalve();
+	FTimerHandle SalveTimerHandle;
+	float SalveIntervall;
+	uint8 CurrentSalve;
+	/** number of projectile salves fired after a shot has been triggered */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons")
+		uint8 NumSalves = 4;
+	/** smaller values lower the time between the salves and increase the time between last salve and next first salve */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons", meta = (ClampMin = "0.05", ClampMax = "1.0", UIMin = "0.05", UIMax = "1.0"))
+		float SalveDensity = 1.0f;
+	/** number of simultaniously fired projectile in a salve */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons")
+		uint8 NumProjectiles = 2;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons")
+		TArray<FName> GunSockets;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons")
+		float GunRecoilForce = -500000.0f;
+
+	/** number of degrees the projectiles can deviate from actual firedirection */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons")
+		float WeaponSpreadHalfAngle = 0.5f;
+	float WeaponSpreadRadian;
+
+	/** number of projectiles available */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons")
+		int GunAmmunitionAmount = 10000;
+	bool bHasAmmo = true;
+
+	/** every x-th projectile has a tracer, set to 0 to disable tracers completely */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons")
+		uint8 TracerIntervall = 1;
+	uint8 CurrentTracer;
 	uint8 CurrGunSocketIndex;
-
-	//TimerHandle
-	UPROPERTY()
-		FTimerHandle GunFireHandle;
+	// END Weapons
 
 	//Input functions
 	void MoveForward(float AxisValue);
@@ -161,12 +197,10 @@ protected:
 	void ActivateFreeCamera();
 	void DeactivateFreeCamera();
 	void ZoomIn();
-	void ZoomOut();	
-	void GunFire();
-	void StartGunFire();
-	void StopGunFire();
+	void ZoomOut();
+
 	UFUNCTION(BlueprintNativeEvent, Category = "Weapons")
-		void SpawnProjectile(const FTransform &SocketTransform);
+		void SpawnProjectile(const FTransform &SocketTransform, const bool bTracer);
 	void StartBoost();
 	void StopBoost();
 
@@ -232,16 +266,16 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Turning", meta = (ClampMin = "0.0", ClampMax = "0.1", UIMin = "0.0", UIMax = "0.05"))
 		float Deadzone = 0.01f;
 
-		/** default Velocity when input is zero */
+	/** default Velocity when input is zero */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
 		float DefaultForwardVel = 5000.0f;
-		/** max flight velocity */
+	/** max flight velocity */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
 		float MaxForwardVel = 50000.0f;
-		/** max backwards velocity, resulting velocity is (DefaultForwardVel - MaxBackwardsVel) e.g. 5000.0 - 5000.0 = 0.0 [cm/s] */
+	/** max backwards velocity, resulting velocity is (DefaultForwardVel - MaxBackwardsVel) e.g. 5000.0 - 5000.0 = 0.0 [cm/s] */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
 		float MaxBackwardsVel = 5000.0f;
-		/** max velocity to the right and to the left */
+	/** max velocity to the right and to the left */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
 		float MaxStrafeVel = 10000.0f;
 	/** interpvelocity for forward movement */
@@ -260,11 +294,11 @@ protected:
 	/** Axis which is used to level the aircraft, e.g. if there was a planet with gravity: it is the vector pointing from its center towards the aircraft (up) */
 	/** has to be normalized! */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-		FVector AutoLevelAxis = FVector(0.0f,0.0f,1.0f);
+		FVector AutoLevelAxis = FVector(0.0f, 0.0f, 1.0f);
 
 	/** use the gravity of planets to determine what direction is or use world upvector when set to false */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
-	bool bUseGravityDirForAutoLevel = true;
+		bool bUseGravityDirForAutoLevel = true;
 
 	/** straferotation angle in range of -72 to 72 deg (roll) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight", meta = (ClampMin = "0.0", ClampMax = "180.0", UIMin = "0.0", UIMax = "180.0"))

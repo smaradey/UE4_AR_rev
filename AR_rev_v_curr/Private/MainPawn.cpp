@@ -42,7 +42,7 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
 	//SpringArm->SetRelativeLocationAndRotation(FVector(-300.0f, 0.0f, 50.0f), FRotator(0.0f, 0.0f, 0.0f));
 	SpringArm->TargetArmLength = 0.0f;
 	SpringArmLength = SpringArm->TargetArmLength;
-	SpringArm->SocketOffset = FVector(0.0f, 0.0f, 75.0f);
+	SpringArm->SocketOffset = FVector(0.0f, 0.0f, 100.0f);
 	SpringArm->bEnableCameraLag = true;
 	SpringArm->CameraLagSpeed = 10.0f;
 	SpringArm->CameraLagMaxDistance = 3000.0f;
@@ -63,7 +63,8 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
 
 	GunSockets.Add("gun0");
 	GunSockets.Add("gun1");
-	GunSockets.Shrink();
+
+
 
 	//Take control of the default Player
 	//AutoPossessPlayer = EAutoReceiveInput::Player0;
@@ -75,6 +76,10 @@ void AMainPawn::BeginPlay() {
 
 	lastUpdate = GetWorld()->RealTimeSeconds;
 	PrevReceivedTransform = GetTransform();
+
+	WeaponSpreadRadian = WeaponSpreadHalfAngle * PI / 180.0f;
+	SalveIntervall = (SalveDensity * FireRateGun) / NumSalves;
+	bHasAmmo = GunAmmunitionAmount > 0;
 
 	if (Role < ROLE_Authority) {
 
@@ -265,7 +270,7 @@ void AMainPawn::Tick(float DeltaTime) {
 			ForwardVel = StrafeVel = 0.0f;
 		}
 
-		
+
 		// select new bankrotation either from strafe input or from current turnvalue 
 		if (MovementInput.Y != 0) {
 			// rot from strafeinput
@@ -333,9 +338,9 @@ void AMainPawn::Tick(float DeltaTime) {
 					// player input is directly translated into movement
 					ArmorMesh->SetPhysicsAngularVelocity(WorldAngVel - AngVelStrafeCompensation);
 					// rotate springarm/camera in local space to compensate for straferotation 
-					
-						SpringArm->SetRelativeRotation(FRotator(0, 0, CurrStrafeRot + LevelHorizonVel * DeltaTime), false, nullptr, ETeleportType::None);
-					
+
+					SpringArm->SetRelativeRotation(FRotator(0, 0, CurrStrafeRot + LevelHorizonVel * DeltaTime), false, nullptr, ETeleportType::None);
+
 				}
 				else {
 					const FVector AngVelStrafeCompensation = GetActorRotation().RotateVector(FVector(DeltaRot / DeltaTime, 0, 0));
@@ -347,18 +352,18 @@ void AMainPawn::Tick(float DeltaTime) {
 						SpringArm->SetRelativeRotation(FRotator(0, 0, CurrStrafeRot), false, nullptr, ETeleportType::None);
 					}
 				}
-			}		
+			}
 			else {
-			// RotControlStrength is between 0 and 1 -> player has no control: collision
+				// RotControlStrength is between 0 and 1 -> player has no control: collision
 				ArmorMesh->SetAngularDamping(5.0f);
-				if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1,0, FColor::Red, "ROTATION control DEACTIVATED");
+				if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Red, "ROTATION control DEACTIVATED");
 				if (!bFreeCameraActive) {
 					SpringArm->SetRelativeRotation(FRotator(0, 0, CurrStrafeRot), false, nullptr, ETeleportType::None);
 				}
 			}
 
 
-			
+
 		}
 
 		// location
@@ -428,7 +433,7 @@ void AMainPawn::Tick(float DeltaTime) {
 
 // replication of variables
 void AMainPawn::GetLifetimeReplicatedProps(TArray <FLifetimeProperty> &OutLifetimeProps) const {
-	DOREPLIFETIME(AMainPawn, bCanFireGun);
+	DOREPLIFETIME(AMainPawn, bGunReady);
 	DOREPLIFETIME(AMainPawn, TransformOnAuthority);
 	DOREPLIFETIME(AMainPawn, LinearVelocity);
 	DOREPLIFETIME(AMainPawn, AngularVelocity);
@@ -575,56 +580,120 @@ void AMainPawn::DeactivateFreeCamera() {
 	SpringArm->SetRelativeRotation(FRotator::ZeroRotator, false, nullptr, ETeleportType::None);
 }
 
-
-
-
 void AMainPawn::StartGunFire() {
+	// player has gunfire button pressed
 	bGunFire = true;
-	if (bCanFireGun) {
-		GunFire();
-		GetWorldTimerManager().SetTimer(GunFireHandle, this, &AMainPawn::GunFire, FireRateGun, true);
+	if (bGunReady && bHasAmmo) { // gun is ready to fire
+		// make sure no other gunfire timer is activ by clearing it
+		GetWorldTimerManager().ClearTimer(GunFireHandle);
+		// activate a new gunfire timer
+		GetWorldTimerManager().SetTimer(GunFireHandle, this, &AMainPawn::GunFire, FireRateGun, true, 0.0f);
+		// debug
 		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Green, "Gun ON");
 	}
-	else if(!GetWorldTimerManager().IsTimerActive(GunFireCooldown)){
-		bCanFireGun = true;
+	else if (!GetWorldTimerManager().IsTimerActive(GunFireCooldown)) { // gun is not cooling down but could not be fired
+		// enable gun
+		bGunReady = true;
+		// debug
 		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Gun COOLDOWN NOT ACTIVATED");
-		StartGunFire();
+		// try again to fire gun
+		if (bHasAmmo) {
+			StartGunFire();
+		} else {
+			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Gun OUT OF AMMO");
+		}
 	}
 	else {
+		// gun is cooling down
+		// debug
 		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Gun STILL COOLING DOWN");
 	}
 }
 
 void AMainPawn::StopGunFire() {
+	// player has gunfire button released
 	bGunFire = false;
-	if (GetWorldTimerManager().IsTimerActive(GunFireHandle)){
-		bCanFireGun = false;
-		GetWorldTimerManager().SetTimer(GunFireCooldown, this, &AMainPawn::GunCooldownElapsed, GetWorldTimerManager().GetTimerRemaining(GunFireHandle), false);
+	// is a gunfire timer active
+	if (GetWorldTimerManager().IsTimerActive(GunFireHandle)) {
+		// stop the timer
+		GetWorldTimerManager().PauseTimer(GunFireHandle);
+		// make sure gun is disabled
+		bGunReady = false;
+		// store the remaining time
+		const float CoolDownTime = GetWorldTimerManager().GetTimerRemaining(GunFireHandle);
+		// remove old gunfire timer
 		GetWorldTimerManager().ClearTimer(GunFireHandle);
+		// create a new timer to reactivate gun after a cooldownperiod		
+		GetWorldTimerManager().SetTimer(GunFireCooldown, this, &AMainPawn::GunCooldownElapsed, CoolDownTime, false);		
 	}
+	// debug
 	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Gun OFF");
 }
 
 void AMainPawn::GunCooldownElapsed() {
+	// debug
 	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Blue, "Gun COOLED");
-	bCanFireGun = true;
+	// gun has cooled down and is again ready to fire
+	bGunReady = true;
+	// has the user requested fireing reactivate gunfire
 	if (bGunFire) {
 		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Green, "Gun CONTINUE");
 		StartGunFire();
 	}
-	
+
 }
 
 void AMainPawn::GunFire() {
-	if (!bCanFireGun) return;
-
-	CurrGunSocketIndex = (CurrGunSocketIndex + 1) % GunSockets.Num();
-	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::White, FString::FromInt(CurrGunSocketIndex));
-	SpawnProjectile(ArmorMesh->GetSocketTransform(GunSockets[CurrGunSocketIndex]));
-	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::White, "Bang");
+	if (GunAmmunitionAmount > 0) {
+		// reset the salve counter
+		CurrentSalve = 0;
+		// the gunfire timer starts a subtimer that fires all the salves
+		GetWorldTimerManager().SetTimer(SalveTimerHandle, this, &AMainPawn::FireSalve, SalveIntervall, true, 0.0f);
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Orange, FString::SanitizeFloat(SalveIntervall) + " SalveDelta; " + FString::SanitizeFloat(FireRateGun) + " FireDelta ");
+	}
 }
 
-void AMainPawn::SpawnProjectile_Implementation(const FTransform &SocketTransform) {
+void AMainPawn::FireSalve() {
+	if (CurrentSalve < NumSalves) {
+		for (uint8 shot = 0; shot < NumProjectiles; ++shot) {
+			// choose next avaliable gun sockets or start over from the first if last was used
+			CurrGunSocketIndex = (CurrGunSocketIndex + 1) % GunSockets.Num();
+			// get the tranform of the choosen socket
+			const FTransform &CurrentSocketTransform = ArmorMesh->GetSocketTransform(GunSockets[CurrGunSocketIndex]);
+			// calculate a direction and apply weaponspread
+			const FVector SpawnDirection = FMath::VRandCone(CurrentSocketTransform.GetRotation().GetForwardVector(), WeaponSpreadRadian);
+			// spawn/fire projectile
+			if (TracerIntervall > 0) {
+				// not every projectile has a tracer
+				CurrentTracer = (CurrentTracer + 1) % TracerIntervall;
+				SpawnProjectile(FTransform(SpawnDirection.Rotation(), CurrentSocketTransform.GetLocation()), CurrentTracer == 0);
+			}
+			else { // if tracerintervall was set to 0 there will be tracers
+				SpawnProjectile(FTransform(SpawnDirection.Rotation(), CurrentSocketTransform.GetLocation()), false);
+			}
+			// decrease ammunition
+			--GunAmmunitionAmount;
+			if (GunAmmunitionAmount > 0) {
+				// debug
+				if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::White, "Bang Ammo left: " + FString::FromInt(GunAmmunitionAmount));
+			} else {
+				bHasAmmo = false;
+				if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 10.0f, FColor::Red, "Gun OUT OF AMMO!");
+				GetWorldTimerManager().ClearTimer(SalveTimerHandle);
+			}
+			
+			// add recoil to rootcomponent
+			ArmorMesh->AddImpulseAtLocation(SpawnDirection * GunRecoilForce * FMath::FRandRange(0.5f,1.5f), CurrentSocketTransform.GetLocation());
+		}
+		++CurrentSalve;
+		return;
+	}
+	// deactivate the salvetimer
+	GetWorldTimerManager().ClearTimer(SalveTimerHandle);	
+}
+
+void AMainPawn::SpawnProjectile_Implementation(const FTransform &SocketTransform, const bool bTracer) {
+// method overridden by blueprint to spawn the projectile
 }
 
 void AMainPawn::StopMovement() {
@@ -639,7 +708,7 @@ bool AMainPawn::Server_StopPlayerMovement_Validate() {
 }
 void AMainPawn::Server_StopPlayerMovement_Implementation() {
 	if (bCanReceivePlayerInput) {
-		bCanFireGun = false;
+		bGunReady = false;
 		// make sure there is no pending movement activation
 		GetWorldTimerManager().ClearTimer(StartMovementTimerHandle);
 		bCanReceivePlayerInput = false;
@@ -651,7 +720,7 @@ void AMainPawn::Server_StopPlayerMovement_Implementation() {
 }
 
 void AMainPawn::StartMovementCoolDownElapsed() {
-	bCanFireGun = true;
+	bGunReady = true;
 	bCanReceivePlayerInput = true;
 	RotControlStrength = 1.0f;
 	MovControlStrength = 1.0f;
