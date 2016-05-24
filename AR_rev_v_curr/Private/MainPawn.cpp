@@ -44,8 +44,8 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
 	SpringArmLength = SpringArm->TargetArmLength;
 	SpringArm->SocketOffset = FVector(0.0f, 0.0f, 100.0f);
 	SpringArm->bEnableCameraLag = true;
-	SpringArm->CameraLagSpeed = 10.0f;
-	SpringArm->CameraLagMaxDistance = 3000.0f;
+	SpringArm->CameraLagSpeed = 8.0f;
+	SpringArm->CameraLagMaxDistance = 2500.0f;
 
 
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("GameCamera"));
@@ -80,6 +80,7 @@ void AMainPawn::BeginPlay() {
 	WeaponSpreadRadian = WeaponSpreadHalfAngle * PI / 180.0f;
 	SalveIntervall = (SalveDensity * FireRateGun) / NumSalves;
 	bHasAmmo = GunAmmunitionAmount > 0;
+	CalculateVelocityDeltas();
 
 	if (Role < ROLE_Authority) {
 
@@ -97,42 +98,30 @@ void AMainPawn::BeginPlay() {
 void AMainPawn::Tick(float DeltaTime) {
 	Super::Tick(DeltaTime);
 
+	CurrentVelocitySize = GetVelocity().Size();
+
 	if (IsLocallyControlled()) {
+		
+		if (bUseInternMouseSensitivity) {
+			InputAxis += CameraInput * 0.025f;
+		}
+		else {
+			// get mouse position
+			GetCursorLocation(CursorLoc);
 
-		// get mouse position
-		GetCursorLocation(CursorLoc);
-
-		// get viewport size/center
-		GetViewportSizeCenter(ViewPortSize, ViewPortCenter);
-
-		//FVector CursorDirInWorld;
-		//// Get local player
-		//ULocalPlayer* const LP = GetWorld()->GetFirstLocalPlayerFromController();
-		//if (LP && LP->ViewportClient)
-		//{
-		//	// get the projection data
-		//	FSceneViewProjectionData ProjectionData;
-		//	if (LP->GetProjectionData(LP->ViewportClient->Viewport, eSSP_FULL, /*out*/ ProjectionData))
-		//	{
-		//		FMatrix const InvViewProjMatrix = ProjectionData.ComputeViewProjectionMatrix().InverseFast();
-		//		FVector OutPos;
-		//		FSceneView::DeprojectScreenToWorld(CursorLoc, ProjectionData.GetConstrainedViewRect(), InvViewProjMatrix, /*out*/ OutPos, /*out*/ CursorDirInWorld);
-		//	}
-		//	else {
-		//		// something went wrong, interpret input as zero
-		//		CursorDirInWorld = Camera->GetForwardVector();
-		//	}
-		//}
-
-
-		FVector2D InputAxis = (CursorLoc - ViewPortCenter) / ViewPortCenter;
+			// get viewport size/center
+			GetViewportSizeCenter(ViewPortSize, ViewPortCenter);
+			InputAxis = (CursorLoc - ViewPortCenter) / ViewPortCenter;
+		}
+		// clamp the axis to make sure the player can't turn more than maxTurnrate
+		InputAxis.X = FMath::Clamp(InputAxis.X, -1.0f, 1.0f);
+		InputAxis.Y = FMath::Clamp(InputAxis.Y, -1.0f, 1.0f);
 		MouseInput = InputAxis * InputAxis.GetSafeNormal().GetAbsMax();
 
-		// { DEBUG
+		// debug
 		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Black, FString::SanitizeFloat(InputAxis.X) + " x " + FString::SanitizeFloat(InputAxis.Y));
 		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Black, FString::SanitizeFloat((InputAxis * InputAxis.GetSafeNormal().GetAbsMax()).Size()));
-		// }
-
+		
 		// deadzone with no turning -> mouseinput interpreted as zero
 		if (MouseInput.SizeSquared() < Deadzone*Deadzone) {
 			MouseInput = FVector2D::ZeroVector;
@@ -148,8 +137,6 @@ void AMainPawn::Tick(float DeltaTime) {
 			MouseInput.Y = FMath::Lerp(InputAxis.Y, MouseInput.Y, CenterPrecision);
 
 			MouseInput *= MouseInput.GetSafeNormal().GetAbsMax();
-
-
 		}
 
 		if (bFreeCameraActive) {
@@ -220,8 +207,6 @@ void AMainPawn::Tick(float DeltaTime) {
 
 
 		{
-			// very smooth Turning
-			const float ResetSpeed = 5.0f;
 
 			// yaw smoothing
 			if (PrevUsedMouseInput.X * MouseInput.X > 0.0f
@@ -250,11 +235,11 @@ void AMainPawn::Tick(float DeltaTime) {
 			// Forward Velocity during flight
 			if (MovementInput.X > 0.0f) {
 				// forward
-				ForwardVel = FMath::FInterpTo(ForwardVel, MovementInput.X * MaxForwardVel + DefaultForwardVel, DeltaTime, ForwardAcceleration);
+				ForwardVel = FMath::FInterpTo(ForwardVel, MovementInput.X * VelForwardDelta + DefaultForwardVel, DeltaTime, ForwardAcceleration);
 			}
 			else {
 				// backwards
-				ForwardVel = FMath::FInterpTo(ForwardVel, MovementInput.X * MaxBackwardsVel + DefaultForwardVel, DeltaTime, BackwardsAcceleration);
+				ForwardVel = FMath::FInterpTo(ForwardVel, MovementInput.X * VelBackwardsDelta + DefaultForwardVel, DeltaTime, BackwardsAcceleration);
 			}
 			// Strafe Velocity during flight
 			StrafeVel = FMath::FInterpTo(StrafeVel, MovementInput.Y * MaxStrafeVel, DeltaTime, StrafeAcceleration);
@@ -278,7 +263,7 @@ void AMainPawn::Tick(float DeltaTime) {
 		}
 		else {
 			// rot from turning
-			CurrStrafeRot = FMath::FInterpTo(PrevStrafeRot, MouseInput.X * -MaxStrafeBankAngle, DeltaTime, StrafeAcceleration);
+			CurrStrafeRot = FMath::FInterpTo(PrevStrafeRot, MouseInput.X * -MaxStrafeBankAngle, DeltaTime, TurnInterpSpeed);
 		}
 
 		// deltarotation to previous tick
@@ -482,6 +467,11 @@ void AMainPawn::OnRep_AngularVelocity() {
 	}
 }
 
+void AMainPawn::CalculateVelocityDeltas() {
+	VelForwardDelta = MaxVelocity - DefaultForwardVel;
+	VelBackwardsDelta = -MinVelocity + DefaultForwardVel;
+}
+
 void AMainPawn::GetPing() {
 	if (State) {
 		Ping = State->ExactPing * 0.001f;
@@ -564,7 +554,7 @@ void AMainPawn::ZoomOut() {
 
 void AMainPawn::ActivateFreeCamera() {
 	bFreeCameraActive = true;
-	SpringArm->SetRelativeRotation(FRotator::ZeroRotator, false, nullptr, ETeleportType::None);
+	SpringArm->SetRelativeRotation(FRotator(0,0, SpringArm->GetRelativeTransform().Rotator().Roll), false, nullptr, ETeleportType::None);
 	CurrentSpringArmRotation = SpringArm->GetComponentQuat();
 	SpringArm->TargetArmLength = 2500.0f;
 	SpringArm->bEnableCameraLag = false;
@@ -655,6 +645,7 @@ void AMainPawn::GunFire() {
 
 void AMainPawn::FireSalve() {
 	if (CurrentSalve < NumSalves) {
+
 		for (uint8 shot = 0; shot < NumProjectiles; ++shot) {
 			// choose next avaliable gun sockets or start over from the first if last was used
 			CurrGunSocketIndex = (CurrGunSocketIndex + 1) % GunSockets.Num();
@@ -663,13 +654,17 @@ void AMainPawn::FireSalve() {
 			// calculate a direction and apply weaponspread
 			const FVector SpawnDirection = FMath::VRandCone(CurrentSocketTransform.GetRotation().GetForwardVector(), WeaponSpreadRadian);
 			// spawn/fire projectile
+
+			const FVector &AdditionalVelocity = ArmorMesh->GetPhysicsLinearVelocityAtPoint(CurrentSocketTransform.GetLocation());
+
 			if (TracerIntervall > 0) {
+				const FVector TracerOffset = CurrentSocketTransform.GetLocation() + SpawnDirection * FMath::FRandRange(0.0f, (ProjectileVel + AdditionalVelocity.Size()) * GetWorld()->DeltaTimeSeconds);
 				// not every projectile has a tracer
 				CurrentTracer = (CurrentTracer + 1) % TracerIntervall;
-				SpawnProjectile(FTransform(SpawnDirection.Rotation(), CurrentSocketTransform.GetLocation()), CurrentTracer == 0);
+				SpawnProjectile(FTransform(SpawnDirection.Rotation(), CurrentSocketTransform.GetLocation()), CurrentTracer == 0, AdditionalVelocity, TracerOffset);
 			}
 			else { // if tracerintervall was set to 0 there will be tracers
-				SpawnProjectile(FTransform(SpawnDirection.Rotation(), CurrentSocketTransform.GetLocation()), false);
+				SpawnProjectile(FTransform(SpawnDirection.Rotation(), CurrentSocketTransform.GetLocation()), false, AdditionalVelocity);
 			}
 			// decrease ammunition
 			--GunAmmunitionAmount;
@@ -692,7 +687,7 @@ void AMainPawn::FireSalve() {
 	GetWorldTimerManager().ClearTimer(SalveTimerHandle);	
 }
 
-void AMainPawn::SpawnProjectile_Implementation(const FTransform &SocketTransform, const bool bTracer) {
+void AMainPawn::SpawnProjectile_Implementation(const FTransform &SocketTransform, const bool bTracer, const FVector &FireBaseVelocity, const FVector &TracerStartLocation) {
 // method overridden by blueprint to spawn the projectile
 }
 

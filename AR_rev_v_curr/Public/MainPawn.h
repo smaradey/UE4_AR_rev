@@ -89,7 +89,7 @@ public:
 
 	/** Turnacceleration */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Turning", meta = (ClampMin = "0.01", ClampMax = "10.0", UIMin = "0.01", UIMax = "10.0"))
-		float TurnInterpSpeed = 1.0f;
+		float TurnInterpSpeed = 3.0f;
 
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
@@ -109,6 +109,7 @@ protected:
 	FVector2D CursorLoc;
 	void GetCursorLocation(FVector2D& CursorLoc);
 
+	FVector2D InputAxis;
 	FVector2D ViewPortSize;
 	FVector2D ViewPortCenter;
 	void GetViewportSizeCenter(FVector2D& ViewPortSize, FVector2D& ViewPortCenter);
@@ -117,6 +118,7 @@ protected:
 	void GetMouseInput(FVector2D& MouseInput, FVector2D& CursorLoc, FVector2D& ViewPortCenter);
 
 	FVector2D PreviousMouseInput;
+
 
 	float ForwardVel;
 	float StrafeVel;
@@ -187,6 +189,8 @@ protected:
 		uint8 TracerIntervall = 1;
 	uint8 CurrentTracer;
 	uint8 CurrGunSocketIndex;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons")
+	float ProjectileVel = 100000.0f;
 	// END Weapons
 
 	//Input functions
@@ -200,7 +204,7 @@ protected:
 	void ZoomOut();
 
 	UFUNCTION(BlueprintNativeEvent, Category = "Weapons")
-		void SpawnProjectile(const FTransform &SocketTransform, const bool bTracer);
+		void SpawnProjectile(const FTransform &SocketTransform,const bool bTracer, const FVector &FireBaseVelocity = FVector::ZeroVector, const FVector &TracerStartLocation = FVector::ZeroVector);
 	void StartBoost();
 	void StopBoost();
 
@@ -254,9 +258,7 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Replication", meta = (ClampMin = "-1", ClampMax = "100", UIMin = "-1", UIMax = "3"))
 		int AdditionalUpdatePredictions = -1;
 
-	/** CenterPrecision defines how sensitive the turning is around the center of the screen, towards 0: linear turning, towards 1: [1.0 - cos(x * CP * pi/2)] */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Turning", meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
-		float CenterPrecision = 0.5f;
+
 
 	/** max turnrate in deg/second */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Turning", meta = (ClampMin = "40.0", ClampMax = "360.0", UIMin = "40.0", UIMax = "180.0"))
@@ -264,23 +266,28 @@ protected:
 
 	/** deadzone area with no turning, factor is percentage of screen width in range of 0 to 1 (100%) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Turning", meta = (ClampMin = "0.0", ClampMax = "0.1", UIMin = "0.0", UIMax = "0.05"))
-		float Deadzone = 0.01f;
+		float Deadzone = 0.005f;
 
 	/** default Velocity when input is zero */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
 		float DefaultForwardVel = 5000.0f;
 	/** max flight velocity */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
-		float MaxForwardVel = 50000.0f;
-	/** max backwards velocity, resulting velocity is (DefaultForwardVel - MaxBackwardsVel) e.g. 5000.0 - 5000.0 = 0.0 [cm/s] */
+		float MaxVelocity = 16000.0f;
+	/** minimum velocity, negative values result in backwards flight [cm/s] */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
-		float MaxBackwardsVel = 5000.0f;
+		float MinVelocity = 2500.0f;
+	float VelForwardDelta;
+	float VelBackwardsDelta;
+	void CalculateVelocityDeltas();
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float CurrentVelocitySize;
 	/** max velocity to the right and to the left */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
-		float MaxStrafeVel = 10000.0f;
+		float MaxStrafeVel = 3000.0f;
 	/** interpvelocity for forward movement */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
-		float ForwardAcceleration = 1.0f;
+		float ForwardAcceleration = 2.0f;
 	/** interpvelocity for backwards movement/braking */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
 		float BackwardsAcceleration = 3.0f;
@@ -288,28 +295,43 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
 		float StrafeAcceleration = 2.0f;
 
+	/** straferotation angle in range of -72 to 72 deg (roll) */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight", meta = (ClampMin = "0.0", ClampMax = "180.0", UIMin = "0.0", UIMax = "180.0"))
+		float MaxStrafeBankAngle = 72.0f;
+
 	/** how fast the roll component of the actor current rotation is compensated for; set to 0 to deactivate autolevel */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight", meta = (ClampMin = "0.0", ClampMax = "100.0", UIMin = "0.0", UIMax = "10.0"))
-		float LevelVel = 2.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PlayerControls", meta = (ClampMin = "0.0", ClampMax = "100.0", UIMin = "0.0", UIMax = "10.0"))
+		float LevelVel = 3.0f;
 	/** Axis which is used to level the aircraft, e.g. if there was a planet with gravity: it is the vector pointing from its center towards the aircraft (up) */
 	/** has to be normalized! */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		FVector AutoLevelAxis = FVector(0.0f, 0.0f, 1.0f);
 
 	/** use the gravity of planets to determine what direction is or use world upvector when set to false */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PlayerControls")
 		bool bUseGravityDirForAutoLevel = true;
-
-	/** straferotation angle in range of -72 to 72 deg (roll) */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight", meta = (ClampMin = "0.0", ClampMax = "180.0", UIMin = "0.0", UIMax = "180.0"))
-		float MaxStrafeBankAngle = 72.0f;
-
+	
 	/** factor to speed up freelook camera  rotation */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "FreeLookCamera", meta = (ClampMin = "0.0", ClampMax = "720.0", UIMin = "0.0", UIMax = "100.0"))
-		float FreeCameraSpeed = 10.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PlayerControls", meta = (ClampMin = "0.0", ClampMax = "720.0", UIMin = "0.0", UIMax = "100.0"))
+		float FreeCameraSpeed = 5.0f;
+
+	/** true: use separate mouseinput in combination with MouseSensitivity (better for widescreen displays); false: use the cursorposition inside game (same sensitivity as Windows, slightly higher inputlag); regardless of which method choosen: the max turnrates are the same */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PlayerControls")
+	bool bUseInternMouseSensitivity = true;
+	/** how sensitiv direction control is, only used in when UseInternMouseSensitivity is activ, otherwise the cursorposition on screen is used which uses the Windows sensitivity */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PlayerControls", meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
+	float MouseSensitivity = 0.01f;
+	/** CenterPrecision defines how sensitive the turning is around the center of the screen, towards 0: linear turning, towards 1: [1.0 - cos(x * CP * pi/2)] */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PlayerControls", meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
+		float CenterPrecision = 0.25f;
+	/** factor to decrease the time it takes to stop turning */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PlayerControls", meta = (ClampMin = "1.0", ClampMax = "100.0", UIMin = "1.0", UIMax = "10.0"))
+	float ResetSpeed = 5.0f;
+
 
 
 private:
+
 	// how many updates to buffer
 	int NumberOfBufferedNetUpdates;
 	// factor to slow down movement to compensate long buffertime
