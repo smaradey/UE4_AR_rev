@@ -76,13 +76,26 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
 
 void AMainPawn::ArmorHit(class AActor* OtherActor, class UPrimitiveComponent * OtherComponent, FVector Loc, const FHitResult& FHitResult) {
 
+	MostRecentCrashPoint = Loc;
+	DirectionAtCrashTime = GetActorForwardVector();	
+	CrashNormal = FHitResult.Normal;
 
 	/*const float DistanceTHit = FMath::PointDistToLine(Loc, GetForwardVector(), GetActorLocation());
-	
 	ArmorMesh->AddImpulse((FHitResult.Normal * (2000.0f)) * GetWorld()->GetDeltaSeconds(), NAME_None, true);*/
 
 	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Black, "Armor Hit something : " + FString::FromInt((int)(0.01f * FMath::PointDistToLine(Loc, GetActorForwardVector(), GetActorLocation()))));
 }
+
+void AMainPawn::GetDistanceToCollision(const float DeltaSeconds){
+const float CurrDistanceToColl = FMath::PointDistToLine(MostRecentCrashPoint, DirectionAtCrashTime, GetActorLocation());
+
+	ArmorMesh->AddImpulse((FHitResult.Normal * (2000.0f)) * GetWorld()->GetDeltaSeconds(), NAME_None, true);
+
+
+}
+
+
+
 
 // Called when the game starts or when spawned
 void AMainPawn::BeginPlay() {

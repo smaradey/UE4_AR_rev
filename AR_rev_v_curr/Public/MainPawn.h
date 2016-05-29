@@ -376,7 +376,9 @@ private:
 		void OnRep_LinearVelocity();
 
 
-
+	FVector MostRecentCrashPoint;
+	FVector DirectionAtCrashTime;
+FVector CrashNormal;
 
 	// }
 
