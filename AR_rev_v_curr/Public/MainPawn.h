@@ -6,8 +6,10 @@
 #include "AR_rev_v_curr.h"
 #include "GameFramework/Pawn.h"
 #include "Engine.h"
+#include "EngineUtils.h"
 #include "GameFramework/DamageType.h"
 #include "UnrealNetwork.h"
+#include "Target_Interface.h"
 #include "MainPawn.generated.h"
 
 UENUM(BlueprintType)		//"BlueprintType" is essential to include
@@ -41,12 +43,15 @@ struct FInputsPackage {
 };
 
 UCLASS()
-class AR_REV_V_CURR_API AMainPawn : public APawn
+class AR_REV_V_CURR_API AMainPawn : public APawn, public ITarget_Interface
 {
 	GENERATED_BODY()
 
 public:
 
+	virtual bool GetIsTargetable_Implementation() override {
+		return true;
+	} 
 
 	// Sets default values for this pawn's properties
 	AMainPawn();
@@ -59,6 +64,9 @@ public:
 
 	// Called every frame
 	virtual void Tick(float DeltaSeconds) override;
+
+	UFUNCTION()
+		void ArmorHit(class AActor* OtherActor, class UPrimitiveComponent * OtherComponent, FVector Loc, const FHitResult& FHitResult);
 
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* InputComponent) override;

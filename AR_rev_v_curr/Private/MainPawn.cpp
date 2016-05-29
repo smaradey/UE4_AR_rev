@@ -21,6 +21,10 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
 	// Create static mesh component
 	ArmorMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ArmorMesh"));
 	RootComponent = ArmorMesh;
+	ArmorMesh->OnComponentHit.AddDynamic(this, &AMainPawn::ArmorHit);
+	//ArmorMesh->OnComponentHit.AddDynamic<AMainPawn>(this, &AMainPawn::ArmorHit);
+	//MissileMesh->OnComponentBeginOverlap.AddDynamic(this, &AMissile::MissileMeshOverlap);
+
 
 	Dummy = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Root"));
 
@@ -68,6 +72,16 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
 
 	//Take control of the default Player
 	//AutoPossessPlayer = EAutoReceiveInput::Player0;
+}
+
+void AMainPawn::ArmorHit(class AActor* OtherActor, class UPrimitiveComponent * OtherComponent, FVector Loc, const FHitResult& FHitResult) {
+
+
+	/*const float DistanceTHit = FMath::PointDistToLine(Loc, GetForwardVector(), GetActorLocation());
+	
+	ArmorMesh->AddImpulse((FHitResult.Normal * (2000.0f)) * GetWorld()->GetDeltaSeconds(), NAME_None, true);*/
+
+	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Black, "Armor Hit something : " + FString::FromInt((int)(0.01f * FMath::PointDistToLine(Loc, GetActorForwardVector(), GetActorLocation()))));
 }
 
 // Called when the game starts or when spawned
@@ -403,15 +417,15 @@ void AMainPawn::Tick(float DeltaTime) {
 		NewTransform.Blend(TransformOnClient, TargetTransform, convertedLerpFactor);
 		// transform actor to new location/rotation
 		SetActorTransform(NewTransform, false, nullptr, ETeleportType::None);
+
 	}
 	break;
 
 	case ROLE_AutonomousProxy:
 	{
 
-
-		//GetPing();
-		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, GetWorld()->DeltaTimeSeconds, FColor::Green, "Ping = " + FString::SanitizeFloat(Ping) + " s");
+		GetPing();
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, "Ping = " + FString::SanitizeFloat(Ping) + " s");
 		//FTransform newTransform;
 
 		//newTransform.Blend(TransformOnClient, TransformOnAuthority, FMath::Min(Alpha * NetUpdateFrequency*0.9f, 1.0f)); //?
@@ -585,6 +599,42 @@ void AMainPawn::DeactivateFreeCamera() {
 }
 
 void AMainPawn::StartGunFire() {
+
+
+	AActor * ClosestActor = nullptr;
+	float DistanceToClosestActor = BIG_NUMBER;
+	for (TActorIterator<AActor> currActor(GetWorld()); currActor; ++currActor) {
+		if (*currActor == this || (currActor->GetOwner() && currActor->GetOwner() == this) || (currActor->GetInstigator() == GetInstigator())) continue;
+		float Distance = currActor->GetDistanceTo(this);
+		if (Distance < DistanceToClosestActor) {
+			DistanceToClosestActor = Distance;
+			ClosestActor = *currActor;
+		}
+	}
+	if (ClosestActor) {
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Green, ClosestActor->GetName() + " : " + FString::SanitizeFloat(DistanceToClosestActor / 100) + " m");
+	}
+
+
+	USceneComponent * ClosestSceneComponent = nullptr;
+	float DistanceToClosestSceneComponent = BIG_NUMBER;
+
+	for (TObjectIterator<USceneComponent> Itr; Itr; ++Itr)
+	{
+		if (Itr->GetOwner() && Itr->GetOwner() != this) {
+			float Distance = Itr->GetOwner()->GetDistanceTo(this);
+			if (Distance < DistanceToClosestSceneComponent) {
+				DistanceToClosestSceneComponent = Distance;
+				ClosestSceneComponent = *Itr;
+			}
+		}
+	}
+	if (ClosestSceneComponent) {
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Green, ClosestSceneComponent->GetName() + " : " + FString::SanitizeFloat(DistanceToClosestSceneComponent / 100) + " m");
+	}
+
+
+
 	// player has gunfire button pressed
 	bGunFire = true;
 	if (bGunReady && bHasAmmo) { // gun is ready to fire
