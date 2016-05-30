@@ -76,17 +76,12 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
 
 void AMainPawn::ArmorHit(class AActor* OtherActor, class UPrimitiveComponent * OtherComponent, FVector Loc, const FHitResult& FHitResult) {
 	CollisionHandling = true;
-	
-
-
-
+	// location and normal for plane generation
 	MostRecentCrashPoint = FHitResult.Location;
 	CrashNormal = FHitResult.Normal;
-
-	//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Black, "Armor Hit something");
 }
 
-void AMainPawn::GetDistanceToCollision(const float DeltaSeconds) {
+void AMainPawn::RecoverFromCollision(const float DeltaSeconds) {
 	if (CollisionHandling && bCanReceivePlayerInput) {
 
 		// orthogonal distance to plane where collision happened
@@ -115,32 +110,36 @@ void AMainPawn::GetDistanceToCollision(const float DeltaSeconds) {
 		PrevDeltaTime = DeltaSeconds;
 		PrevSafetyDistanceDelta = DeltaDistance;
 	}
-
 }
-
-
-
+void AMainPawn::InitWeapon(){
+	WeaponSpreadRadian = WeaponSpreadHalfAngle * PI / 180.0f;
+	SalveIntervall = (SalveDensity * FireRateGun) / NumSalves;
+	bHasAmmo = GunAmmunitionAmount > 0;
+}
 
 // Called when the game starts or when spawned
 void AMainPawn::BeginPlay() {
 	Super::BeginPlay();
 
+	InitWeapon();
+
 	lastUpdate = GetWorld()->RealTimeSeconds;
 	PrevReceivedTransform = GetTransform();
-
-	WeaponSpreadRadian = WeaponSpreadHalfAngle * PI / 180.0f;
-	SalveIntervall = (SalveDensity * FireRateGun) / NumSalves;
-	bHasAmmo = GunAmmunitionAmount > 0;
 	CalculateVelocityDeltas();
 
-	if (Role < ROLE_Authority) {
-
+	if (GetNetMode() == NM_Client) {
 		// deactivate physics on clients
 		ArmorMesh->SetSimulatePhysics(false);
 		NumberOfBufferedNetUpdates = FMath::RoundToInt(Smoothing * NetUpdateFrequency);
 		NumberOfBufferedNetUpdates = FMath::Max(NumberOfBufferedNetUpdates, 2);
 		LerpVelocity = NetUpdateFrequency / NumberOfBufferedNetUpdates;
 		PredictionAmount = (NumberOfBufferedNetUpdates + AdditionalUpdatePredictions) / NetUpdateFrequency;
+		// TODO: check if working, eventually call from server	
+		if(IsLocallyControlled()){
+			SetAutonomousProxy(true);
+		}		
+
+
 	}
 
 }
@@ -154,7 +153,7 @@ void AMainPawn::Tick(float DeltaTime) {
 	if (IsLocallyControlled()) {
 
 		if (bUseInternMouseSensitivity) {
-			InputAxis += CameraInput * 0.025f;
+			InputAxis += CameraInput * MouseSensitivity;
 		}
 		else {
 			// get mouse position
@@ -233,250 +232,234 @@ void AMainPawn::Tick(float DeltaTime) {
 	}
 
 	switch (Role) {
-	case ROLE_Authority:
-	{
-		FVector2D PrevUsedMouseInput = PreviousMouseInput;
-
-		if (InputPackage.InputDataList.Num() > 0) {
-
-			const FInput &currentInput = InputPackage.InputDataList.Last();
-
-
-			MouseInput = InputPackage.InputDataList.Last().MouseInput;
-
-			MovementInput = InputPackage.InputDataList.Last().MovementInput;
-
-		}
-		// keep a copy of the mouseinput
-		const FVector2D RawMouseInput = MouseInput;
-
-		if (!bCanReceivePlayerInput) {
-			MovementInput = MouseInput = FVector2D::ZeroVector;
-		}
-
-		float UsedTurnInterSpeed = TurnInterpSpeed;
-
-
-		{
-
-			// yaw smoothing
-			if (PrevUsedMouseInput.X * MouseInput.X > 0.0f
-				&& MouseInput.X * MouseInput.X < PrevUsedMouseInput.X * PrevUsedMouseInput.X) // new x is smaller
+		case ROLE_Authority:
 			{
-				MouseInput.X = FMath::FInterpTo(PrevUsedMouseInput.X, MouseInput.X, DeltaTime, UsedTurnInterSpeed * ResetSpeed);
-			}
-			else {
-				MouseInput.X = FMath::FInterpTo(PrevUsedMouseInput.X, MouseInput.X, DeltaTime, UsedTurnInterSpeed);
-			}
+				FVector2D PrevUsedMouseInput = PreviousMouseInput;
 
-			// pitch smoothing
-			if (PrevUsedMouseInput.Y * MouseInput.Y > 0.0f
-				&& MouseInput.Y * MouseInput.Y < PrevUsedMouseInput.Y * PrevUsedMouseInput.Y) // new y is smaller
-			{
-				MouseInput.Y = FMath::FInterpTo(PrevUsedMouseInput.Y, MouseInput.Y, DeltaTime, UsedTurnInterSpeed * ResetSpeed);
-			}
-			else {
-				MouseInput.Y = FMath::FInterpTo(PrevUsedMouseInput.Y, MouseInput.Y, DeltaTime, UsedTurnInterSpeed);
-			}
-		}
+				if (InputPackage.InputDataList.Num() > 0) {
+
+					const FInput &currentInput = InputPackage.InputDataList.Last();
 
 
-		// player is flying and not stopped
-		if (bCanReceivePlayerInput) {
-			// Forward Velocity during flight
-			if (MovementInput.X > 0.0f) {
-				// forward
-				ForwardVel = FMath::FInterpTo(ForwardVel, MovementInput.X * VelForwardDelta + DefaultForwardVel, DeltaTime, ForwardAcceleration);
-			}
-			else {
-				// backwards
-				ForwardVel = FMath::FInterpTo(ForwardVel, MovementInput.X * VelBackwardsDelta + DefaultForwardVel, DeltaTime, BackwardsAcceleration);
-			}
-			// Strafe Velocity during flight
-			if (bUseConstantStrafeAcceleration) {
-				if (MovementInput.Y == 0.0f) {
-					StrafeVel = FMath::FInterpTo(StrafeVel, MovementInput.Y * MaxStrafeVel, DeltaTime, StrafeBankAcceleration);
-				}
-				else {
-					StrafeVel = FMath::FInterpConstantTo(StrafeVel, MovementInput.Y * MaxStrafeVel, DeltaTime, ConstantStrafeAcceleration);
-				}
-			}
-			else {
-				StrafeVel = FMath::FInterpTo(StrafeVel, MovementInput.Y * MaxStrafeVel, DeltaTime, StrafeBankAcceleration);
+					MouseInput = InputPackage.InputDataList.Last().MouseInput;
 
-			}
-		}
-		else {
-			// player has stopped
-			ForwardVel = FMath::FInterpTo(ForwardVel, 0.0f, DeltaTime, BackwardsAcceleration);
-			StrafeVel = FMath::FInterpTo(StrafeVel, 0.0f, DeltaTime, StrafeBankAcceleration);
-
-		}
-
-		// after a collision disable playerinput for a second
-		if (MovControlStrength < TimeOfNoControl) {
-			ForwardVel = StrafeVel = 0.0f;
-		}
-
-
-		// select new bankrotation either from strafe input or from current turnvalue 
-		if (MovementInput.Y != 0) {
-			// rot from strafeinput
-			CurrStrafeRot = FMath::FInterpTo(PrevStrafeRot, MovementInput.Y * -MaxStrafeBankAngle, DeltaTime, StrafeBankAcceleration);
-		}
-		else {
-			// rot from turning
-			CurrStrafeRot = FMath::FInterpTo(PrevStrafeRot, MouseInput.X * -MaxStrafeBankAngle, DeltaTime, TurnInterpSpeed);
-		}
-
-		// deltarotation to previous tick
-		const float DeltaRot = PrevStrafeRot - CurrStrafeRot;
-
-		// store current bankrotation for next tick
-		PrevStrafeRot = CurrStrafeRot;
-
-		// rotation
-		{
-
-			// angular velocity from playerinput in actor local space
-			const FVector LocalRotVel = FVector(0.0f, MouseInput.Y * MaxTurnRate, MouseInput.X * MaxTurnRate);
-			// converted angular velocity in worldspace
-			WorldAngVel = GetActorRotation().RotateVector(LocalRotVel);
-			// compensate for bankrotation
-			WorldAngVel = WorldAngVel.RotateAngleAxis(-CurrStrafeRot, GetActorForwardVector());
-
-			// print current absolut turnrate (angular velocity)
-			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, FString::SanitizeFloat(WorldAngVel.Size()) + " deg/sec");
-
-
-			// collisionhandling: is set to zero on "each" collision and recovers in 2 seconds
-			RotControlStrength = FMath::FInterpConstantTo(RotControlStrength, TimeOfNoControl + 1.0f, DeltaTime, 1.0f);
-
-			// if 1 second has passed and not yet fully recovered
-			if (RotControlStrength > TimeOfNoControl && RotControlStrength < TimeOfNoControl + 1.0f) {
-				ArmorMesh->SetAngularDamping(0.0f);
-				const float Alpha = FMath::Square(RotControlStrength - TimeOfNoControl);
-				if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Orange, "ROTATION control CHARGING " + FString::SanitizeFloat(Alpha));
-
-				const FVector AngVelStrafeCompensation = GetActorRotation().RotateVector(FVector(DeltaRot / DeltaTime, 0.0f, 0.0f));
-
-				// blend between pure physics velocities and player caused velocity				
-				const FVector NewAngVel = FMath::Lerp(ArmorMesh->GetPhysicsAngularVelocity(), WorldAngVel - AngVelStrafeCompensation, Alpha);
-				ArmorMesh->SetPhysicsAngularVelocity(NewAngVel);
-
-				// rotate springarm/camera in local space to compensate for straferotation 
-				if (!bFreeCameraActive) {
-					SpringArm->SetRelativeRotation(FRotator(0, 0, CurrStrafeRot), false, nullptr, ETeleportType::None);
-				}
-
-			}
-			// no collision handling (normal flight)
-			else if (RotControlStrength >= TimeOfNoControl + 1.0f) {
-				if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Green, "ROTATION control FULL");
-
-				// auto level function  
-				if (LevelVel > 0.0f && !bFreeCameraActive) {
-					// TODO: get rid of Acos
-
-					const float DotUpRight = FVector::DotProduct(Camera->GetRightVector(), bUseGravityDirForAutoLevel ? AutoLevelAxis : FVector(0.0f, 0.0f, 1.0f));
-					const float LevelHorizonVel = LevelVel * (90.0f - FMath::Acos(DotUpRight) * 180.0f / PI);
-
-					const FVector AngVelStrafeCompensation = GetActorRotation().RotateVector(FVector(DeltaRot / DeltaTime + LevelHorizonVel, 0, 0));
-
-					// player input is directly translated into movement
-					ArmorMesh->SetPhysicsAngularVelocity(WorldAngVel - AngVelStrafeCompensation);
-					// rotate springarm/camera in local space to compensate for straferotation 
-
-					SpringArm->SetRelativeRotation(FRotator(0, 0, CurrStrafeRot + LevelHorizonVel * DeltaTime), false, nullptr, ETeleportType::None);
+					MovementInput = InputPackage.InputDataList.Last().MovementInput;
 
 				}
-				else {
-					const FVector AngVelStrafeCompensation = GetActorRotation().RotateVector(FVector(DeltaRot / DeltaTime, 0, 0));
+				// keep a copy of the mouseinput
+				const FVector2D RawMouseInput = MouseInput;
 
-					// player input is directly translated into movement
-					ArmorMesh->SetPhysicsAngularVelocity(WorldAngVel - AngVelStrafeCompensation);
-					// rotate springarm/camera in local space to compensate for straferotation 
-					if (!bFreeCameraActive) {
-						SpringArm->SetRelativeRotation(FRotator(0, 0, CurrStrafeRot), false, nullptr, ETeleportType::None);
+				if (!bCanReceivePlayerInput) {
+					MovementInput = MouseInput = FVector2D::ZeroVector;
+				}
+
+				{
+					// yaw smoothing
+					if (PrevUsedMouseInput.X * MouseInput.X > 0.0f
+							&& MouseInput.X * MouseInput.X < PrevUsedMouseInput.X * PrevUsedMouseInput.X) // new x is smaller
+					{
+						MouseInput.X = FMath::FInterpTo(PrevUsedMouseInput.X, MouseInput.X, DeltaTime, TurnInterpSpeed * ResetSpeed);
+					}
+					else {
+						MouseInput.X = FMath::FInterpTo(PrevUsedMouseInput.X, MouseInput.X, DeltaTime, TurnInterpSpeed);
+					}
+
+					// pitch smoothing
+					if (PrevUsedMouseInput.Y * MouseInput.Y > 0.0f
+							&& MouseInput.Y * MouseInput.Y < PrevUsedMouseInput.Y * PrevUsedMouseInput.Y) // new y is smaller
+					{
+						MouseInput.Y = FMath::FInterpTo(PrevUsedMouseInput.Y, MouseInput.Y, DeltaTime, TurnInterpSpeed * ResetSpeed);
+					}
+					else {
+						MouseInput.Y = FMath::FInterpTo(PrevUsedMouseInput.Y, MouseInput.Y, DeltaTime, TurnInterpSpeed);
 					}
 				}
-			}
-			else {
-				// RotControlStrength is between 0 and TimeOfNoControl -> player has no control: collision
-				ArmorMesh->SetAngularDamping(5.0f);
-				if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Red, "ROTATION control DEACTIVATED");
-				if (!bFreeCameraActive) {
-					SpringArm->SetRelativeRotation(FRotator(0, 0, CurrStrafeRot), false, nullptr, ETeleportType::None);
+
+				// player is flying and not stopped
+				if (bCanReceivePlayerInput) {
+					// Forward Velocity during flight
+					if (MovementInput.X > 0.0f) {
+						// forward
+						ForwardVel = FMath::FInterpTo(ForwardVel, MovementInput.X * VelForwardDelta + DefaultForwardVel, DeltaTime, ForwardAcceleration);
+					}
+					else {
+						// backwards
+						ForwardVel = FMath::FInterpTo(ForwardVel, MovementInput.X * VelBackwardsDelta + DefaultForwardVel, DeltaTime, BackwardsAcceleration);
+					}
+					// Strafe Velocity during flight
+					if (bUseConstantStrafeAcceleration) {
+						if (MovementInput.Y == 0.0f) {
+							StrafeVel = FMath::FInterpTo(StrafeVel, MovementInput.Y * MaxStrafeVel, DeltaTime, StrafeBankAcceleration);
+						}
+						else {
+							StrafeVel = FMath::FInterpConstantTo(StrafeVel, MovementInput.Y * MaxStrafeVel, DeltaTime, ConstantStrafeAcceleration);
+						}
+					}
+					else {
+						StrafeVel = FMath::FInterpTo(StrafeVel, MovementInput.Y * MaxStrafeVel, DeltaTime, StrafeBankAcceleration);
+					}
 				}
+				else {
+					// player has not input/has stopped
+					ForwardVel = FMath::FInterpTo(ForwardVel, 0.0f, DeltaTime, BackwardsAcceleration);
+					StrafeVel = FMath::FInterpTo(StrafeVel, 0.0f, DeltaTime, StrafeBankAcceleration);
+				}
+
+				// after a collision disable playerinput for a specified amount of time
+				if (MovControlStrength < TimeOfNoControl) {
+					ForwardVel = StrafeVel = 0.0f;
+				}
+
+				// select new bankrotation either from strafe input or from current turnvalue 
+				if (MovementInput.Y != 0) {
+					// rot from strafeinput
+					CurrStrafeRot = FMath::FInterpTo(PrevStrafeRot, MovementInput.Y * -MaxStrafeBankAngle, DeltaTime, StrafeBankAcceleration);
+				}
+				else {
+					// rot from turning
+					CurrStrafeRot = FMath::FInterpTo(PrevStrafeRot, MouseInput.X * -MaxStrafeBankAngle, DeltaTime, TurnInterpSpeed);
+				}
+
+				// deltarotation to previous tick
+				const float DeltaRot = PrevStrafeRot - CurrStrafeRot;
+
+				// store current bankrotation for next tick
+				PrevStrafeRot = CurrStrafeRot;
+
+				// rotation
+				{
+					// angular velocity from playerinput in actor local space
+					const FVector LocalRotVel = FVector(0.0f, MouseInput.Y * MaxTurnRate, MouseInput.X * MaxTurnRate);
+					// converted angular velocity in worldspace
+					WorldAngVel = GetActorRotation().RotateVector(LocalRotVel);
+					// compensate for bankrotation
+					WorldAngVel = WorldAngVel.RotateAngleAxis(-CurrStrafeRot, GetActorForwardVector());
+
+					// print current absolut turnrate (angular velocity)
+					if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, FString::SanitizeFloat(WorldAngVel.Size()) + " deg/sec");
+
+					// collisionhandling: is set to zero on "each" collision and recovers in 2 seconds
+					RotControlStrength = FMath::FInterpConstantTo(RotControlStrength, TimeOfNoControl + 1.0f, DeltaTime, 1.0f);
+
+					// if 1 second has passed and not yet fully recovered
+					if (RotControlStrength > TimeOfNoControl && RotControlStrength < TimeOfNoControl + 1.0f) {
+						ArmorMesh->SetAngularDamping(0.0f);
+						const float Alpha = FMath::Square(RotControlStrength - TimeOfNoControl);
+						if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Orange, "ROTATION control CHARGING " + FString::SanitizeFloat(Alpha));
+
+						const FVector AngVelStrafeCompensation = GetActorRotation().RotateVector(FVector(DeltaRot / DeltaTime, 0.0f, 0.0f));
+
+						// blend between pure physics velocities and player caused velocity				
+						const FVector NewAngVel = FMath::Lerp(ArmorMesh->GetPhysicsAngularVelocity(), WorldAngVel - AngVelStrafeCompensation, Alpha);
+						ArmorMesh->SetPhysicsAngularVelocity(NewAngVel);
+
+						// rotate springarm/camera in local space to compensate for straferotation 
+						if (!bFreeCameraActive) {
+							SpringArm->SetRelativeRotation(FRotator(0, 0, CurrStrafeRot), false, nullptr, ETeleportType::None);
+						}
+					}
+					// no collision handling (normal flight)
+					else if (RotControlStrength >= TimeOfNoControl + 1.0f) {
+						if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Green, "ROTATION control FULL");
+
+						// auto level function  
+						if (LevelVel > 0.0f && !bFreeCameraActive) {
+							// TODO: get rid of Acos
+							// dot product between gravity vector and actor rightvector
+							const float DotUpRight = FVector::DotProduct(Camera->GetRightVector(), bUseGravityDirForAutoLevel ? AutoLevelAxis : FVector(0.0f, 0.0f, 1.0f));
+							const float LevelHorizonVel = LevelVel * (90.0f - FMath::Acos(DotUpRight) * 180.0f / PI);
+
+							const FVector AngVelStrafeCompensation = GetActorRotation().RotateVector(FVector(DeltaRot / DeltaTime + LevelHorizonVel, 0, 0));
+
+							// player input is directly translated into movement
+							ArmorMesh->SetPhysicsAngularVelocity(WorldAngVel - AngVelStrafeCompensation);
+							// rotate springarm/camera in local space to compensate for straferotation 
+							SpringArm->SetRelativeRotation(FRotator(0, 0, CurrStrafeRot + LevelHorizonVel * DeltaTime), false, nullptr, ETeleportType::None);
+						}
+						else {
+							const FVector AngVelStrafeCompensation = GetActorRotation().RotateVector(FVector(DeltaRot / DeltaTime, 0, 0));
+
+							// player input is directly translated into movement
+							ArmorMesh->SetPhysicsAngularVelocity(WorldAngVel - AngVelStrafeCompensation);
+							// rotate springarm/camera in local space to compensate for straferotation 
+							if (!bFreeCameraActive) {
+								SpringArm->SetRelativeRotation(FRotator(0, 0, CurrStrafeRot), false, nullptr, ETeleportType::None);
+							}
+						}
+					}
+					else {
+						// RotControlStrength is between 0 and TimeOfNoControl -> player has no control: collision or input disabled
+						ArmorMesh->SetAngularDamping(5.0f);
+						if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Red, "ROTATION control DEACTIVATED");
+						if (!bFreeCameraActive) {
+							SpringArm->SetRelativeRotation(FRotator(0, 0, CurrStrafeRot), false, nullptr, ETeleportType::None);
+						}
+					}
+				}
+
+				// location
+				{
+					TargetLinearVelocity = GetActorForwardVector() * ForwardVel + GetActorRightVector() * StrafeVel;
+
+					// straferotation compensation 
+					TargetLinearVelocity = TargetLinearVelocity.RotateAngleAxis(-CurrStrafeRot, GetActorForwardVector());
+
+					MovControlStrength = FMath::FInterpConstantTo(MovControlStrength, TimeOfNoControl + 1.0f, DeltaTime, 1.0f);
+
+					// return the control to the player over a time of 1 second
+					if (MovControlStrength > TimeOfNoControl && MovControlStrength < TimeOfNoControl + 1.0f) {
+						ArmorMesh->SetPhysicsLinearVelocity(FMath::Lerp(ArmorMesh->GetPhysicsLinearVelocity(), TargetLinearVelocity, MovControlStrength - TimeOfNoControl));
+					}
+					else if (MovControlStrength >= TimeOfNoControl + 1.0f) {
+						// normal flight: set velocities directly
+						ArmorMesh->SetPhysicsLinearVelocity(TargetLinearVelocity);
+					}
+					// move away from collision location
+					RecoverFromCollision(DeltaTime);
+				}
+
+				// movement replication
+				{
+					TransformOnAuthority = GetTransform();
+					LinearVelocity = ArmorMesh->GetPhysicsLinearVelocity();
+					AngularVelocity = ArmorMesh->GetPhysicsAngularVelocity();
+				}
+
+				// preparation for next tick
+				PreviousMouseInput = MouseInput;
 			}
+			break;
 
+		case ROLE_SimulatedProxy:
+			{
+				// proxyclient movement
+				LerpProgress += DeltaTime;
+				float convertedLerpFactor = FMath::Clamp(LerpProgress * LerpVelocity, 0.0f, 1.0f);
+				FTransform NewTransform;
+				NewTransform.Blend(TransformOnClient, TargetTransform, convertedLerpFactor);
+				// transform actor to new location/rotation
+				SetActorTransform(NewTransform, false, nullptr, ETeleportType::None);
 
-
-		}
-
-		// location
-		{
-			TargetLinearVelocity = GetActorForwardVector() * ForwardVel + GetActorRightVector() * StrafeVel;
-
-			// straferotation compensation compensation
-			TargetLinearVelocity = TargetLinearVelocity.RotateAngleAxis(-CurrStrafeRot, GetActorForwardVector());
-
-			MovControlStrength = FMath::FInterpConstantTo(MovControlStrength, TimeOfNoControl + 1.0f, DeltaTime, 1.0f);
-
-			if (MovControlStrength > TimeOfNoControl && MovControlStrength < TimeOfNoControl + 1.0f) {
-				ArmorMesh->SetPhysicsLinearVelocity(FMath::Lerp(ArmorMesh->GetPhysicsLinearVelocity(), TargetLinearVelocity, MovControlStrength - TimeOfNoControl));
 			}
-			else if (MovControlStrength >= TimeOfNoControl + 1.0f) {
-				ArmorMesh->SetPhysicsLinearVelocity(TargetLinearVelocity);
+			break;
+
+		case ROLE_AutonomousProxy:
+			{
+
+				GetPing();
+				if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, "Ping = " + FString::SanitizeFloat(Ping) + " s");
+				//FTransform newTransform;
+
+				//newTransform.Blend(TransformOnClient, TransformOnAuthority, FMath::Min(Alpha * NetUpdateFrequency*0.9f, 1.0f)); //?
+				//Alpha += DeltaTime;
+				//SetActorTransform(newTransform);
 			}
+			break;
 
-			GetDistanceToCollision(DeltaTime);
+		default:
+			{
 
-		}
-
-		// movement replication
-		{
-			TransformOnAuthority = GetTransform();
-			LinearVelocity = ArmorMesh->GetPhysicsLinearVelocity();
-			AngularVelocity = ArmorMesh->GetPhysicsAngularVelocity();
-		}
-
-		// preparation for next tick
-		PreviousMouseInput = MouseInput;
-
-	}
-	break;
-
-	case ROLE_SimulatedProxy:
-	{
-		// proxyclient movement
-		LerpProgress += DeltaTime;
-		float convertedLerpFactor = FMath::Clamp(LerpProgress * LerpVelocity, 0.0f, 1.0f);
-		FTransform NewTransform;
-		NewTransform.Blend(TransformOnClient, TargetTransform, convertedLerpFactor);
-		// transform actor to new location/rotation
-		SetActorTransform(NewTransform, false, nullptr, ETeleportType::None);
-
-	}
-	break;
-
-	case ROLE_AutonomousProxy:
-	{
-
-		GetPing();
-		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, "Ping = " + FString::SanitizeFloat(Ping) + " s");
-		//FTransform newTransform;
-
-		//newTransform.Blend(TransformOnClient, TransformOnAuthority, FMath::Min(Alpha * NetUpdateFrequency*0.9f, 1.0f)); //?
-		//Alpha += DeltaTime;
-		//SetActorTransform(newTransform);
-	}
-	break;
-
-	default:
-	{
-
-	}
+			}
 	}
 }
 
@@ -490,6 +473,7 @@ void AMainPawn::GetLifetimeReplicatedProps(TArray <FLifetimeProperty> &OutLifeti
 	DOREPLIFETIME(AMainPawn, WorldAngVel);
 	DOREPLIFETIME(AMainPawn, TargetLinearVelocity);
 	DOREPLIFETIME(AMainPawn, bCanReceivePlayerInput);
+	DOREPLIFETIME(AMainPawn, bMultiTarget);
 }
 
 void AMainPawn::OnRep_TransformOnAuthority() {
@@ -498,11 +482,11 @@ void AMainPawn::OnRep_TransformOnAuthority() {
 	if (Role < ROLE_Authority) {
 		//Alpha = GetWorld()->DeltaTimeSeconds;
 		/*
-		if (GetWorld()) {
-			NetDelta = GetWorld()->RealTimeSeconds - lastUpdate;
-			lastUpdate = GetWorld()->RealTimeSeconds;
-		}
-		*/
+		   if (GetWorld()) {
+		   NetDelta = GetWorld()->RealTimeSeconds - lastUpdate;
+		   lastUpdate = GetWorld()->RealTimeSeconds;
+		   }
+		 */
 
 		// store starttransform
 		TransformOnClient = GetTransform();
@@ -546,7 +530,7 @@ void AMainPawn::GetPing() {
 	}
 	if (GetWorld()->GetFirstPlayerController()) {      // get ping
 		State = Cast<APlayerState>(
-			GetWorld()->GetFirstPlayerController()->PlayerState); // "APlayerState" hardcoded, needs to be changed for main project
+				GetWorld()->GetFirstPlayerController()->PlayerState); // "APlayerState" hardcoded, needs to be changed for main project
 		if (State) {
 			Ping = State->ExactPing * 0.001f;
 			// client has now the most recent ping in seconds
@@ -569,6 +553,8 @@ void AMainPawn::SetupPlayerInputComponent(class UInputComponent *InputComponent)
 	InputComponent->BindAction("StopMovement", IE_Pressed, this, &AMainPawn::StopMovement);
 	InputComponent->BindAction("Boost", IE_Pressed, this, &AMainPawn::StartBoost);
 	InputComponent->BindAction("Boost", IE_Released, this, &AMainPawn::StopBoost);
+	InputComponent->BindAction("SwitchTarget", IE_Pressed, this, &AMainPawn::SwitchTargetPressed);
+	InputComponent->BindAction("SwitchTarget", IE_Released, this, &AMainPawn::SwitchTargetReleased);
 
 	// axis events
 	InputComponent->BindAxis("MoveForward", this, &AMainPawn::MoveForward);
@@ -576,6 +562,26 @@ void AMainPawn::SetupPlayerInputComponent(class UInputComponent *InputComponent)
 
 	InputComponent->BindAxis("LookUp", this, &AMainPawn::PitchCamera);
 	InputComponent->BindAxis("LookRight", this, &AMainPawn::YawCamera);
+
+}
+
+//Input functions
+void AMainPawn::MoveForward(float AxisValue) {
+	if (bBoostPressed) {
+		MovementInput.X = 1.0f;
+	}
+	else {
+		MovementInput.X = FMath::Clamp<float>(AxisValue, -1.0f, 1.0f);
+	}
+}
+
+
+// axis events
+InputComponent->BindAxis("MoveForward", this, &AMainPawn::MoveForward);
+InputComponent->BindAxis("MoveRight", this, &AMainPawn::MoveRight);
+
+InputComponent->BindAxis("LookUp", this, &AMainPawn::PitchCamera);
+InputComponent->BindAxis("LookRight", this, &AMainPawn::YawCamera);
 
 }
 
@@ -835,6 +841,19 @@ void AMainPawn::StartBoost() {
 void AMainPawn::StopBoost() {
 	bBoostPressed = false;
 }
+void AMainPawn::SwitchTargetPressed() {
+	CurrLockOnTarget = nullptr;
+	bSwitchTargetPressed = true;
+	bContinuousLockOn = false;
+	bLockOnDelayActiv = false;
+	GetWorldTimerManager().ClearTimer(ContinuousLockOnDelay);
+}
+
+void AMainPawn::SwitchTargetReleased() {
+	bSwitchTargetPressed = false;
+}
+
+
 
 // sends Playerinput to server
 void AMainPawn::GetPlayerInput(FInputsPackage inputData) {
@@ -855,8 +874,8 @@ void AMainPawn::Server_GetPlayerInput_Implementation(FInputsPackage receivedInpu
 		lastUpdate = GetWorld()->RealTimeSeconds;
 		if (GEngine && DEBUG)
 			GEngine->AddOnScreenDebugMessage(-1, 0/*seconds*/, FColor::Green,
-				FString::SanitizeFloat(NetDelta) + "    " +
-				FString::FromInt(GetVelocity().Size() * 0.036f) + " km/h");
+					FString::SanitizeFloat(NetDelta) + "    " +
+					FString::FromInt(GetVelocity().Size() * 0.036f) + " km/h");
 	}
 
 	if (receivedInputData.PacketNo > Ack) {
@@ -903,8 +922,8 @@ inline void AMainPawn::GetCursorLocation(FVector2D &CursorLoc) {
 			controller->GetMousePosition(CursorLoc.X, CursorLoc.Y);
 			if (GEngine && DEBUG)
 				GEngine->AddOnScreenDebugMessage(-1, 0/*seconds*/, FColor::Red,
-					FString::SanitizeFloat(CursorLoc.X) + " " +
-					FString::SanitizeFloat(CursorLoc.Y));
+						FString::SanitizeFloat(CursorLoc.X) + " " +
+						FString::SanitizeFloat(CursorLoc.Y));
 		}
 	}
 }
@@ -927,4 +946,73 @@ inline void AMainPawn::GetMouseInput(FVector2D &MouseInput, FVector2D &CursorLoc
 	}
 }
 
+void AMainPawn::TargetLock(){
+	// execute on locally controlled instance of pawn
+	if(bSwitchTargetPressed && !bLockOnDelayActiv){
+		CurrLockOnTarget = nullptr;
+	}
 
+	if(bLockOnDelayActiv || (CurrLockOnTarget && !bMultiTarget)) return;	
+
+	float DistanceToClosestActor = BIG_NUMBER;
+	for (TActorIterator<AActor> currActor(GetWorld()); currActor; ++currActor) {
+		//Try InterFaceCasting
+		ITarget_Interface* TheInterface = InterfaceCast<ITarget_Interface>(*currActor);
+
+		//Run the Event specific to the actor, if the actor has the interface
+		if(TheInterface){
+			if (*currActor == this || (currActor->GetOwner() && currActor->GetOwner() == this) || (currActor->GetInstigator() == GetInstigator())) continue;
+			const float Distance = currActor->GetDistanceTo(this);
+			if (Distance < DistanceToClosestActor) {
+				DistanceToClosestActor = Distance;
+				if(!CurrLockOnTarget){
+					CurrLockOnTarget = *currActor;
+				}
+				// multiple targets allowed
+				if(bMultiTarget) {
+					// add current new closest actor	
+					MultiTargets.add(*currActor);
+					// if maximum number of multitargets already in array, remove the least close actor
+					if(MultiTargets.Size() > MaxMultiTargets){
+						MultiTargets.remove(0);
+					}
+				}
+			}
+		}
+	}
+	if (CurrLockOnTarget) {
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Green, CurrLockOnTarget->GetName() + " : " + FString::SanitizeFloat(DistanceToClosestActor / 100) + " m");
+		if(!bContinuousLockOn){
+			// activate the delay for continueous LockOn
+			GetWorldTimerManager().SetTimer(ContinuousLockOnDelay, this, &AMainPawn::ActivateContinueousLockOn, 0.5f, false);
+			bLockOnDelayActiv = true;
+		}
+	}
+}
+
+void AMainPawn::ActivateContinueousLockOn(){
+	bContinuousLockOn = true;
+	bLockOnDelayActiv = false;
+}
+
+void AMainPawn::OnRep_MultiTarget(){
+	// Multitarget activated
+	// TODO: implemenation
+}
+
+void SetTargets(AActor * MainTarget, TArray<AActor*> OtherTargets){
+	if(GetNetMode() == NM_Client){
+		Server_SetTargets(MainTarget, OtherTargets);
+		return;
+	}
+
+	CurrLockOnTarget = MainTarget;
+	MultiTargets = OtherTargets;
+}
+
+void Server_SetTargets_Implementation(AActor * MainTarget, TArray<AActor*> OtherTargets){
+	SetTargets(MainTarget, OtherTargets);
+}
+void Server_SetTargets_Validate(AActor * MainTarget, TArray<AActor*> OtherTargets){
+	return true;
+}
