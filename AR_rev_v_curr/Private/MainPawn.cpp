@@ -473,6 +473,7 @@ void AMainPawn::GetLifetimeReplicatedProps(TArray <FLifetimeProperty> &OutLifeti
 	DOREPLIFETIME(AMainPawn, WorldAngVel);
 	DOREPLIFETIME(AMainPawn, TargetLinearVelocity);
 	DOREPLIFETIME(AMainPawn, bCanReceivePlayerInput);
+	DOREPLIFETIME(AMainPawn, bMultiTarget);
 }
 
 void AMainPawn::OnRep_TransformOnAuthority() {
@@ -552,6 +553,8 @@ void AMainPawn::SetupPlayerInputComponent(class UInputComponent *InputComponent)
 	InputComponent->BindAction("StopMovement", IE_Pressed, this, &AMainPawn::StopMovement);
 	InputComponent->BindAction("Boost", IE_Pressed, this, &AMainPawn::StartBoost);
 	InputComponent->BindAction("Boost", IE_Released, this, &AMainPawn::StopBoost);
+	InputComponent->BindAction("SwitchTarget", IE_Pressed, this, &AMainPawn::SwitchTargetPressed);
+	InputComponent->BindAction("SwitchTarget", IE_Released, this, &AMainPawn::SwitchTargetReleased);
 
 	// axis events
 	InputComponent->BindAxis("MoveForward", this, &AMainPawn::MoveForward);
@@ -559,6 +562,26 @@ void AMainPawn::SetupPlayerInputComponent(class UInputComponent *InputComponent)
 
 	InputComponent->BindAxis("LookUp", this, &AMainPawn::PitchCamera);
 	InputComponent->BindAxis("LookRight", this, &AMainPawn::YawCamera);
+
+}
+
+//Input functions
+void AMainPawn::MoveForward(float AxisValue) {
+	if (bBoostPressed) {
+		MovementInput.X = 1.0f;
+	}
+	else {
+		MovementInput.X = FMath::Clamp<float>(AxisValue, -1.0f, 1.0f);
+	}
+}
+
+
+// axis events
+InputComponent->BindAxis("MoveForward", this, &AMainPawn::MoveForward);
+InputComponent->BindAxis("MoveRight", this, &AMainPawn::MoveRight);
+
+InputComponent->BindAxis("LookUp", this, &AMainPawn::PitchCamera);
+InputComponent->BindAxis("LookRight", this, &AMainPawn::YawCamera);
 
 }
 
@@ -818,6 +841,19 @@ void AMainPawn::StartBoost() {
 void AMainPawn::StopBoost() {
 	bBoostPressed = false;
 }
+void AMainPawn::SwitchTargetPressed() {
+	CurrLockOnTarget = nullptr;
+	bSwitchTargetPressed = true;
+	bContinuousLockOn = false;
+	bLockOnDelayActiv = false;
+	GetWorldTimerManager().ClearTimer(ContinuousLockOnDelay);
+}
+
+void AMainPawn::SwitchTargetReleased() {
+	bSwitchTargetPressed = false;
+}
+
+
 
 // sends Playerinput to server
 void AMainPawn::GetPlayerInput(FInputsPackage inputData) {
@@ -910,4 +946,73 @@ inline void AMainPawn::GetMouseInput(FVector2D &MouseInput, FVector2D &CursorLoc
 	}
 }
 
+void AMainPawn::TargetLock(){
+	// execute on locally controlled instance of pawn
+	if(bSwitchTargetPressed && !bLockOnDelayActiv){
+		CurrLockOnTarget = nullptr;
+	}
 
+	if(bLockOnDelayActiv || (CurrLockOnTarget && !bMultiTarget)) return;	
+
+	float DistanceToClosestActor = BIG_NUMBER;
+	for (TActorIterator<AActor> currActor(GetWorld()); currActor; ++currActor) {
+		//Try InterFaceCasting
+		ITarget_Interface* TheInterface = InterfaceCast<ITarget_Interface>(*currActor);
+
+		//Run the Event specific to the actor, if the actor has the interface
+		if(TheInterface){
+			if (*currActor == this || (currActor->GetOwner() && currActor->GetOwner() == this) || (currActor->GetInstigator() == GetInstigator())) continue;
+			const float Distance = currActor->GetDistanceTo(this);
+			if (Distance < DistanceToClosestActor) {
+				DistanceToClosestActor = Distance;
+				if(!CurrLockOnTarget){
+					CurrLockOnTarget = *currActor;
+				}
+				// multiple targets allowed
+				if(bMultiTarget) {
+					// add current new closest actor	
+					MultiTargets.add(*currActor);
+					// if maximum number of multitargets already in array, remove the least close actor
+					if(MultiTargets.Size() > MaxMultiTargets){
+						MultiTargets.remove(0);
+					}
+				}
+			}
+		}
+	}
+	if (CurrLockOnTarget) {
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Green, CurrLockOnTarget->GetName() + " : " + FString::SanitizeFloat(DistanceToClosestActor / 100) + " m");
+		if(!bContinuousLockOn){
+			// activate the delay for continueous LockOn
+			GetWorldTimerManager().SetTimer(ContinuousLockOnDelay, this, &AMainPawn::ActivateContinueousLockOn, 0.5f, false);
+			bLockOnDelayActiv = true;
+		}
+	}
+}
+
+void AMainPawn::ActivateContinueousLockOn(){
+	bContinuousLockOn = true;
+	bLockOnDelayActiv = false;
+}
+
+void AMainPawn::OnRep_MultiTarget(){
+	// Multitarget activated
+	// TODO: implemenation
+}
+
+void SetTargets(AActor * MainTarget, TArray<AActor*> OtherTargets){
+	if(GetNetMode() == NM_Client){
+		Server_SetTargets(MainTarget, OtherTargets);
+		return;
+	}
+
+	CurrLockOnTarget = MainTarget;
+	MultiTargets = OtherTargets;
+}
+
+void Server_SetTargets_Implementation(AActor * MainTarget, TArray<AActor*> OtherTargets){
+	SetTargets(MainTarget, OtherTargets);
+}
+void Server_SetTargets_Validate(AActor * MainTarget, TArray<AActor*> OtherTargets){
+	return true;
+}
