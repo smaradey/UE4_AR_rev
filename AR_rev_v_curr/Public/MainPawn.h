@@ -156,19 +156,19 @@ UCLASS()
 		AActor* CurrLockOnTarget;
 		TArray<AActor*> MultiTargets;	
 		UFUNCTION(Server, reliable, WithValidation)
-			void Server_SetTargets(AActor * MainTarget, TArray<AActor*> OtherTargets);
-		virtual void SetTargets(AActor * MainTarget, TArray<AActor*> OtherTargets);
+			void Server_SetTargets(AActor * MainTarget,const TArray<AActor*> &OtherTargets);
+		virtual void SetTargets(AActor * MainTarget,const TArray<AActor*> &OtherTargets);
 		FTimerHandle ContinuousLockOnDelay;
 		uint32 bLockOnDelayActiv;
 		uint32 bSwitchTargetPressed;
 		uint32 bContinuousLockOn;
-		uint32 bLockOnDelayActiv;
 
-		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons", meta = (ClampMin = "0", ClampMax = "100", UIMin = "0", UIMax = "10"))
-			uint8 MaxMultiTargets = 7;
+		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons", meta = (ClampMin = "1", ClampMax = "100", UIMin = "1", UIMax = "10"))
+			uint8 MaxNumTargets = 8;
 
-		UPROPERTY(ReplicatedUsing = OnRep_MultiTarget, EditAnywhere, BlueprintReadWrite)
+		UPROPERTY(ReplicatedUsing = OnRep_MultiTarget, EditAnywhere, BlueprintReadWrite, Category = "Weapons")
 			bool bMultiTarget;
+			UFUNCTION()
 		void OnRep_MultiTarget();
 		void ActivateContinueousLockOn();
 
@@ -192,6 +192,21 @@ UCLASS()
 		FTimerHandle SalveTimerHandle;
 		float SalveIntervall;
 		uint8 CurrentSalve;
+
+		void InitRadar();
+		
+		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons", meta = (ClampMin = "0.0", ClampMax = "180.0", UIMin = "0.0", UIMax = "90.0"))
+			float MultiTargetLockOnAngleDeg = 30.0f;
+		float MultiTargetLockOnAngleRad;
+		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons", meta = (ClampMin = "0.0", ClampMax = "180.0", UIMin = "0.0", UIMax = "90.0"))
+		float MissileLockOnAngleDeg = 10.0f;
+		float MissileLockOnAngleRad;
+		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons", meta = (ClampMin = "0.0", ClampMax = "180.0", UIMin = "0.0", UIMax = "90.0"))
+		float GunLockOnAngleDeg = 6.0f;
+		float GunLockOnAngleRad;
+
+
+
 		/** number of projectile salves fired after a shot has been triggered */
 		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons")
 			uint8 NumSalves = 4;
@@ -236,6 +251,8 @@ UCLASS()
 		void DeactivateFreeCamera();
 		void ZoomIn();
 		void ZoomOut();
+		void SwitchTargetPressed();
+		void SwitchTargetReleased();
 
 		UFUNCTION(BlueprintNativeEvent, Category = "Weapons")
 			void SpawnProjectile(const FTransform &SocketTransform, const bool bTracer, const FVector &FireBaseVelocity = FVector::ZeroVector, const FVector &TracerStartLocation = FVector::ZeroVector);
@@ -247,7 +264,7 @@ UCLASS()
 			void Server_StopPlayerMovement();
 		virtual void StopPlayerMovement(); // executed on client
 		UPROPERTY(Replicated)
-			bool bCanReceivePlayerInput = true;
+			bool bCanReceivePlayerInput;
 		UFUNCTION()
 			void StartMovementCoolDownElapsed();
 		FTimerHandle StartMovementTimerHandle;
@@ -261,10 +278,7 @@ UCLASS()
 		UFUNCTION()
 			void OnRep_AngularVelocity();
 
-		UPROPERTY(Replicated)
 			FVector WorldAngVel;
-
-		UPROPERTY(Replicated)
 			FVector TargetLinearVelocity;
 		float TransformBlend;
 
@@ -351,7 +365,7 @@ UCLASS()
 			float LevelVel = 3.0f;
 		/** Axis which is used to level the aircraft, e.g. if there was a planet with gravity: it is the vector pointing from its center towards the aircraft (up) */
 		/** has to be normalized! */
-		UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite)
 			FVector AutoLevelAxis = FVector(0.0f, 0.0f, 1.0f);
 
 		/** use the gravity of planets to determine what direction is or use world upvector when set to false */
@@ -378,6 +392,8 @@ UCLASS()
 
 
 	private:
+
+		void MainPlayerMovement(float DeltaTime);
 
 		// how many updates to buffer
 		int NumberOfBufferedNetUpdates;
