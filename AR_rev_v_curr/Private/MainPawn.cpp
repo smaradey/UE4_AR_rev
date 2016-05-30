@@ -75,22 +75,46 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
 }
 
 void AMainPawn::ArmorHit(class AActor* OtherActor, class UPrimitiveComponent * OtherComponent, FVector Loc, const FHitResult& FHitResult) {
+	CollisionHandling = true;
+	
 
-	MostRecentCrashPoint = Loc;
-	DirectionAtCrashTime = GetActorForwardVector();	
+
+
+	MostRecentCrashPoint = FHitResult.Location;
 	CrashNormal = FHitResult.Normal;
 
-	/*const float DistanceTHit = FMath::PointDistToLine(Loc, GetForwardVector(), GetActorLocation());
-	ArmorMesh->AddImpulse((FHitResult.Normal * (2000.0f)) * GetWorld()->GetDeltaSeconds(), NAME_None, true);*/
-
-	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Black, "Armor Hit something : " + FString::FromInt((int)(0.01f * FMath::PointDistToLine(Loc, GetActorForwardVector(), GetActorLocation()))));
+	//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Black, "Armor Hit something");
 }
 
-void AMainPawn::GetDistanceToCollision(const float DeltaSeconds){
-const float CurrDistanceToColl = FMath::PointDistToLine(MostRecentCrashPoint, DirectionAtCrashTime, GetActorLocation());
+void AMainPawn::GetDistanceToCollision(const float DeltaSeconds) {
+	if (CollisionHandling && bCanReceivePlayerInput) {
 
-	ArmorMesh->AddImpulse((FHitResult.Normal * (2000.0f)) * GetWorld()->GetDeltaSeconds(), NAME_None, true);
-
+		// orthogonal distance to plane where collision happened
+		const float CurrDistanceToColl = FVector::PointPlaneDist(GetActorLocation(), MostRecentCrashPoint, CrashNormal);
+		// distance from safety distance (20m)
+		float DeltaDistance = 2000.0f - CurrDistanceToColl;		
+		// factor to slow down the vehicle to prevent overshooting the point of safedistance
+		const float Derivative = (DeltaDistance - PrevSafetyDistanceDelta) / PrevDeltaTime;
+		// Velocity that will be added to the vehicle in order to get away from the collision point
+		AntiCollisionVelocity = (DeltaDistance + 0.5f*Derivative) * CollisionTimeDelta * 0.01f;
+		// apply the the impuls away from the collision point
+		ArmorMesh->AddImpulse(CrashNormal * AntiCollisionVelocity, NAME_None, true);
+		// add the elapsed time
+		CollisionTimeDelta += DeltaSeconds;
+		// reset the collision handling system when either:
+		// - the timelimit has been passed
+		// - half of the distance to safe distance has been passed
+		// - the vehicle got lower than the original collisionpoint
+		if (CollisionTimeDelta > TimeOfAntiCollisionSystem || DeltaDistance < 1000.0f || CurrDistanceToColl > 2000.0f) {
+			CollisionHandling = false;
+			AntiCollisionVelocity = 0.0f;
+			CollisionTimeDelta = 0.0f;
+			PrevSafetyDistanceDelta = 0.0f;
+		}
+		// store data for next tick to calculate the breakfactor for slowing down
+		PrevDeltaTime = DeltaSeconds;
+		PrevSafetyDistanceDelta = DeltaDistance;
+	}
 
 }
 
@@ -405,6 +429,8 @@ void AMainPawn::Tick(float DeltaTime) {
 			else if (MovControlStrength >= TimeOfNoControl + 1.0f) {
 				ArmorMesh->SetPhysicsLinearVelocity(TargetLinearVelocity);
 			}
+
+			GetDistanceToCollision(DeltaTime);
 
 		}
 

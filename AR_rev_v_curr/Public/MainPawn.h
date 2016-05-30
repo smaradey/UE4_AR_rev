@@ -278,6 +278,9 @@ protected:
 	/** how long the player has no control after a crash */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight", meta = (ClampMin = "0.001", ClampMax = "10.0", UIMin = "0.001", UIMax = "1.0"))
 		float TimeOfNoControl = 1.0f;
+		/** how long the player has no control after a crash */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight", meta = (ClampMin = "0.001", ClampMax = "10.0", UIMin = "0.001", UIMax = "1.0"))
+		float TimeOfAntiCollisionSystem = 3.0f;
 	/** default Velocity when input is zero */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
 		float DefaultForwardVel = 5000.0f;
@@ -376,9 +379,17 @@ private:
 		void OnRep_LinearVelocity();
 
 
+		
+		UFUNCTION()
+		void GetDistanceToCollision(const float DeltaSeconds);
+		
 	FVector MostRecentCrashPoint;
-	FVector DirectionAtCrashTime;
-FVector CrashNormal;
+	FVector CrashNormal;
+	float CollisionTimeDelta;
+	float PrevSafetyDistanceDelta;
+	float PrevDeltaTime = 1.0f;
+	float AntiCollisionVelocity;
+	bool CollisionHandling;
 
 	// }
 
