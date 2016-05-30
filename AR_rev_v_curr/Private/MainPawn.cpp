@@ -105,7 +105,7 @@ void AMainPawn::GetDistanceToCollision(const float DeltaSeconds) {
 		// - the timelimit has been passed
 		// - half of the distance to safe distance has been passed
 		// - the vehicle got lower than the original collisionpoint
-		if (CollisionTimeDelta > TimeOfAntiCollisionSystem || DeltaDistance < 1000.0f || CurrDistanceToColl > 2000.0f) {
+		if (CollisionTimeDelta > TimeOfAntiCollisionSystem || DeltaDistance < 0.0f || CurrDistanceToColl > 2000.0f) {
 			CollisionHandling = false;
 			AntiCollisionVelocity = 0.0f;
 			CollisionTimeDelta = 0.0f;
