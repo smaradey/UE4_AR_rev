@@ -223,7 +223,7 @@ void AMainPawn::Tick(float DeltaTime) {
 			InputPackage.PacketNo++;
 			
 			// the new current input package
-			const FInput currentInput;
+			FInput currentInput;
 			// set the package number
 			currentInput.PacketNo = InputPackage.PacketNo;
 			// store the player input
@@ -231,6 +231,12 @@ void AMainPawn::Tick(float DeltaTime) {
 			currentInput.MovementInput = MovementInput;
 			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, FString::SanitizeFloat(MouseInput.X) + " x " + FString::SanitizeFloat(MouseInput.Y));
 			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, FString::SanitizeFloat(MouseInput.Size()));
+
+			// store client movement for later correction when corrrect server transform is received
+			FTransformHistoryElem CurrentTransform;
+			CurrentTransform.PacketNo = InputPackage.PacketNo;
+			CurrentTransform.PastActorTransform = GetTransform();
+			TransformHistory.Add(CurrentTransform);
 
 			// prevent the package from growing too big
 			while (InputPackage.InputDataList.Num() >= 1) {
@@ -247,6 +253,7 @@ void AMainPawn::Tick(float DeltaTime) {
 			// send the input to server
 			GetPlayerInput(InputPackage);
 		}
+
 		// radar and weapons only on player side
 		TargetLock();
 	}
@@ -280,6 +287,10 @@ void AMainPawn::Tick(float DeltaTime) {
 		
 		// clientside movement (predicting; will be corrected with information from authority)
 		MainPlayerMovement(DeltaTime);
+
+		ArmorMesh->AddImpulse(LocationCorrection, NAME_None, true);
+
+
 	}
 	else {
 		//if (ArmorMesh->IsSimulatingPhysics()) {
@@ -315,6 +326,7 @@ void AMainPawn::GetLifetimeReplicatedProps(TArray <FLifetimeProperty> &OutLifeti
 	DOREPLIFETIME(AMainPawn, bCanReceivePlayerInput);
 	DOREPLIFETIME(AMainPawn, bMultiTarget);
 	DOREPLIFETIME_CONDITION(AMainPawn, AutoLevelAxis, COND_OwnerOnly);
+	DOREPLIFETIME_CONDITION(AMainPawn, AuthorityAck, COND_OwnerOnly);
 }
 
 void AMainPawn::MainPlayerMovement(float DeltaTime) {
@@ -497,10 +509,10 @@ void AMainPawn::OnRep_TransformOnAuthority() {
 	if (GetNetMode() == NM_Client && !IsLocallyControlled()) {
 		//Alpha = GetWorld()->DeltaTimeSeconds;
 
-	/*	if (GetWorld()) {
+	if (GetWorld()) {
 			NetDelta = GetWorld()->RealTimeSeconds - lastUpdate;
 			lastUpdate = GetWorld()->RealTimeSeconds;
-		}*/
+		}
 
 
 		// store starttransform
@@ -518,14 +530,38 @@ void AMainPawn::OnRep_TransformOnAuthority() {
 	}
 	else if (GetNetMode() == NM_Client && IsLocallyControlled()) {
 
+		// calculate client error
+		//TransformOnAuthority;
+		//PastClientTransform;
 
+		FVector CurrLinVel = ArmorMesh->GetPhysicsLinearVelocity();
+		FVector CurrAngVel = ArmorMesh->GetPhysicsAngularVelocity();
+		
 
+		FVector LocationError = TransformOnAuthority.GetLocation() - PastClientTransform.GetLocation();
+		FQuat RotationError = TransformOnAuthority.GetRotation() * PastClientTransform.GetRotation().Inverse();
 
+		FVector PredictedMovement = GetActorLocation() - PastClientTransform.GetLocation();
 
-		SetActorTransform(TransformOnAuthority, false, nullptr, ETeleportType::None);
+		FVector CorrectedMovement = RotationError.RotateVector(PredictedMovement);
+
+		FVector PredictedLocationError = GetActorLocation() - (PastClientTransform.GetLocation() + CorrectedMovement);
+		
+		//LocationCorrection = PredictedLocationError/* / NetDelta*/;
+
+		// TODO: get rid of stuttering and gltches from location offsetting
+
+		AddActorWorldOffset(PredictedLocationError, false, nullptr, ETeleportType::None);
+		AddActorWorldRotation(RotationError, false, nullptr, ETeleportType::None);
+
+	/*	ArmorMesh->SetPhysicsLinearVelocity(RotationError.RotateVector(CurrLinVel));
+		ArmorMesh->SetPhysicsAngularVelocity(RotationError.RotateVector(CurrAngVel));*/
+
 	}
 
 }
+
+//void AMainPawn::ApplyTranformCorrection()
 
 void AMainPawn::OnRep_LinearVelocity() {
 	//	if (Role < ROLE_Authority) {
@@ -893,14 +929,34 @@ void AMainPawn::Server_GetPlayerInput_Implementation(FInputsPackage receivedInpu
 		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Red, "Packet not Accepted");
 	}
 
-	LastAcceptedPacket(Ack);
+	AuthorityAck = Ack;
 }
 
-void AMainPawn::LastAcceptedPacket(int16 Ack) {
-	Client_LastAcceptedPacket(Ack);
-}
-void AMainPawn::Client_LastAcceptedPacket_Implementation(int16 acceptedPacket) {
+void AMainPawn::OnRep_AuthorityAck() {
 	TArray<FInput> pendingInputs = TArray<FInput>();
+	int DeletionCnt = 0;
+
+	while (true) {
+		if (TransformHistory.Num() > 0) {
+			if (TransformHistory[0].PacketNo < AuthorityAck) {
+				TransformHistory.RemoveAt(0);
+				++DeletionCnt;
+				continue;
+			}
+			if (TransformHistory[0].PacketNo == AuthorityAck) {
+				PastClientTransform = TransformHistory[0].PastActorTransform;
+				TransformHistory.RemoveAt(0);
+				++DeletionCnt;
+				break;
+			} else {
+				break;
+			}
+		}
+	}
+
+	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Deleted " + FString::FromInt(DeletionCnt) + " old Transforms, pending to be approved : " + FString::FromInt(TransformHistory.Num()));
+
+
 
 	//for (FInput &package : InputPackage.InputDataList) {
 	//	if (package.PacketNo > acceptedPacket) {
@@ -918,9 +974,8 @@ void AMainPawn::Client_LastAcceptedPacket_Implementation(int16 acceptedPacket) {
 	InputPackage.InputDataList = pendingInputs;
 
 
-
-	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Green, "Last acceptet Packet = " + FString::FromInt(acceptedPacket));
-	this->Ack = acceptedPacket;
+	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Green, "Last acceptet Packet = " + FString::FromInt(AuthorityAck));
+	this->Ack = AuthorityAck;
 }
 
 inline void AMainPawn::GetCursorLocation(FVector2D &CursorLoc) {

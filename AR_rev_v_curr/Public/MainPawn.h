@@ -42,6 +42,16 @@ USTRUCT()
 			TArray<FInput> InputDataList = TArray<FInput>();
 	};
 
+USTRUCT()
+struct FTransformHistoryElem {
+	GENERATED_USTRUCT_BODY()
+		UPROPERTY()
+		uint16 PacketNo;
+	UPROPERTY()
+		FTransform PastActorTransform;
+};
+
+
 UCLASS()
 	class AR_REV_V_CURR_API AMainPawn : public APawn, public ITarget_Interface
 {
@@ -286,15 +296,22 @@ UCLASS()
 			void Server_GetPlayerInput(FInputsPackage inputData);
 		virtual void GetPlayerInput(FInputsPackage inputData); // executed on client
 
-		UFUNCTION(Client, reliable)
-			void Client_LastAcceptedPacket(uint16 Ack);
-		virtual void LastAcceptedPacket(uint16 Ack);
 		UPROPERTY()
 			TArray<FInput> PlayerInputs = TArray<FInput>();
 		UPROPERTY()
 			FInputsPackage InputPackage;
 		UPROPERTY()
 			uint16 Ack;
+		UPROPERTY(ReplicatedUsing = OnRep_AuthorityAck)
+			uint16 AuthorityAck;
+		UFUNCTION()
+			void OnRep_AuthorityAck();
+		FTransform PastClientTransform;
+		FVector LocationCorrection;
+
+
+		UPROPERTY()
+			TArray<FTransformHistoryElem> TransformHistory;
 
 		// Replicated Movement
 		// {
