@@ -152,13 +152,20 @@ void AMissile::BeginPlay()
 	// clients only
 	if (Role < ROLE_Authority) {
 		NetUpdateInterval = 1.0f / NetUpdateFrequency;
-		ActorDetectionSphere->DestroyComponent();
-		ExplosionSound->AttachTo(RootComponent);
-		if (MissileMesh->DoesSocketExist(FName("booster"))) {
-			MissileTrail->AttachTo(MissileMesh, FName("booster"));
-			MissileTrail->Activate();
-			MissileEngineSound->AttachTo(MissileMesh, FName("booster"));
-		}
+		//ActorDetectionSphere->DestroyComponent();
+		//ExplosionSound->AttachTo(RootComponent);
+		//if (MissileMesh->DoesSocketExist(FName("booster"))) {
+		//	MissileTrail->AttachTo(MissileMesh, FName("booster"));
+		//	MissileTrail->Activate();
+		//	MissileEngineSound->AttachTo(MissileMesh, FName("booster"));
+		//}
+	}
+	ActorDetectionSphere->DestroyComponent();
+	ExplosionSound->AttachTo(RootComponent);
+	if (MissileMesh->DoesSocketExist(FName("booster"))) {
+		MissileTrail->AttachTo(MissileMesh, FName("booster"));
+		MissileTrail->Activate();
+		MissileEngineSound->AttachTo(MissileMesh, FName("booster"));
 	}
 }
 
@@ -320,7 +327,7 @@ void AMissile::HitTarget_Implementation(class AActor* TargetedActor) {
 }
 
 void AMissile::Explode() {
-	if (Explosion && Role < ROLE_Authority) {
+	if (Explosion/* && Role < ROLE_Authority*/) {
 
 		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Red, "client: Explosion");
 		UParticleSystemComponent* Hit = UGameplayStatics::SpawnEmitterAtLocation(this, Explosion, GetActorLocation(), GetActorRotation(), true);

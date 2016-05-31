@@ -44,7 +44,7 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
 	// the camera
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("GameCamera"));
 	Camera->AttachTo(SpringArm, USpringArmComponent::SocketName);
-	
+
 	// PostProcessSettings
 	Camera->PostProcessSettings.bOverride_LensFlareIntensity = true;
 	Camera->PostProcessSettings.LensFlareIntensity = 0.0f;
@@ -58,15 +58,21 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
 	// default gun sockets
 	GunSockets.Add("gun0");
 	GunSockets.Add("gun1");
+	// default missile sockets
+	MissileSockets.Add("missile0");
+	MissileSockets.Add("missile1");
 
 	//Take control of the default Player
 	//AutoPossessPlayer = EAutoReceiveInput::Player0;
 }
 
 void AMainPawn::ArmorHit(class AActor* OtherActor, class UPrimitiveComponent * OtherComponent, FVector Loc, const FHitResult& FHitResult) {
+	
+
 	// TODO: prevent collisionhandling when colliding with
 	// - destructable
 	// - missiles / projectiles
+	// TODO: start anticollision system after a delay
 
 	// enable the recover-from-collision system
 	CollisionHandling = true;
@@ -110,8 +116,12 @@ void AMainPawn::RecoverFromCollision(const float DeltaSeconds) {
 
 void AMainPawn::InitWeapon() {
 	WeaponSpreadRadian = WeaponSpreadHalfAngle * PI / 180.0f;
-	SalveIntervall = (SalveDensity * FireRateGun) / NumSalves;
-	bHasAmmo = GunAmmunitionAmount > 0;
+	GunSalveIntervall = (GunSalveDensity * FireRateGun) / GunNumSalves;
+	bGunHasAmmo = GunAmmunitionAmount > 0;
+
+	MissileSpreadRadian = MissileSpreadHalfAngle  * PI / 180.0f;
+	MissileSalveIntervall = (MissileSalveDensity * FireRateMissile) / MissileNumSalves;
+	bMissileHasAmmo = MissileAmmunitionAmount > 0;
 }
 
 void AMainPawn::InitRadar() {
@@ -126,7 +136,7 @@ void AMainPawn::InitRadar() {
 	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 10.0f, FColor::Red, " Gun LockOn in radian : " + FString::SanitizeFloat(GunLockOnAngleRad));
 
 }
-void AMainPawn::InitNetwork(){
+void AMainPawn::InitNetwork() {
 	NumberOfBufferedNetUpdates = FMath::RoundToInt(Smoothing * NetUpdateFrequency);
 	NumberOfBufferedNetUpdates = FMath::Max(NumberOfBufferedNetUpdates, 2);
 	LerpVelocity = NetUpdateFrequency / NumberOfBufferedNetUpdates;
@@ -201,13 +211,13 @@ void AMainPawn::Tick(float DeltaTime) {
 		if (bFreeCameraActive) {
 			// rotation from mousemovement (input axis lookup and lookright)
 			CurrentSpringArmRotation = CurrentSpringArmRotation * FQuat(FRotator(CameraInput.Y * -FreeCameraSpeed, CameraInput.X * FreeCameraSpeed, 0.0f));
-			
+
 			// rotate the camera with the springarm
 			SpringArm->SetWorldRotation(CurrentSpringArmRotation);
 
 			// disable rotationcontrol
 			MouseInput = FVector2D::ZeroVector;
-		
+
 			// disable strafeinput
 			MovementInput.Y = 0.0f;
 		}
@@ -221,7 +231,7 @@ void AMainPawn::Tick(float DeltaTime) {
 		if (Role < ROLE_Authority && bCanReceivePlayerInput) {
 			// keep track of how many packages have been created
 			InputPackage.PacketNo++;
-			
+
 			// the new current input package
 			FInput currentInput;
 			// set the package number
@@ -249,7 +259,7 @@ void AMainPawn::Tick(float DeltaTime) {
 			InputPackage.Ack = Ack;
 
 			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, "Length of Array = " + FString::FromInt(InputPackage.InputDataList.Num()));
-			
+
 			// send the input to server
 			GetPlayerInput(InputPackage);
 		}
@@ -284,11 +294,10 @@ void AMainPawn::Tick(float DeltaTime) {
 	}
 	else if (IsLocallyControlled()) {
 		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Red, "Locally Controlled Client");
-		
+
 		// clientside movement (predicting; will be corrected with information from authority)
 		MainPlayerMovement(DeltaTime);
 
-		ArmorMesh->AddImpulse(LocationCorrection, NAME_None, true);
 
 
 	}
@@ -317,14 +326,17 @@ void AMainPawn::Tick(float DeltaTime) {
 
 // replication of variables
 void AMainPawn::GetLifetimeReplicatedProps(TArray <FLifetimeProperty> &OutLifetimeProps) const {
-	DOREPLIFETIME(AMainPawn, bGunReady);
+	DOREPLIFETIME_CONDITION(AMainPawn, bGunHasAmmo, COND_OwnerOnly);
+	DOREPLIFETIME_CONDITION(AMainPawn, bGunReady, COND_OwnerOnly);
+	DOREPLIFETIME_CONDITION(AMainPawn, bMissileHasAmmo, COND_OwnerOnly);
+	DOREPLIFETIME_CONDITION(AMainPawn, bMissileReady, COND_OwnerOnly);
 	DOREPLIFETIME(AMainPawn, TransformOnAuthority);
 	DOREPLIFETIME_CONDITION(AMainPawn, LinearVelocity, COND_SkipOwner);
 	//DOREPLIFETIME(AMainPawn, AngularVelocity);
 	//DOREPLIFETIME(AMainPawn, WorldAngVel);
 	//DOREPLIFETIME(AMainPawn, TargetLinearVelocity);
-	DOREPLIFETIME(AMainPawn, bCanReceivePlayerInput);
-	DOREPLIFETIME(AMainPawn, bMultiTarget);
+	DOREPLIFETIME_CONDITION(AMainPawn, bCanReceivePlayerInput, COND_OwnerOnly);
+	DOREPLIFETIME_CONDITION(AMainPawn, bMultiTarget, COND_OwnerOnly);
 	DOREPLIFETIME_CONDITION(AMainPawn, AutoLevelAxis, COND_OwnerOnly);
 	DOREPLIFETIME_CONDITION(AMainPawn, AuthorityAck, COND_OwnerOnly);
 }
@@ -509,7 +521,7 @@ void AMainPawn::OnRep_TransformOnAuthority() {
 	if (GetNetMode() == NM_Client && !IsLocallyControlled()) {
 		//Alpha = GetWorld()->DeltaTimeSeconds;
 
-	if (GetWorld()) {
+		if (GetWorld()) {
 			NetDelta = GetWorld()->RealTimeSeconds - lastUpdate;
 			lastUpdate = GetWorld()->RealTimeSeconds;
 		}
@@ -536,7 +548,7 @@ void AMainPawn::OnRep_TransformOnAuthority() {
 
 		FVector CurrLinVel = ArmorMesh->GetPhysicsLinearVelocity();
 		FVector CurrAngVel = ArmorMesh->GetPhysicsAngularVelocity();
-		
+
 
 		FVector LocationError = TransformOnAuthority.GetLocation() - PastClientTransform.GetLocation();
 		FQuat RotationError = TransformOnAuthority.GetRotation() * PastClientTransform.GetRotation().Inverse();
@@ -546,7 +558,7 @@ void AMainPawn::OnRep_TransformOnAuthority() {
 		FVector CorrectedMovement = RotationError.RotateVector(PredictedMovement);
 
 		FVector PredictedLocationError = GetActorLocation() - (PastClientTransform.GetLocation() + CorrectedMovement);
-		
+
 		//LocationCorrection = PredictedLocationError/* / NetDelta*/;
 
 		// TODO: get rid of stuttering and gltches from location offsetting
@@ -554,8 +566,8 @@ void AMainPawn::OnRep_TransformOnAuthority() {
 		AddActorWorldOffset(PredictedLocationError, false, nullptr, ETeleportType::None);
 		AddActorWorldRotation(RotationError, false, nullptr, ETeleportType::None);
 
-	/*	ArmorMesh->SetPhysicsLinearVelocity(RotationError.RotateVector(CurrLinVel));
-		ArmorMesh->SetPhysicsAngularVelocity(RotationError.RotateVector(CurrAngVel));*/
+		/*	ArmorMesh->SetPhysicsLinearVelocity(RotationError.RotateVector(CurrLinVel));
+			ArmorMesh->SetPhysicsAngularVelocity(RotationError.RotateVector(CurrAngVel));*/
 
 	}
 
@@ -609,6 +621,8 @@ void AMainPawn::SetupPlayerInputComponent(class UInputComponent *InputComponent)
 	InputComponent->BindAction("FreeCamera", IE_Released, this, &AMainPawn::DeactivateFreeCamera);
 	InputComponent->BindAction("Fire Gun Action", IE_Pressed, this, &AMainPawn::StartGunFire);
 	InputComponent->BindAction("Fire Gun Action", IE_Released, this, &AMainPawn::StopGunFire);
+	InputComponent->BindAction("Fire Missile Action", IE_Pressed, this, &AMainPawn::StartMissileFire);
+	InputComponent->BindAction("Fire Missile Action", IE_Released, this, &AMainPawn::StopMissileFire);
 	InputComponent->BindAction("StopMovement", IE_Pressed, this, &AMainPawn::StopMovement);
 	InputComponent->BindAction("Boost", IE_Pressed, this, &AMainPawn::StartBoost);
 	InputComponent->BindAction("Boost", IE_Released, this, &AMainPawn::StopBoost);
@@ -685,44 +699,9 @@ void AMainPawn::DeactivateFreeCamera() {
 
 void AMainPawn::StartGunFire() {
 
-
-	AActor * ClosestActor = nullptr;
-	float DistanceToClosestActor = BIG_NUMBER;
-	for (TActorIterator<AActor> currActor(GetWorld()); currActor; ++currActor) {
-		if (*currActor == this || (currActor->GetOwner() && currActor->GetOwner() == this) || (currActor->GetInstigator() == GetInstigator())) continue;
-		float Distance = currActor->GetDistanceTo(this);
-		if (Distance < DistanceToClosestActor) {
-			DistanceToClosestActor = Distance;
-			ClosestActor = *currActor;
-		}
-	}
-	if (ClosestActor) {
-		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Green, ClosestActor->GetName() + " : " + FString::SanitizeFloat(DistanceToClosestActor / 100) + " m");
-	}
-
-
-	USceneComponent * ClosestSceneComponent = nullptr;
-	float DistanceToClosestSceneComponent = BIG_NUMBER;
-
-	for (TObjectIterator<USceneComponent> Itr; Itr; ++Itr)
-	{
-		if (Itr->GetOwner() && Itr->GetOwner() != this) {
-			float Distance = Itr->GetOwner()->GetDistanceTo(this);
-			if (Distance < DistanceToClosestSceneComponent) {
-				DistanceToClosestSceneComponent = Distance;
-				ClosestSceneComponent = *Itr;
-			}
-		}
-	}
-	if (ClosestSceneComponent) {
-		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Green, ClosestSceneComponent->GetName() + " : " + FString::SanitizeFloat(DistanceToClosestSceneComponent / 100) + " m");
-	}
-
-
-
 	// player has gunfire button pressed
 	bGunFire = true;
-	if (bGunReady && bHasAmmo) { // gun is ready to fire
+	if (bGunReady && bGunHasAmmo) { // gun is ready to fire
 		// make sure no other gunfire timer is activ by clearing it
 		GetWorldTimerManager().ClearTimer(GunFireHandle);
 		// activate a new gunfire timer
@@ -736,7 +715,7 @@ void AMainPawn::StartGunFire() {
 		// debug
 		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Gun COOLDOWN NOT ACTIVATED");
 		// try again to fire gun
-		if (bHasAmmo) {
+		if (bGunHasAmmo) {
 			StartGunFire();
 		}
 		else {
@@ -786,15 +765,15 @@ void AMainPawn::GunCooldownElapsed() {
 void AMainPawn::GunFire() {
 	if (GunAmmunitionAmount > 0) {
 		// reset the salve counter
-		CurrentSalve = 0;
+		GunCurrentSalve = 0;
 		// the gunfire timer starts a subtimer that fires all the salves
-		GetWorldTimerManager().SetTimer(SalveTimerHandle, this, &AMainPawn::FireSalve, SalveIntervall, true, 0.0f);
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Orange, FString::SanitizeFloat(SalveIntervall) + " SalveDelta; " + FString::SanitizeFloat(FireRateGun) + " FireDelta ");
+		GetWorldTimerManager().SetTimer(GunSalveTimerHandle, this, &AMainPawn::GunFireSalve, GunSalveIntervall, true, 0.0f);
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Orange, FString::SanitizeFloat(GunSalveIntervall) + " SalveDelta; " + FString::SanitizeFloat(FireRateGun) + " FireDelta ");
 	}
 }
 
-void AMainPawn::FireSalve() {
-	if (CurrentSalve < NumSalves) {
+void AMainPawn::GunFireSalve() {
+	if (GunCurrentSalve < GunNumSalves) {
 
 		for (uint8 shot = 0; shot < NumProjectiles; ++shot) {
 			// choose next avaliable gun sockets or start over from the first if last was used
@@ -823,24 +802,170 @@ void AMainPawn::FireSalve() {
 				if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::White, "Bang Ammo left: " + FString::FromInt(GunAmmunitionAmount));
 			}
 			else {
-				bHasAmmo = false;
+				bGunHasAmmo = false;
 				if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 10.0f, FColor::Red, "Gun OUT OF AMMO!");
-				GetWorldTimerManager().ClearTimer(SalveTimerHandle);
+				GetWorldTimerManager().ClearTimer(GunSalveTimerHandle);
 			}
 
 			// add recoil to rootcomponent
 			ArmorMesh->AddImpulseAtLocation(SpawnDirection * GunRecoilForce * FMath::FRandRange(0.5f, 1.5f), CurrentSocketTransform.GetLocation());
 		}
-		++CurrentSalve;
+		++GunCurrentSalve;
 		return;
 	}
 	// deactivate the salvetimer
-	GetWorldTimerManager().ClearTimer(SalveTimerHandle);
+	GetWorldTimerManager().ClearTimer(GunSalveTimerHandle);
 }
 
 void AMainPawn::SpawnProjectile_Implementation(const FTransform &SocketTransform, const bool bTracer, const FVector &FireBaseVelocity, const FVector &TracerStartLocation) {
 	// method overridden by blueprint to spawn the projectile
 }
+
+// Missile spawning START --------------------------------
+
+void AMainPawn::StartMissileFire() {
+
+	// player has Missilefire button pressed
+	bMissileFire = true;
+	if (bMissileReady && bMissileHasAmmo) { // Missile is ready to fire
+		// make sure no other Missilefire timer is activ by clearing it
+		GetWorldTimerManager().ClearTimer(MissileFireHandle);
+		// activate a new Missilefire timer
+		GetWorldTimerManager().SetTimer(MissileFireHandle, this, &AMainPawn::MissileFire, FireRateMissile, true, 0.0f);
+		// debug
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Green, "Missile ON");
+	}
+	else if (!GetWorldTimerManager().IsTimerActive(MissileFireCooldown)) { // Missile is not cooling down but could not be fired
+		// enable Missile
+		bMissileReady = true;
+		// debug
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Missile COOLDOWN NOT ACTIVATED");
+		// try again to fire Missile
+		if (bMissileHasAmmo) {
+			StartMissileFire();
+		}
+		else {
+			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Missile OUT OF AMMO");
+		}
+	}
+	else {
+		// Missile is cooling down
+		// debug
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Missile STILL COOLING DOWN");
+	}
+}
+
+void AMainPawn::StopMissileFire() {
+	// player has Missilefire button released
+	bMissileFire = false;
+	// is a Missilefire timer active
+	if (GetWorldTimerManager().IsTimerActive(MissileFireHandle)) {
+		// stop the timer
+		GetWorldTimerManager().PauseTimer(MissileFireHandle);
+		// make sure Missile is disabled
+		bMissileReady = false;
+		// store the remaining time
+		const float CoolDownTime = GetWorldTimerManager().GetTimerRemaining(MissileFireHandle);
+		// remove old Missilefire timer
+		GetWorldTimerManager().ClearTimer(MissileFireHandle);
+		// create a new timer to reactivate Missile after a cooldownperiod		
+		GetWorldTimerManager().SetTimer(MissileFireCooldown, this, &AMainPawn::MissileCooldownElapsed, CoolDownTime, false);
+	}
+	// debug
+	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Missile OFF");
+}
+
+void AMainPawn::MissileCooldownElapsed() {
+	// debug
+	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Blue, "Missile COOLED");
+	// Missile has cooled down and is again ready to fire
+	bMissileReady = true;
+	// has the user requested fireing reactivate Missilefire
+	if (bMissileFire) {
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Green, "Missile CONTINUE");
+		StartMissileFire();
+	}
+
+}
+
+void AMainPawn::MissileFire() {
+	if (MissileAmmunitionAmount > 0) {
+		// reset the salve counter
+		MissileCurrentSalve = 0;
+		// the Missilefire timer starts a subtimer that fires all the salves
+		GetWorldTimerManager().SetTimer(MissileSalveTimerHandle, this, &AMainPawn::MissileFireSalve, MissileSalveIntervall, true, 0.0f);
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Orange, FString::SanitizeFloat(MissileSalveIntervall) + " SalveDelta; " + FString::SanitizeFloat(FireRateMissile) + " FireDelta ");
+	}
+}
+
+void AMainPawn::MissileFireSalve() {
+	if (MissileCurrentSalve < MissileNumSalves) {
+
+		for (uint8 shot = 0; shot < NumMissiles; ++shot) {
+			// choose next avaliable Missile sockets or start over from the first if last was used
+			CurrMissileSocketIndex = (CurrMissileSocketIndex + 1) % MissileSockets.Num();
+			// get the tranform of the choosen socket
+			const FTransform &CurrentSocketTransform = ArmorMesh->GetSocketTransform(MissileSockets[CurrMissileSocketIndex]);
+
+			// calculate a direction
+			FVector SpawnDirection = CurrentSocketTransform.GetRotation().GetForwardVector();
+
+
+			const FVector &AdditionalVelocity = ArmorMesh->GetPhysicsLinearVelocityAtPoint(CurrentSocketTransform.GetLocation());
+
+			USceneComponent * HomingTarget = nullptr;
+
+			if (MultiTargets.Num() > 0) {
+				const int32 TargetIndex = (int)FMath::RandRange(0, MultiTargets.Num());
+				if (MultiTargets.IsValidIndex(TargetIndex) && MultiTargets[TargetIndex] && TargetIndex < MultiTargets.Num()) {
+					HomingTarget = MultiTargets[TargetIndex]->GetRootComponent();
+					// calculate a direction and apply weaponspread
+					SpawnDirection = FMath::VRandCone(CurrentSocketTransform.GetRotation().GetForwardVector(), MissileSpreadRadian);
+				}
+				else {
+					if (CurrLockOnTarget) {
+						HomingTarget = CurrLockOnTarget->GetRootComponent();
+						// calculate a direction and apply weaponspread
+						SpawnDirection = FMath::VRandCone(CurrentSocketTransform.GetRotation().GetForwardVector(), MissileSpreadRadian);
+					}
+				}
+			}
+			else {
+				if (CurrLockOnTarget) {
+					HomingTarget = CurrLockOnTarget->GetRootComponent();
+					// calculate a direction and apply weaponspread
+					SpawnDirection = FMath::VRandCone(CurrentSocketTransform.GetRotation().GetForwardVector(), MissileSpreadRadian);
+				}
+			}
+
+
+			SpawnMissile(FTransform(SpawnDirection.Rotation(), CurrentSocketTransform.GetLocation()), HomingTarget, AdditionalVelocity);
+
+			// decrease ammunition
+			--MissileAmmunitionAmount;
+			if (MissileAmmunitionAmount > 0) {
+				// debug
+				if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::White, "Bang Ammo left: " + FString::FromInt(MissileAmmunitionAmount));
+			}
+			else {
+				bMissileHasAmmo = false;
+				if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 10.0f, FColor::Red, "Missile OUT OF AMMO!");
+				GetWorldTimerManager().ClearTimer(MissileSalveTimerHandle);
+			}
+
+		}
+		++MissileCurrentSalve;
+		return;
+	}
+	// deactivate the salvetimer
+	GetWorldTimerManager().ClearTimer(MissileSalveTimerHandle);
+}
+
+void AMainPawn::SpawnMissile_Implementation(const FTransform &SocketTransform, class USceneComponent * HomingTarget, const FVector &FireBaseVelocity) {
+	// method overridden by blueprint to spawn the projectile
+}
+// Missile spawning END ----------------------------------
+
 
 void AMainPawn::StopMovement() {
 	StopPlayerMovement();
@@ -855,6 +980,7 @@ bool AMainPawn::Server_StopPlayerMovement_Validate() {
 void AMainPawn::Server_StopPlayerMovement_Implementation() {
 	if (bCanReceivePlayerInput) {
 		bGunReady = false;
+		bMissileReady = false;
 		// make sure there is no pending movement activation
 		GetWorldTimerManager().ClearTimer(StartMovementTimerHandle);
 		bCanReceivePlayerInput = false;
@@ -867,6 +993,7 @@ void AMainPawn::Server_StopPlayerMovement_Implementation() {
 
 void AMainPawn::StartMovementCoolDownElapsed() {
 	bGunReady = true;
+	bMissileReady = true;
 	bCanReceivePlayerInput = true;
 	RotControlStrength = TimeOfNoControl;
 	MovControlStrength = TimeOfNoControl;
@@ -948,7 +1075,8 @@ void AMainPawn::OnRep_AuthorityAck() {
 				TransformHistory.RemoveAt(0);
 				++DeletionCnt;
 				break;
-			} else {
+			}
+			else {
 				break;
 			}
 		}
@@ -1110,3 +1238,37 @@ void AMainPawn::Server_SetTargets_Implementation(AActor * MainTarget, const  TAr
 bool AMainPawn::Server_SetTargets_Validate(AActor * MainTarget, const TArray<AActor*> &OtherTargets) {
 	return true;
 }
+
+/* TESTING
+AActor * ClosestActor = nullptr;
+	float DistanceToClosestActor = BIG_NUMBER;
+	for (TActorIterator<AActor> currActor(GetWorld()); currActor; ++currActor) {
+		if (*currActor == this || (currActor->GetOwner() && currActor->GetOwner() == this) || (currActor->GetInstigator() == GetInstigator())) continue;
+		float Distance = currActor->GetDistanceTo(this);
+		if (Distance < DistanceToClosestActor) {
+			DistanceToClosestActor = Distance;
+			ClosestActor = *currActor;
+		}
+	}
+	if (ClosestActor) {
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Green, ClosestActor->GetName() + " : " + FString::SanitizeFloat(DistanceToClosestActor / 100) + " m");
+	}
+
+
+	USceneComponent * ClosestSceneComponent = nullptr;
+	float DistanceToClosestSceneComponent = BIG_NUMBER;
+
+	for (TObjectIterator<USceneComponent> Itr; Itr; ++Itr)
+	{
+		if (Itr->GetOwner() && Itr->GetOwner() != this) {
+			float Distance = Itr->GetOwner()->GetDistanceTo(this);
+			if (Distance < DistanceToClosestSceneComponent) {
+				DistanceToClosestSceneComponent = Distance;
+				ClosestSceneComponent = *Itr;
+			}
+		}
+	}
+	if (ClosestSceneComponent) {
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Green, ClosestSceneComponent->GetName() + " : " + FString::SanitizeFloat(DistanceToClosestSceneComponent / 100) + " m");
+	}
+	*/

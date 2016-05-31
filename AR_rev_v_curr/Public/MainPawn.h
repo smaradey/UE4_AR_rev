@@ -182,29 +182,67 @@ UCLASS()
 		void OnRep_MultiTarget();
 		void ActivateContinueousLockOn();
 
+		// Guns ------------------------------------------------------------------------
 		void StartGunFire();
 		void StopGunFire();
 		uint32 bGunFire;
 		UPROPERTY(Replicated)
 			uint32 bGunReady : 1;
-
-
 		void GunFire();
 		FTimerHandle GunFireHandle;
+		
+				UFUNCTION(BlueprintNativeEvent, Category = "Weapons | Guns")
+			void SpawnProjectile(const FTransform &SocketTransform, const bool bTracer, const FVector &FireBaseVelocity = FVector::ZeroVector, const FVector &TracerStartLocation = FVector::ZeroVector);
+		
 		/** time in Seconds */
-		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons")
+		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Guns")
 			float FireRateGun = 1.0f;
 
 		void GunCooldownElapsed();
 		FTimerHandle GunFireCooldown;
-
-		void FireSalve();
-		FTimerHandle SalveTimerHandle;
-		float SalveIntervall;
-		uint8 CurrentSalve;
-
-		void InitRadar();
 		
+		void GunFireSalve();
+		FTimerHandle GunSalveTimerHandle;
+		float GunSalveIntervall;
+		uint8 GunCurrentSalve;
+		
+		/** number of projectile salves fired after a shot has been triggered */
+		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Guns")
+			uint8 GunNumSalves = 4;
+		/** smaller values lower the time between the salves and increase the time between last salve and next first salve */
+		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Guns", meta = (ClampMin = "0.05", ClampMax = "1.0", UIMin = "0.05", UIMax = "1.0"))
+			float GunSalveDensity = 1.0f;
+		/** number of simultaniously fired projectile in a salve */
+		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Guns")
+			uint8 NumProjectiles = 2;
+
+		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Guns")
+			TArray<FName> GunSockets;
+
+		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Guns")
+			float GunRecoilForce = -500000.0f;
+
+		/** number of degrees the projectiles can deviate from actual firedirection */
+		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Guns")
+			float WeaponSpreadHalfAngle = 0.5f;
+		float WeaponSpreadRadian;
+
+		/** number of projectiles available */
+		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Guns")
+			int GunAmmunitionAmount = 10000;
+		UPROPERTY(Replicated)
+		bool bGunHasAmmo = true;
+
+		/** every x-th projectile has a tracer, set to 0 to disable tracers completely */
+		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Guns")
+			uint8 TracerIntervall = 1;
+		uint8 CurrentTracer;
+		uint8 CurrGunSocketIndex;
+		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Guns")
+			float ProjectileVel = 100000.0f;
+		
+		// Radar  ------------------------------------------------------------------------
+		void InitRadar();
 		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons", meta = (ClampMin = "0.0", ClampMax = "180.0", UIMin = "0.0", UIMax = "90.0"))
 			float MultiTargetLockOnAngleDeg = 30.0f;
 		float MultiTargetLockOnAngleRad;
@@ -213,44 +251,59 @@ UCLASS()
 		float MissileLockOnAngleRad;
 		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons", meta = (ClampMin = "0.0", ClampMax = "180.0", UIMin = "0.0", UIMax = "90.0"))
 		float GunLockOnAngleDeg = 6.0f;
-		float GunLockOnAngleRad;
+		float GunLockOnAngleRad;			
+			
+			// Missiles -----------------------------------------------------------------------
+		void StartMissileFire();
+		void StopMissileFire();
+		uint32 bMissileFire;
+		UPROPERTY(Replicated)
+			uint32 bMissileReady : 1;
+		void MissileFire();
+		FTimerHandle MissileFireHandle;
+		
+					UFUNCTION(BlueprintNativeEvent, Category = "Weapons | Missiles")
+			void SpawnMissile(const FTransform &SocketTransform,class USceneComponent * HomingTarget, const FVector &FireBaseVelocity = FVector::ZeroVector);
+		
+		/** time in Seconds */
+		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Missiles")
+			float FireRateMissile = 1.0f;
 
-
-
-		/** number of projectile salves fired after a shot has been triggered */
-		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons")
-			uint8 NumSalves = 4;
+		void MissileCooldownElapsed();
+		FTimerHandle MissileFireCooldown;
+		
+		void MissileFireSalve();
+		FTimerHandle MissileSalveTimerHandle;
+		float MissileSalveIntervall;
+		uint8 MissileCurrentSalve;
+		
+		/** number of Missile salves fired after a shot has been triggered */
+		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Missiles")
+			uint8 MissileNumSalves = 4;
 		/** smaller values lower the time between the salves and increase the time between last salve and next first salve */
-		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons", meta = (ClampMin = "0.05", ClampMax = "1.0", UIMin = "0.05", UIMax = "1.0"))
-			float SalveDensity = 1.0f;
-		/** number of simultaniously fired projectile in a salve */
-		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons")
-			uint8 NumProjectiles = 2;
+		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Missiles", meta = (ClampMin = "0.05", ClampMax = "1.0", UIMin = "0.05", UIMax = "1.0"))
+			float MissileSalveDensity = 1.0f;
+		/** number of simultaniously fired Missiles in a salve */
+		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Missiles")
+			uint8 NumMissiles = 2;
 
-		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons")
-			TArray<FName> GunSockets;
-
-		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons")
-			float GunRecoilForce = -500000.0f;
+		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Missiles")
+			TArray<FName> MissileSockets;
 
 		/** number of degrees the projectiles can deviate from actual firedirection */
-		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons")
-			float WeaponSpreadHalfAngle = 0.5f;
-		float WeaponSpreadRadian;
+		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Missiles")
+			float MissileSpreadHalfAngle = 30.0f;
+		float MissileSpreadRadian;
 
 		/** number of projectiles available */
-		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons")
-			int GunAmmunitionAmount = 10000;
-		bool bHasAmmo = true;
+		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Missiles")
+			int MissileAmmunitionAmount = 10000;
+		UPROPERTY(Replicated)
+		bool bMissileHasAmmo = true;
 
-		/** every x-th projectile has a tracer, set to 0 to disable tracers completely */
-		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons")
-			uint8 TracerIntervall = 1;
-		uint8 CurrentTracer;
-		uint8 CurrGunSocketIndex;
-		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons")
-			float ProjectileVel = 100000.0f;
-		// END Weapons
+		uint8 CurrMissileSocketIndex;
+			
+		// END Weapons ------------------------------------------------------------------------
 
 		//Input functions
 		void MoveForward(float AxisValue);
@@ -264,8 +317,7 @@ UCLASS()
 		void SwitchTargetPressed();
 		void SwitchTargetReleased();
 
-		UFUNCTION(BlueprintNativeEvent, Category = "Weapons")
-			void SpawnProjectile(const FTransform &SocketTransform, const bool bTracer, const FVector &FireBaseVelocity = FVector::ZeroVector, const FVector &TracerStartLocation = FVector::ZeroVector);
+
 		void StartBoost();
 		void StopBoost();
 
