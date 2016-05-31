@@ -12,28 +12,16 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
 	bAlwaysRelevant = false;
 	bReplicateMovement = false;
 
-
 	//SetActorEnableCollision(true);
 
 	//Create components
-	//RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("RootComponent"));
+	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("RootComponent"));
 
-	// Create static mesh component
+	// the aircraft frame
 	ArmorMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ArmorMesh"));
-	RootComponent = ArmorMesh;
 	ArmorMesh->OnComponentHit.AddDynamic(this, &AMainPawn::ArmorHit);
-	//ArmorMesh->OnComponentHit.AddDynamic<AMainPawn>(this, &AMainPawn::ArmorHit);
-	//MissileMesh->OnComponentBeginOverlap.AddDynamic(this, &AMissile::MissileMeshOverlap);
+	RootComponent = ArmorMesh;
 
-
-	Dummy = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Root"));
-
-	//RootComponent = Root;
-
-	Dummy->AttachTo(ArmorMesh, NAME_None);
-
-
-	//ArmorMesh->AttachTo(RootComponent);
 	ArmorMesh->SetCollisionObjectType(ECC_Pawn);
 	ArmorMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	ArmorMesh->SetCollisionProfileName(TEXT("BlockAll"));
@@ -42,6 +30,7 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
 	ArmorMesh->SetSimulatePhysics(true);
 	ArmorMesh->SetEnableGravity(false);
 
+	// the springarm for the camera
 	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraSpringArm"));
 	SpringArm->AttachTo(RootComponent, NAME_None);
 	//SpringArm->SetRelativeLocationAndRotation(FVector(-300.0f, 0.0f, 50.0f), FRotator(0.0f, 0.0f, 0.0f));
@@ -52,10 +41,10 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
 	SpringArm->CameraLagSpeed = 8.0f;
 	SpringArm->CameraLagMaxDistance = 2500.0f;
 
-
+	// the camera
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("GameCamera"));
-	//Camera->AttachTo(RootComponent);
 	Camera->AttachTo(SpringArm, USpringArmComponent::SocketName);
+	
 	// PostProcessSettings
 	Camera->PostProcessSettings.bOverride_LensFlareIntensity = true;
 	Camera->PostProcessSettings.LensFlareIntensity = 0.0f;
@@ -66,20 +55,20 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
 	Camera->PostProcessSettings.bOverride_MotionBlurAmount = true;
 	Camera->PostProcessSettings.MotionBlurAmount = 0.2f;
 
+	// default gun sockets
 	GunSockets.Add("gun0");
 	GunSockets.Add("gun1");
-
-
 
 	//Take control of the default Player
 	//AutoPossessPlayer = EAutoReceiveInput::Player0;
 }
 
 void AMainPawn::ArmorHit(class AActor* OtherActor, class UPrimitiveComponent * OtherComponent, FVector Loc, const FHitResult& FHitResult) {
+	// TODO: prevent collisionhandling when colliding with
+	// - destructable
+	// - missiles / projectiles
 
-
-
-
+	// enable the recover-from-collision system
 	CollisionHandling = true;
 	// location and normal for plane generation
 	MostRecentCrashPoint = FHitResult.Location;
@@ -87,35 +76,38 @@ void AMainPawn::ArmorHit(class AActor* OtherActor, class UPrimitiveComponent * O
 }
 
 void AMainPawn::RecoverFromCollision(const float DeltaSeconds) {
+	// system is activ and player has not stopped
 	if (CollisionHandling && bCanReceivePlayerInput) {
 
 		// orthogonal distance to plane where collision happened
 		const float CurrDistanceToColl = FVector::PointPlaneDist(GetActorLocation(), MostRecentCrashPoint, CrashNormal);
 		// distance from safety distance (20m)
-		float DeltaDistance = 2000.0f - CurrDistanceToColl;
+		const float DeltaDistance = 2000.0f - CurrDistanceToColl;
 		// factor to slow down the vehicle to prevent overshooting the point of safedistance
 		const float Derivative = (DeltaDistance - PrevSafetyDistanceDelta) / PrevDeltaTime;
 		// Velocity that will be added to the vehicle in order to get away from the collision point
-		AntiCollisionVelocity = (DeltaDistance + 0.5f*Derivative) * CollisionTimeDelta * 0.01f;
+		AntiCollisionVelocity = (DeltaDistance + 0.5f*Derivative) * (CollisionTimeDelta * 0.01f);
 		// apply the the impuls away from the collision point
 		ArmorMesh->AddImpulse(CrashNormal * AntiCollisionVelocity, NAME_None, true);
 		// add the elapsed time
 		CollisionTimeDelta += DeltaSeconds;
 		// reset the collision handling system when either:
 		// - the timelimit has been passed
-		// - half of the distance to safe distance has been passed
-		// - the vehicle got lower than the original collisionpoint
+		// - distance to safe distance has been passed
+		// - the vehicle got behind the original collisionpoint
 		if (CollisionTimeDelta > TimeOfAntiCollisionSystem || DeltaDistance < 0.0f || CurrDistanceToColl > 2000.0f) {
 			CollisionHandling = false;
 			AntiCollisionVelocity = 0.0f;
 			CollisionTimeDelta = 0.0f;
 			PrevSafetyDistanceDelta = 0.0f;
 		}
-		// store data for next tick to calculate the breakfactor for slowing down
+		// store data for next tick to calculate the Derivative for slowing down
 		PrevDeltaTime = DeltaSeconds;
 		PrevSafetyDistanceDelta = DeltaDistance;
 	}
 }
+
+
 void AMainPawn::InitWeapon() {
 	WeaponSpreadRadian = WeaponSpreadHalfAngle * PI / 180.0f;
 	SalveIntervall = (SalveDensity * FireRateGun) / NumSalves;
@@ -134,35 +126,31 @@ void AMainPawn::InitRadar() {
 	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 10.0f, FColor::Red, " Gun LockOn in radian : " + FString::SanitizeFloat(GunLockOnAngleRad));
 
 }
-
-// Called when the game starts or when spawned
-void AMainPawn::BeginPlay() {
-	Super::BeginPlay();
-
-	bCanReceivePlayerInput = false;
-
-	InitWeapon();
-	InitRadar();
-
-	lastUpdate = GetWorld()->RealTimeSeconds;
-	PrevReceivedTransform = GetTransform();
-	CalculateVelocityDeltas();
-
+void AMainPawn::InitNetwork(){
 	NumberOfBufferedNetUpdates = FMath::RoundToInt(Smoothing * NetUpdateFrequency);
 	NumberOfBufferedNetUpdates = FMath::Max(NumberOfBufferedNetUpdates, 2);
 	LerpVelocity = NetUpdateFrequency / NumberOfBufferedNetUpdates;
 	PredictionAmount = (NumberOfBufferedNetUpdates + AdditionalUpdatePredictions) / NetUpdateFrequency;
+}
+// Called when the game starts or when spawned
+void AMainPawn::BeginPlay() {
+	Super::BeginPlay();
 
+	// start with player stopped
+	bCanReceivePlayerInput = false;
 
+	// calculate nessecery values
+	InitWeapon();
+	InitRadar();
+	InitVelocities();
+	InitNetwork();
+
+	// initiallize variables in order to prevent crashes
+	lastUpdate = GetWorld()->RealTimeSeconds;
+	PrevReceivedTransform = GetTransform();
+
+	// make sure the vehicle mass is the same on all instances
 	ArmorMesh->SetMassOverrideInKg(NAME_None, 15000.0f, true);
-
-
-
-	//if (Role < ROLE_Authority && !IsLocallyControlled()) {
-	//	ArmorMesh->SetSimulatePhysics(false);
-	//}
-
-
 }
 
 // Called every frame
@@ -171,8 +159,9 @@ void AMainPawn::Tick(float DeltaTime) {
 
 	CurrentVelocitySize = GetVelocity().Size();
 
+	// handle player input	
 	if (IsLocallyControlled()) {
-
+		// choose mouseinput method
 		if (bUseInternMouseSensitivity) {
 			InputAxis += CameraInput * MouseSensitivity;
 		}
@@ -202,7 +191,6 @@ void AMainPawn::Tick(float DeltaTime) {
 			MouseInput.X = (1.0f - FMath::Cos(InputAxis.X * HalfPI)) * FMath::Sign(InputAxis.X);
 			MouseInput.Y = (1.0f - FMath::Cos(InputAxis.Y * HalfPI))* FMath::Sign(InputAxis.Y);
 
-
 			// lerping with the customizable Precisionfactor
 			MouseInput.X = FMath::Lerp(InputAxis.X, MouseInput.X, CenterPrecision);
 			MouseInput.Y = FMath::Lerp(InputAxis.Y, MouseInput.Y, CenterPrecision);
@@ -213,52 +201,58 @@ void AMainPawn::Tick(float DeltaTime) {
 		if (bFreeCameraActive) {
 			// rotation from mousemovement (input axis lookup and lookright)
 			CurrentSpringArmRotation = CurrentSpringArmRotation * FQuat(FRotator(CameraInput.Y * -FreeCameraSpeed, CameraInput.X * FreeCameraSpeed, 0.0f));
+			
 			// rotate the camera with the springarm
-
 			SpringArm->SetWorldRotation(CurrentSpringArmRotation);
-
-			//SpringArm->SetWorldRotation((AutoLevelAxis.Rotation().Quaternion() * CurrentSpringArmRotation));
 
 			// disable rotationcontrol
 			MouseInput = FVector2D::ZeroVector;
+		
 			// disable strafeinput
 			MovementInput.Y = 0.0f;
 		}
 
+		// disable input when player has stopped
 		if (!bCanReceivePlayerInput) {
 			MovementInput = MouseInput = FVector2D::ZeroVector;
 		}
 
-
-		if (Role < ROLE_Authority) {
+		// player is not authority -> send input to server but only when movement is allowed, server zeroes values for input if stopped
+		if (Role < ROLE_Authority && bCanReceivePlayerInput) {
+			// keep track of how many packages have been created
 			InputPackage.PacketNo++;
-
-			FInput currentInput;
+			
+			// the new current input package
+			const FInput currentInput;
+			// set the package number
 			currentInput.PacketNo = InputPackage.PacketNo;
+			// store the player input
 			currentInput.MouseInput = MouseInput;
+			currentInput.MovementInput = MovementInput;
 			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, FString::SanitizeFloat(MouseInput.X) + " x " + FString::SanitizeFloat(MouseInput.Y));
 			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, FString::SanitizeFloat(MouseInput.Size()));
-			currentInput.MovementInput = MovementInput;
 
+			// prevent the package from growing too big
 			while (InputPackage.InputDataList.Num() >= 1) {
 				InputPackage.InputDataList.RemoveAtSwap(0);
 			}
 
+			// put the new inputpackage in the struct that will be sent to the server 
 			InputPackage.InputDataList.Add(currentInput);
+			// send the information 
 			InputPackage.Ack = Ack;
 
 			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, "Length of Array = " + FString::FromInt(InputPackage.InputDataList.Num()));
-
+			
+			// send the input to server
 			GetPlayerInput(InputPackage);
-
 		}
-
+		// radar and weapons only on player side
 		TargetLock();
-
 	}
 
 	if (Role == ROLE_Authority) {
-
+		// unpack received inputdata package
 		if (InputPackage.InputDataList.Num() > 0) {
 
 			const FInput &currentInput = InputPackage.InputDataList.Last();
@@ -270,9 +264,8 @@ void AMainPawn::Tick(float DeltaTime) {
 			if (!bCanReceivePlayerInput) {
 				MovementInput = MouseInput = FVector2D::ZeroVector;
 			}
-
 		}
-
+		// player movement on authority
 		MainPlayerMovement(DeltaTime);
 
 		// movement replication
@@ -281,12 +274,11 @@ void AMainPawn::Tick(float DeltaTime) {
 			LinearVelocity = ArmorMesh->GetPhysicsLinearVelocity();
 			//AngularVelocity = ArmorMesh->GetPhysicsAngularVelocity();
 		}
-
-
 	}
 	else if (IsLocallyControlled()) {
 		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Red, "Locally Controlled Client");
-
+		
+		// clientside movement (predicting; will be corrected with information from authority)
 		MainPlayerMovement(DeltaTime);
 	}
 	else {
@@ -547,7 +539,7 @@ void AMainPawn::OnRep_AngularVelocity() {
 	//}
 }
 
-void AMainPawn::CalculateVelocityDeltas() {
+void AMainPawn::InitVelocities() {
 	VelForwardDelta = MaxVelocity - DefaultForwardVel;
 	VelBackwardsDelta = -MinVelocity + DefaultForwardVel;
 

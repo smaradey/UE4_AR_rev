@@ -24,7 +24,7 @@ USTRUCT()
 	struct FInput {
 		GENERATED_USTRUCT_BODY()
 			UPROPERTY()
-			int16 PacketNo;
+			uint16 PacketNo;
 		UPROPERTY()
 			FVector2D MouseInput;
 		UPROPERTY()
@@ -35,9 +35,9 @@ USTRUCT()
 	struct FInputsPackage {
 		GENERATED_USTRUCT_BODY()
 			UPROPERTY()
-			int16 PacketNo;
+			uint16 PacketNo;
 		UPROPERTY()
-			int16 Ack;
+			uint16 Ack;
 		UPROPERTY()
 			TArray<FInput> InputDataList = TArray<FInput>();
 	};
@@ -287,14 +287,14 @@ UCLASS()
 		virtual void GetPlayerInput(FInputsPackage inputData); // executed on client
 
 		UFUNCTION(Client, reliable)
-			void Client_LastAcceptedPacket(int16 Ack);
-		virtual void LastAcceptedPacket(int16 Ack);
+			void Client_LastAcceptedPacket(uint16 Ack);
+		virtual void LastAcceptedPacket(uint16 Ack);
 		UPROPERTY()
 			TArray<FInput> PlayerInputs = TArray<FInput>();
 		UPROPERTY()
 			FInputsPackage InputPackage;
 		UPROPERTY()
-			int16 Ack;
+			uint16 Ack;
 
 		// Replicated Movement
 		// {
@@ -332,7 +332,8 @@ UCLASS()
 			float MinVelocity = 2500.0f;
 		float VelForwardDelta;
 		float VelBackwardsDelta;
-		void CalculateVelocityDeltas();
+		UFUNCTION()
+		void InitVelocities();
 		UPROPERTY(EditAnywhere, BlueprintReadWrite)
 			float CurrentVelocitySize;
 		/** max velocity to the right and to the left */
@@ -395,6 +396,7 @@ UCLASS()
 
 		void MainPlayerMovement(float DeltaTime);
 
+		void InitNetwork();
 		// how many updates to buffer
 		int NumberOfBufferedNetUpdates;
 		// factor to slow down movement to compensate long buffertime
