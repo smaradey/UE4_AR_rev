@@ -76,7 +76,7 @@ UCLASS()
 		virtual void Tick(float DeltaSeconds) override;
 
 		UFUNCTION()
-			void ArmorHit(class AActor* OtherActor, class UPrimitiveComponent * OtherComponent, FVector Loc, const FHitResult& FHitResult);
+			void ArmorHit(UPrimitiveComponent * ThisComponent, class AActor* OtherActor, class UPrimitiveComponent * OtherComponent, FVector Loc, const FHitResult& FHitResult);
 
 		// Called to bind functionality to input
 		virtual void SetupPlayerInputComponent(class UInputComponent* InputComponent) override;

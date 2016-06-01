@@ -32,7 +32,7 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
 
 	// the springarm for the camera
 	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraSpringArm"));
-	SpringArm->AttachTo(RootComponent, NAME_None);
+	SpringArm->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepRelativeTransform, NAME_None);
 	//SpringArm->SetRelativeLocationAndRotation(FVector(-300.0f, 0.0f, 50.0f), FRotator(0.0f, 0.0f, 0.0f));
 	SpringArm->TargetArmLength = 0.0f;
 	SpringArmLength = SpringArm->TargetArmLength;
@@ -43,7 +43,7 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
 
 	// the camera
 	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("GameCamera"));
-	Camera->AttachTo(SpringArm, USpringArmComponent::SocketName);
+	Camera->AttachToComponent(SpringArm, FAttachmentTransformRules::KeepRelativeTransform, USpringArmComponent::SocketName);
 
 	// PostProcessSettings
 	Camera->PostProcessSettings.bOverride_LensFlareIntensity = true;
@@ -66,7 +66,8 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
 	//AutoPossessPlayer = EAutoReceiveInput::Player0;
 }
 
-void AMainPawn::ArmorHit(class AActor* OtherActor, class UPrimitiveComponent * OtherComponent, FVector Loc, const FHitResult& FHitResult) {
+void AMainPawn::ArmorHit(UPrimitiveComponent * ThisComponent, class AActor* OtherActor, class UPrimitiveComponent * OtherComponent, FVector Loc, const FHitResult& FHitResult) {
+
 	
 
 	// TODO: prevent collisionhandling when colliding with

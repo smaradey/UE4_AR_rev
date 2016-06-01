@@ -208,10 +208,10 @@ public:
 	virtual void RunsOnAllClients();
 
 	UFUNCTION()
-		void MissileMeshOverlap(class AActor* OtherActor, class UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+		void MissileMeshOverlap(class UPrimitiveComponent* ThisComp, class AActor* OtherActor, UPrimitiveComponent *OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
 
 	UFUNCTION()
-		void MissileDestruction();
+		void MissileDestruction(AActor * actor);
 
 	////// example for function replication------------------------
 	UPROPERTY(Replicated)

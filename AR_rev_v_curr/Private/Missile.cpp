@@ -22,7 +22,7 @@ AMissile::AMissile(const FObjectInitializer& ObjectInitializer) : Super(ObjectIn
 	// A sphere that acts as explosionradius/targetdetection
 	ActorDetectionSphere = CreateDefaultSubobject<USphereComponent>(TEXT("ActorDetection"));
 	ActorDetectionSphere->bAutoActivate = false;
-	ActorDetectionSphere->AttachTo(RootComponent);
+	ActorDetectionSphere->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepRelativeTransform, NAME_None);
 	ActorDetectionSphere->InitSphereRadius(TargetDetectionRadius);
 	ActorDetectionSphere->SetCollisionProfileName(TEXT("Custom"));
 	ActorDetectionSphere->SetCanEverAffectNavigation(false);
@@ -40,7 +40,7 @@ AMissile::AMissile(const FObjectInitializer& ObjectInitializer) : Super(ObjectIn
 	MissileTrail = CreateDefaultSubobject<UParticleSystemComponent>(TEXT("MissileTrail"));
 	MissileTrail->bAutoActivate = false;
 
-	
+
 
 
 	// binding an a function to event OnDestroyed
@@ -76,7 +76,7 @@ void AMissile::GetLifetimeReplicatedProps(TArray< FLifetimeProperty > & OutLifet
 	DOREPLIFETIME_CONDITION(AMissile, AdvancedMissileMaxRange, COND_InitialOnly);
 	DOREPLIFETIME(AMissile, MissileLock);
 	DOREPLIFETIME_CONDITION(AMissile, bBombingMode, COND_InitialOnly);
-	DOREPLIFETIME_CONDITION(AMissile, BombingTargetLocation, COND_InitialOnly);	
+	DOREPLIFETIME_CONDITION(AMissile, BombingTargetLocation, COND_InitialOnly);
 
 	DOREPLIFETIME(AMissile, CurrentTarget);
 	DOREPLIFETIME_CONDITION(AMissile, AdvancedHoming, COND_InitialOnly);
@@ -153,19 +153,19 @@ void AMissile::BeginPlay()
 	if (Role < ROLE_Authority) {
 		NetUpdateInterval = 1.0f / NetUpdateFrequency;
 		//ActorDetectionSphere->DestroyComponent();
-		//ExplosionSound->AttachTo(RootComponent);
+		//ExplosionSound->AttachToComponent(RootComponent);
 		//if (MissileMesh->DoesSocketExist(FName("booster"))) {
-		//	MissileTrail->AttachTo(MissileMesh, FName("booster"));
+		//	MissileTrail->AttachToComponent(MissileMesh, FName("booster"));
 		//	MissileTrail->Activate();
-		//	MissileEngineSound->AttachTo(MissileMesh, FName("booster"));
+		//	MissileEngineSound->AttachToComponent(MissileMesh, FName("booster"));
 		//}
 	}
 	ActorDetectionSphere->DestroyComponent();
-	ExplosionSound->AttachTo(RootComponent);
+	ExplosionSound->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepRelativeTransform);
 	if (MissileMesh->DoesSocketExist(FName("booster"))) {
-		MissileTrail->AttachTo(MissileMesh, FName("booster"));
+		MissileTrail->AttachToComponent(MissileMesh, FAttachmentTransformRules::KeepRelativeTransform, FName("booster"));
 		MissileTrail->Activate();
-		MissileEngineSound->AttachTo(MissileMesh, FName("booster"));
+		MissileEngineSound->AttachToComponent(MissileMesh, FAttachmentTransformRules::KeepRelativeTransform, FName("booster"));
 	}
 }
 
@@ -296,7 +296,7 @@ void AMissile::Tick(float DeltaTime)
 	}
 }
 
-void AMissile::MissileDestruction() {
+void AMissile::MissileDestruction(AActor * actor) {
 	//
 }
 
@@ -353,7 +353,8 @@ void AMissile::OverlappingATarget(class AActor* OtherActor/*, class UPrimitiveCo
 	}
 }
 
-void AMissile::MissileMeshOverlap(class AActor* OtherActor, class UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult) {
+void AMissile::MissileMeshOverlap(class UPrimitiveComponent* ThisComp, class AActor* OtherActor, UPrimitiveComponent *OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult) {
+
 	// if missile has already exploded abort function
 	if (bHit) return;
 	//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::White, "Overlap Event");
