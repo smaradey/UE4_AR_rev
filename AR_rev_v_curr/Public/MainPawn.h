@@ -463,7 +463,7 @@ UCLASS()
 
 	private:
 
-		void MainPlayerMovement(float DeltaTime);
+		void MainPlayerMovement(const float DeltaTime, const FVector &CorrectionVelocity = FVector::ZeroVector, const FVector &CorrectionAngularVelocity = FVector::ZeroVector);
 
 		void InitNetwork();
 		// how many updates to buffer
@@ -484,6 +484,8 @@ UCLASS()
 			FTransform TransformOnAuthority;
 		UFUNCTION()
 			void OnRep_TransformOnAuthority();
+		FVector LinVelError;
+		FVector AngVelError;
 
 		/**  last linear physics velocity by the client/sent by the server/authority */
 		UPROPERTY(ReplicatedUsing = OnRep_LinearVelocity)

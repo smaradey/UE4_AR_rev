@@ -68,7 +68,7 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
 
 void AMainPawn::ArmorHit(UPrimitiveComponent * ThisComponent, class AActor* OtherActor, class UPrimitiveComponent * OtherComponent, FVector Loc, const FHitResult& FHitResult) {
 
-	
+
 
 	// TODO: prevent collisionhandling when colliding with
 	// - destructable
@@ -297,7 +297,10 @@ void AMainPawn::Tick(float DeltaTime) {
 		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Red, "Locally Controlled Client");
 
 		// clientside movement (predicting; will be corrected with information from authority)
-		MainPlayerMovement(DeltaTime);
+		MainPlayerMovement(DeltaTime, LinVelError, AngVelError);
+
+		// Angular Velocities: x = Roll, y = Pitch, z = yaw in worldspace
+		//ArmorMesh->SetPhysicsAngularVelocity(FVector( 0, 360, 0), true);
 
 
 
@@ -342,7 +345,7 @@ void AMainPawn::GetLifetimeReplicatedProps(TArray <FLifetimeProperty> &OutLifeti
 	DOREPLIFETIME_CONDITION(AMainPawn, AuthorityAck, COND_OwnerOnly);
 }
 
-void AMainPawn::MainPlayerMovement(float DeltaTime) {
+void AMainPawn::MainPlayerMovement(const float DeltaTime, const FVector &CorrectionVelocity, const FVector &CorrectionAngularVelocity) {
 	// equal for locally controlled --------------------------------------------------------------
 	FVector2D PrevUsedMouseInput = PreviousMouseInput;
 	{
@@ -443,7 +446,7 @@ void AMainPawn::MainPlayerMovement(float DeltaTime) {
 
 			// blend between pure physics velocities and player caused velocity				
 			const FVector NewAngVel = FMath::Lerp(ArmorMesh->GetPhysicsAngularVelocity(), WorldAngVel - AngVelStrafeCompensation, Alpha);
-			ArmorMesh->SetPhysicsAngularVelocity(NewAngVel);
+			ArmorMesh->SetPhysicsAngularVelocity(NewAngVel + CorrectionAngularVelocity);
 
 			// rotate springarm/camera in local space to compensate for straferotation 
 			if (!bFreeCameraActive) {
@@ -464,7 +467,7 @@ void AMainPawn::MainPlayerMovement(float DeltaTime) {
 				const FVector AngVelStrafeCompensation = GetActorRotation().RotateVector(FVector(DeltaRot / DeltaTime + LevelHorizonVel, 0, 0));
 
 				// player input is directly translated into movement
-				ArmorMesh->SetPhysicsAngularVelocity(WorldAngVel - AngVelStrafeCompensation);
+				ArmorMesh->SetPhysicsAngularVelocity(WorldAngVel - AngVelStrafeCompensation + CorrectionAngularVelocity);
 				// rotate springarm/camera in local space to compensate for straferotation 
 				SpringArm->SetRelativeRotation(FRotator(0, 0, CurrStrafeRot + LevelHorizonVel * DeltaTime), false, nullptr, ETeleportType::None);
 			}
@@ -472,7 +475,7 @@ void AMainPawn::MainPlayerMovement(float DeltaTime) {
 				const FVector AngVelStrafeCompensation = GetActorRotation().RotateVector(FVector(DeltaRot / DeltaTime, 0, 0));
 
 				// player input is directly translated into movement
-				ArmorMesh->SetPhysicsAngularVelocity(WorldAngVel - AngVelStrafeCompensation);
+				ArmorMesh->SetPhysicsAngularVelocity(WorldAngVel - AngVelStrafeCompensation + CorrectionAngularVelocity);
 				// rotate springarm/camera in local space to compensate for straferotation 
 				if (!bFreeCameraActive) {
 					SpringArm->SetRelativeRotation(FRotator(0, 0, CurrStrafeRot), false, nullptr, ETeleportType::None);
@@ -494,7 +497,7 @@ void AMainPawn::MainPlayerMovement(float DeltaTime) {
 		TargetLinearVelocity = GetActorForwardVector() * ForwardVel + GetActorRightVector() * StrafeVel;
 
 		// straferotation compensation 
-		TargetLinearVelocity = TargetLinearVelocity.RotateAngleAxis(-CurrStrafeRot, GetActorForwardVector());
+		TargetLinearVelocity = TargetLinearVelocity.RotateAngleAxis(-CurrStrafeRot, GetActorForwardVector()) + CorrectionVelocity;
 
 		MovControlStrength = FMath::FInterpConstantTo(MovControlStrength, TimeOfNoControl + 1.0f, DeltaTime, 1.0f);
 
@@ -514,6 +517,7 @@ void AMainPawn::MainPlayerMovement(float DeltaTime) {
 	}
 
 	// end both -----------------------------------------
+
 }
 
 void AMainPawn::OnRep_TransformOnAuthority() {
@@ -539,36 +543,35 @@ void AMainPawn::OnRep_TransformOnAuthority() {
 		TargetTransform = FTransform(TransformOnAuthority);
 		TargetTransform.AddToTranslation(Direction * Velocity);
 
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Green, "Transform received");
 	}
 	else if (GetNetMode() == NM_Client && IsLocallyControlled()) {
 
-		// calculate client error
-		//TransformOnAuthority;
-		//PastClientTransform;
-
-		FVector CurrLinVel = ArmorMesh->GetPhysicsLinearVelocity();
-		FVector CurrAngVel = ArmorMesh->GetPhysicsAngularVelocity();
-
 
 		FVector LocationError = TransformOnAuthority.GetLocation() - PastClientTransform.GetLocation();
+
+		if (GEngine&& DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "         Location Error  = " + FString::SanitizeFloat(LocationError.Size() * 0.01f) + " m");
+
+		LinVelError = LocationError / (2.0f * NetDelta);
+
+		if (LinVelError.Size() > 5000.0f) {
+			SetActorLocation(TransformOnAuthority.GetLocation(), false, nullptr, ETeleportType::None);
+			LinVelError = FVector::ZeroVector;
+		}
+
 		FQuat RotationError = TransformOnAuthority.GetRotation() * PastClientTransform.GetRotation().Inverse();
+		FRotator ErrorDelta = RotationError.Rotator();
 
-		FVector PredictedMovement = GetActorLocation() - PastClientTransform.GetLocation();
+		if (GEngine&& DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "Yaw   Error" + FString::SanitizeFloat(ErrorDelta.Yaw));
+		if (GEngine&& DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "Pitch Error" + FString::SanitizeFloat(ErrorDelta.Pitch));
+		if (GEngine&& DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "Roll  Error" + FString::SanitizeFloat(ErrorDelta.Roll));
 
-		FVector CorrectedMovement = RotationError.RotateVector(PredictedMovement);
 
-		FVector PredictedLocationError = GetActorLocation() - (PastClientTransform.GetLocation() + CorrectedMovement);
+		AngVelError = FVector(-ErrorDelta.Roll, -ErrorDelta.Pitch, ErrorDelta.Yaw) / (2.0f * NetDelta);
 
-		//LocationCorrection = PredictedLocationError/* / NetDelta*/;
-
-		// TODO: get rid of stuttering and gltches from location offsetting
-
-		AddActorWorldOffset(PredictedLocationError, false, nullptr, ETeleportType::None);
-		AddActorWorldRotation(RotationError, false, nullptr, ETeleportType::None);
-
-		/*	ArmorMesh->SetPhysicsLinearVelocity(RotationError.RotateVector(CurrLinVel));
-			ArmorMesh->SetPhysicsAngularVelocity(RotationError.RotateVector(CurrAngVel));*/
+		if (AngVelError.Size() > 45.0f) {
+			SetActorRotation(TransformOnAuthority.GetRotation(), ETeleportType::None);
+			AngVelError = FVector::ZeroVector;
+		}
 
 	}
 
@@ -901,7 +904,7 @@ void AMainPawn::MissileFire() {
 
 void AMainPawn::MissileFireSalve() {
 	if (MissileCurrentSalve < MissileNumSalves) {
-
+		int CurrTargetIndex = 0;
 		for (uint8 shot = 0; shot < NumMissiles; ++shot) {
 			// choose next avaliable Missile sockets or start over from the first if last was used
 			CurrMissileSocketIndex = (CurrMissileSocketIndex + 1) % MissileSockets.Num();
@@ -916,20 +919,11 @@ void AMainPawn::MissileFireSalve() {
 
 			USceneComponent * HomingTarget = nullptr;
 
-			if (MultiTargets.Num() > 0) {
-				const int32 TargetIndex = (int)FMath::RandRange(0, MultiTargets.Num());
-				if (MultiTargets.IsValidIndex(TargetIndex) && MultiTargets[TargetIndex] && TargetIndex < MultiTargets.Num()) {
-					HomingTarget = MultiTargets[TargetIndex]->GetRootComponent();
-					// calculate a direction and apply weaponspread
-					SpawnDirection = FMath::VRandCone(CurrentSocketTransform.GetRotation().GetForwardVector(), MissileSpreadRadian);
-				}
-				else {
-					if (CurrLockOnTarget) {
-						HomingTarget = CurrLockOnTarget->GetRootComponent();
-						// calculate a direction and apply weaponspread
-						SpawnDirection = FMath::VRandCone(CurrentSocketTransform.GetRotation().GetForwardVector(), MissileSpreadRadian);
-					}
-				}
+			if (bMultiTarget && MultiTargets.Num() > 0 && MultiTargets.IsValidIndex(CurrTargetIndex) && MultiTargets[CurrTargetIndex] && CurrTargetIndex < MultiTargets.Num()) {
+				HomingTarget = MultiTargets[CurrTargetIndex]->GetRootComponent();
+				// calculate a direction and apply weaponspread
+				SpawnDirection = FMath::VRandCone(CurrentSocketTransform.GetRotation().GetForwardVector(), MissileSpreadRadian);
+				CurrTargetIndex = (CurrTargetIndex + 1) % MultiTargets.Num();
 			}
 			else {
 				if (CurrLockOnTarget) {
@@ -946,7 +940,7 @@ void AMainPawn::MissileFireSalve() {
 			--MissileAmmunitionAmount;
 			if (MissileAmmunitionAmount > 0) {
 				// debug
-				if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::White, "Bang Ammo left: " + FString::FromInt(MissileAmmunitionAmount));
+				if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::White, "Missiles left: " + FString::FromInt(MissileAmmunitionAmount));
 			}
 			else {
 				bMissileHasAmmo = false;
@@ -1150,27 +1144,46 @@ void AMainPawn::TargetLock() {
 	float CurrDeltaAngleRad = -1.0f;
 	AActor * newTarget = nullptr;
 	TArray<AActor*> NewMultiTargets;
+	TArray<float> DeltaAnglesRad;
+
+
 	for (TActorIterator<AActor> currActor(GetWorld()); currActor; ++currActor) {
 
 		//Run the Event specific to the actor, if the actor has the interface
 		if (*currActor != this && currActor->Implements<UTarget_Interface>()) {
 			if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, currActor->GetName() + " has the Interface");
+			// TODO: get only the closest targets
 
 			const float DeltaAngleRad = FVector::DotProduct(ArmorMesh->GetForwardVector(), (currActor->GetActorLocation() - GetActorLocation()).GetSafeNormal());
 
 			//const float Distance = currActor->GetDistanceTo(this);			
 
-			if (DeltaAngleRad > MultiTargetLockOnAngleRad && DeltaAngleRad > CurrDeltaAngleRad) {
-				CurrDeltaAngleRad = DeltaAngleRad;
+			if (DeltaAngleRad > MultiTargetLockOnAngleRad/* && DeltaAngleRad > CurrDeltaAngleRad*/) {
+				//CurrDeltaAngleRad = DeltaAngleRad;
 				newTarget = *currActor;
 				// multiple targets allowed
 				if (bMultiTarget) {
 					// add current new closest actor	
-					NewMultiTargets.Add(newTarget);
-					// if maximum number of multitargets already in array, remove the least close actor
-					if (NewMultiTargets.Num() > MaxNumTargets) {
+
+					if (MaxNumTargets > NewMultiTargets.Num()) {
+						NewMultiTargets.Add(newTarget);
+						int32 index = -1;
+						NewMultiTargets.Find(newTarget, index);
+						DeltaAnglesRad.Insert(DeltaAngleRad, index);
+
+						continue;
+					}
+					else {
+						// if maximum number of multitargets already in array, remove the least close actor
+						float MaxAlreadyExistingAngle = 0.0f;
+						for (float Angle : DeltaAnglesRad) {
+							if (Angle > MaxAlreadyExistingAngle) {
+								MaxAlreadyExistingAngle = Angle;
+							}
+						}
+
 						AActor * toRemove = NewMultiTargets[0];
-						NewMultiTargets.RemoveSwap(toRemove);
+						NewMultiTargets.Remove(toRemove);
 					}
 				}
 			}
@@ -1179,10 +1192,6 @@ void AMainPawn::TargetLock() {
 	if (!CurrLockOnTarget) {
 		CurrLockOnTarget = newTarget;
 	}
-	if (NewMultiTargets.Num() > 0 && NewMultiTargets.Contains(CurrLockOnTarget)) {
-		NewMultiTargets.RemoveSwap(CurrLockOnTarget);
-	}
-
 
 	if (CurrLockOnTarget) {
 		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, CurrLockOnTarget->GetName() + " : " + FString::SanitizeFloat(CurrDeltaAngleRad) + " rad");
@@ -1193,6 +1202,15 @@ void AMainPawn::TargetLock() {
 		}
 	}
 
+	// remove duplicates
+	if (bMultiTarget && NewMultiTargets.Num() > 0 && NewMultiTargets.Contains(CurrLockOnTarget)) {
+		NewMultiTargets.RemoveSwap(CurrLockOnTarget);
+	}
+	else {
+		MultiTargets.Empty();
+	}
+
+	// check whether the list of targets has to be sent to the server
 	bool bMultiTargetListChanged = false;
 	for (AActor * actor : NewMultiTargets) {
 		if (actor && MultiTargets.Contains(actor)) {
@@ -1203,8 +1221,8 @@ void AMainPawn::TargetLock() {
 		break;
 	}
 	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, "Number of additionally targeted actors: " + FString::FromInt(NewMultiTargets.Num()));
-	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, "Number of previously   targeted actors: " + FString::FromInt(MultiTargets.Num()));
 
+	// in case the list has changed sent list to server
 	if (bMultiTargetListChanged || MultiTargets.Num() != NewMultiTargets.Num()) {
 		MultiTargets = TArray<AActor*>(NewMultiTargets);
 		SetTargets(CurrLockOnTarget, MultiTargets);
