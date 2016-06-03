@@ -521,11 +521,11 @@ void AMainPawn::MainPlayerMovement(const float DeltaTime, const FVector &Correct
 }
 
 void AMainPawn::OnRep_TransformOnAuthority() {
-		// calculate the time between this and the previous update
-		if (GetWorld()) {
-			NetDelta = GetWorld()->RealTimeSeconds - lastUpdate;
-			lastUpdate = GetWorld()->RealTimeSeconds;
-		}
+	// calculate the time between this and the previous update
+	if (GetWorld()) {
+		NetDelta = GetWorld()->RealTimeSeconds - lastUpdate;
+		lastUpdate = GetWorld()->RealTimeSeconds;
+	}
 
 	// uncontrolled client
 	if (GetNetMode() == NM_Client && !IsLocallyControlled()) {
@@ -547,25 +547,25 @@ void AMainPawn::OnRep_TransformOnAuthority() {
 		FVector LocationError = TransformOnAuthority.GetLocation() - PastClientTransform.GetLocation();
 
 		if (GEngine&& DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Orange, "         Location Error  = " + FString::SanitizeFloat(LocationError.Size() * 0.01f) + " m");
+
+		// the rotation delta between client and server
+		FQuat RotationError = TransformOnAuthority.GetRotation() * PastClientTransform.GetRotation().Inverse();
+		FRotator ErrorDelta = RotationError.Rotator();
+		if (GEngine&& DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "Yaw   Error" + FString::SanitizeFloat(ErrorDelta.Yaw));
+		if (GEngine&& DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "Pitch Error" + FString::SanitizeFloat(ErrorDelta.Pitch));
+		if (GEngine&& DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "Roll  Error" + FString::SanitizeFloat(ErrorDelta.Roll));
+
 		// velocity to correct the client
-		LinVelError = LocationError / (2.0f * NetDelta);
-		
+		LinVelError = LocationError /** NetDelta*/;
+		// angular velocity to correct the client
+		AngVelError = FVector(-ErrorDelta.Roll, -ErrorDelta.Pitch, ErrorDelta.Yaw)/* * NetDelta*/;
+
+
 		// teleport the client if the distance to correct location is too big
 		if (LinVelError.Size() > 5000.0f) {
 			SetActorLocation(TransformOnAuthority.GetLocation(), false, nullptr, ETeleportType::None);
 			LinVelError = FVector::ZeroVector;
 		}
-		
-		// the rotation delta between client and server
-		FQuat RotationError = TransformOnAuthority.GetRotation() * PastClientTransform.GetRotation().Inverse();
-		FRotator ErrorDelta = RotationError.Rotator();
-
-		if (GEngine&& DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "Yaw   Error" + FString::SanitizeFloat(ErrorDelta.Yaw));
-		if (GEngine&& DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "Pitch Error" + FString::SanitizeFloat(ErrorDelta.Pitch));
-		if (GEngine&& DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "Roll  Error" + FString::SanitizeFloat(ErrorDelta.Roll));
-
-		// angular velocity to correct the client
-		AngVelError = FVector(-ErrorDelta.Roll, -ErrorDelta.Pitch, ErrorDelta.Yaw) / (2.0f * NetDelta);
 
 		// if rotation delta is too big add the correction
 		if (AngVelError.Size() > 45.0f) {
@@ -573,9 +573,7 @@ void AMainPawn::OnRep_TransformOnAuthority() {
 			//SetActorRotation(TransformOnAuthority.GetRotation(), ETeleportType::None);
 			AngVelError = FVector::ZeroVector;
 		}
-
 	}
-
 }
 
 //void AMainPawn::ApplyTranformCorrection()
