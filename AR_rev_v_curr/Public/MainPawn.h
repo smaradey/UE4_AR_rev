@@ -33,42 +33,45 @@ struct FPlayerInputPackage {
 	UPROPERTY()		
 		uint8 MovementData;
 
-	void SetMovementInput(FVector2D &MovementInput) {
+	/*UPROPERTY()
+		uint64 PlayerDataCompressed;*/
+
+	void SetMovementInput(const FVector2D &MovementInput) {
 		MovementData = 0;
 		// forward
 		if (MovementInput.X > 0.0f) {
-			MovementData |= 1 << 3;
+			MovementData |= 1 << 2;
 		}
 		// backwards
 		if (MovementInput.X < 0.0f) {
-			MovementData |= 1 << 4;
+			MovementData |= 1 << 3;
 		}
 		// right
 		if (MovementInput.Y > 0.0f) {
-			MovementData |= 1 << 1;
+			MovementData |= 1 << 0;
 		}
 		// left
 		if (MovementInput.Y < 0.0f) {
-			MovementData |= 1 << 2;
+			MovementData |= 1 << 1;
 		}
 	}
 
 	FVector2D GetMovementInput() {
 		FVector2D Input;
 		// forward
-		if (MovementData & 1 << 3) {
+		if (MovementData & 1 << 2) {
 			Input.X = 1.0f;
 		}
 		// backwards
-		if (MovementData & 1 << 4) {
+		if (MovementData & 1 << 3) {
 			Input.X = -1.0f;
 		}
 		// right
-		if (MovementData & 1 << 1) {
+		if (MovementData & 1 << 0) {
 			Input.Y = 1.0f;
 		}
 		// left
-		if (MovementData & 1 << 2) {
+		if (MovementData & 1 << 1) {
 			Input.Y = -1.0f;
 		}
 		return Input;
@@ -77,12 +80,12 @@ struct FPlayerInputPackage {
 
 
 USTRUCT()
-struct FTransformHistoryElem {
+struct FPositionHistoryElement {
 	GENERATED_USTRUCT_BODY()
 		UPROPERTY()
 		uint16 PacketNo;
 	UPROPERTY()
-		FTransform PastActorTransform;
+		FTransform Transform;
 };
 
 
@@ -396,7 +399,7 @@ protected:
 
 
 	UPROPERTY()
-		TArray<FTransformHistoryElem> TransformHistory;
+		TArray<FPositionHistoryElement> MovementHistory;
 
 	// Replicated Movement
 	// {

@@ -86,14 +86,17 @@ void AMainPawn::RecoverFromCollision(const float DeltaSeconds) {
 	// system is activ and player has not stopped
 	if (CollisionHandling && bCanReceivePlayerInput) {
 
+		const float SafeDistance = 3000.0f;
+		const float AntiCollisionSystemStrength = 0.01f;
+
 		// orthogonal distance to plane where collision happened
 		const float CurrDistanceToColl = FVector::PointPlaneDist(GetActorLocation(), MostRecentCrashPoint, CrashNormal);
 		// distance from safety distance (20m)
-		const float DeltaDistance = 2000.0f - CurrDistanceToColl;
+		const float DeltaDistance = SafeDistance - CurrDistanceToColl;
 		// factor to slow down the vehicle to prevent overshooting the point of safedistance
 		const float Derivative = (DeltaDistance - PrevSafetyDistanceDelta) / PrevDeltaTime;
 		// Velocity that will be added to the vehicle in order to get away from the collision point
-		AntiCollisionVelocity = (DeltaDistance + 0.5f*Derivative) * (CollisionTimeDelta * 0.01f);
+		AntiCollisionVelocity = (DeltaDistance + 0.5f*Derivative) * (CollisionTimeDelta * AntiCollisionSystemStrength);
 		// apply the the impuls away from the collision point
 		ArmorMesh->AddImpulse(CrashNormal * AntiCollisionVelocity, NAME_None, true);
 		// add the elapsed time
@@ -102,7 +105,7 @@ void AMainPawn::RecoverFromCollision(const float DeltaSeconds) {
 		// - the timelimit has been passed
 		// - distance to safe distance has been passed
 		// - the vehicle got behind the original collisionpoint
-		if (CollisionTimeDelta > TimeOfAntiCollisionSystem || DeltaDistance < 0.0f || CurrDistanceToColl > 2000.0f) {
+		if (CollisionTimeDelta > TimeOfAntiCollisionSystem || DeltaDistance < 0.0f || CurrDistanceToColl > SafeDistance) {
 			CollisionHandling = false;
 			AntiCollisionVelocity = 0.0f;
 			CollisionTimeDelta = 0.0f;
@@ -158,7 +161,6 @@ void AMainPawn::BeginPlay() {
 
 	// initiallize variables in order to prevent crashes
 	lastUpdate = GetWorld()->RealTimeSeconds;
-	PrevReceivedTransform = GetTransform();
 
 	// make sure the vehicle mass is the same on all instances
 	ArmorMesh->SetMassOverrideInKg(NAME_None, 15000.0f, true);
@@ -228,8 +230,7 @@ void AMainPawn::Tick(float DeltaTime) {
 			MovementInput = MouseInput = FVector2D::ZeroVector;
 		}
 
-		// player is not authority -> send input to server but only when movement is allowed, server zeroes values for input if stopped
-		if (Role < ROLE_Authority && bCanReceivePlayerInput) {
+		if (Role < ROLE_Authority) {
 			// keep track of how many packages have been created
 			InputPackage.PacketNo++;
 
@@ -244,10 +245,10 @@ void AMainPawn::Tick(float DeltaTime) {
 			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, FString::SanitizeFloat(MouseInput.Size()));
 
 			// store client movement for later correction when corrrect server transform is received
-			FTransformHistoryElem CurrentTransform;
-			CurrentTransform.PacketNo = InputPackage.PacketNo;
-			CurrentTransform.PastActorTransform = GetTransform();
-			TransformHistory.Add(CurrentTransform);
+			FPositionHistoryElement CurrentPositionData;
+			CurrentPositionData.PacketNo = InputPackage.PacketNo;
+			CurrentPositionData.Transform = GetTransform();
+			MovementHistory.Add(CurrentPositionData);
 
 			// send the input to server
 			GetPlayerInput(InputPackage);
@@ -259,21 +260,25 @@ void AMainPawn::Tick(float DeltaTime) {
 
 	if (Role == ROLE_Authority) {
 		// unpack received inputdata package
-		MouseInput = InputPackage.MouseInput;
-		MovementInput = InputPackage.GetMovementInput();
-
+		if (!IsLocallyControlled()) {
+			MouseInput = InputPackage.MouseInput;
+			MovementInput = InputPackage.GetMovementInput();
+			if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, "Server receiving Movement :" +  FString::SanitizeFloat(MovementInput.Size()));
+		}
 		if (!bCanReceivePlayerInput) {
 			MovementInput = MouseInput = FVector2D::ZeroVector;
 		}
-	}
-	// player movement on authority
-	MainPlayerMovement(DeltaTime);
 
-	// movement replication
-	{
-		TransformOnAuthority = GetTransform();
+
+		// player movement on authority
+		MainPlayerMovement(DeltaTime);
+
+		// movement replication
+
+		TransformOnAuthority = ArmorMesh->GetComponentTransform();
 		LinearVelocity = ArmorMesh->GetPhysicsLinearVelocity();
 		//AngularVelocity = ArmorMesh->GetPhysicsAngularVelocity();
+
 	}
 
 	if (Role < ROLE_Authority && IsLocallyControlled()) {
@@ -281,15 +286,9 @@ void AMainPawn::Tick(float DeltaTime) {
 
 		// clientside movement (predicting; will be corrected with information from authority)
 		MainPlayerMovement(DeltaTime, LinVelError, AngVelError);
-
-		// Angular Velocities: x = Roll, y = Pitch, z = yaw in worldspace
-		//ArmorMesh->SetPhysicsAngularVelocity(FVector( 0, 360, 0), true);
-
-
-
 	}
 
-	else {
+	if (Role < ROLE_Authority && !IsLocallyControlled()) {
 		//if (ArmorMesh->IsSimulatingPhysics()) {
 		ArmorMesh->SetSimulatePhysics(true);
 		ArmorMesh->SetEnableGravity(false);
@@ -306,12 +305,10 @@ void AMainPawn::Tick(float DeltaTime) {
 		FTransform NewTransform;
 		NewTransform.Blend(TransformOnClient, TargetTransform, convertedLerpFactor);
 		// transform actor to new location/rotation
-		SetActorTransform(NewTransform, false, nullptr, ETeleportType::TeleportPhysics);
+		SetActorTransform(NewTransform, false, nullptr, ETeleportType::None);
 	}
-
-
-
 }
+
 // replication of variables
 void AMainPawn::GetLifetimeReplicatedProps(TArray <FLifetimeProperty> &OutLifetimeProps) const {
 	DOREPLIFETIME_CONDITION(AMainPawn, bGunHasAmmo, COND_OwnerOnly);
@@ -512,7 +509,7 @@ void AMainPawn::OnRep_TransformOnAuthority() {
 	}
 
 	// uncontrolled client
-	if (GetNetMode() == NM_Client && !IsLocallyControlled()) {
+	if (Role < ROLE_Authority && !IsLocallyControlled()) {
 		//Alpha = GetWorld()->DeltaTimeSeconds;
 
 		// store starttransform
@@ -520,30 +517,32 @@ void AMainPawn::OnRep_TransformOnAuthority() {
 		// reset blendfactor
 		LerpProgress = 0.0f;
 
-		FVector Direction = LinearVelocity.GetSafeNormal();
-		float Velocity = LinearVelocity.Size() * PredictionAmount;
+		const FVector Direction = LinearVelocity.GetSafeNormal();
+		const float Velocity = LinearVelocity.Size() * PredictionAmount;
 
-		TargetTransform = FTransform(TransformOnAuthority);
+		TargetTransform = TransformOnAuthority;
 		TargetTransform.AddToTranslation(Direction * Velocity);
+		return;
 	}
-	else if (GetNetMode() == NM_Client && IsLocallyControlled()) {
-		// vector between server location and client location
-		FVector LocationError = TransformOnAuthority.GetLocation() - PastClientTransform.GetLocation();
 
-		if (GEngine&& DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Orange, "         Location Error  = " + FString::SanitizeFloat(LocationError.Size() * 0.01f) + " m");
+	if (Role < ROLE_Authority && IsLocallyControlled()) {
+
+		// vector between server location and client location
+		// velocity to correct the client
+		LinVelError = TransformOnAuthority.GetLocation() - PastClientTransform.GetLocation() /** NetDelta*/;
+
+		if (GEngine&& DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Orange, "         Location Error  = " + FString::SanitizeFloat(LinVelError.Size() * 0.01f) + " m");
 
 		// the rotation delta between client and server
-		FQuat RotationError = TransformOnAuthority.GetRotation() * PastClientTransform.GetRotation().Inverse();
-		FRotator ErrorDelta = RotationError.Rotator();
-		if (GEngine&& DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "Yaw   Error" + FString::SanitizeFloat(ErrorDelta.Yaw));
-		if (GEngine&& DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "Pitch Error" + FString::SanitizeFloat(ErrorDelta.Pitch));
-		if (GEngine&& DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "Roll  Error" + FString::SanitizeFloat(ErrorDelta.Roll));
+		const FQuat RotationError = TransformOnAuthority.GetRotation() * PastClientTransform.GetRotation().Inverse();
+		const FRotator ErrorDelta = RotationError.Rotator();
 
-		// velocity to correct the client
-		LinVelError = LocationError /** NetDelta*/;
+		if (GEngine&& DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "Yaw   Error  " + FString::SanitizeFloat(ErrorDelta.Yaw));
+		if (GEngine&& DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "Pitch Error  " + FString::SanitizeFloat(ErrorDelta.Pitch));
+		if (GEngine&& DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "Roll  Error  " + FString::SanitizeFloat(ErrorDelta.Roll));
+
 		// angular velocity to correct the client
 		AngVelError = FVector(-ErrorDelta.Roll, -ErrorDelta.Pitch, ErrorDelta.Yaw)/* * NetDelta*/;
-
 
 		// teleport the client if the distance to correct location is too big
 		if (LinVelError.Size() > 5000.0f) {
@@ -552,8 +551,8 @@ void AMainPawn::OnRep_TransformOnAuthority() {
 		}
 
 		// if rotation delta is too big add the correction
-		if (AngVelError.Size() > 45.0f) {
-			AddActorWorldRotation(RotationError, false, nullptr, ETeleportType::TeleportPhysics);
+		if (AngVelError.Size() > 90.0f) {
+			AddActorWorldRotation(RotationError, false, nullptr, ETeleportType::None);
 			//SetActorRotation(TransformOnAuthority.GetRotation(), ETeleportType::None);
 			AngVelError = FVector::ZeroVector;
 		}
@@ -902,7 +901,7 @@ void AMainPawn::MissileFireSalve() {
 
 			USceneComponent * HomingTarget = nullptr;
 
-			if (bMultiTarget && MultiTargets.Num() > 0 && MultiTargets.IsValidIndex(CurrTargetIndex) && MultiTargets[CurrTargetIndex] && CurrTargetIndex < MultiTargets.Num()) {
+			if (bMultiTarget && MultiTargets.Num() > 0 && MultiTargets.IsValidIndex(CurrTargetIndex) && MultiTargets[CurrTargetIndex]) {
 				HomingTarget = MultiTargets[CurrTargetIndex]->GetRootComponent();
 				// calculate a direction and apply weaponspread
 				SpawnDirection = FMath::VRandCone(CurrentSocketTransform.GetRotation().GetForwardVector(), MissileSpreadRadian);
@@ -1015,7 +1014,6 @@ bool AMainPawn::Server_GetPlayerInput_Validate(FPlayerInputPackage inputData) {
 
 //Server receives Input
 void AMainPawn::Server_GetPlayerInput_Implementation(FPlayerInputPackage inputData) {
-	float NetDelta;
 	if (GetWorld()) {
 		NetDelta = GetWorld()->RealTimeSeconds - lastUpdate;
 		lastUpdate = GetWorld()->RealTimeSeconds;
@@ -1027,11 +1025,11 @@ void AMainPawn::Server_GetPlayerInput_Implementation(FPlayerInputPackage inputDa
 
 	if (inputData.PacketNo > Ack) {
 		Ack = inputData.PacketNo;
-		this->InputPackage = inputData;
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Blue, "accepting Packet = " + FString::FromInt(inputData.PacketNo));
+		InputPackage = inputData;
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Blue, "accepting Packet = " + FString::FromInt(inputData.PacketNo));
 	}
 	else {
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Red, "Packet not Accepted");
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Red, "Packet not Accepted");
 		return;
 	}
 
@@ -1040,17 +1038,17 @@ void AMainPawn::Server_GetPlayerInput_Implementation(FPlayerInputPackage inputDa
 
 void AMainPawn::OnRep_AuthorityAck() {
 	int DeletionCnt = 0;
-
+	PastClientTransform = FTransform();
 	while (true) {
-		if (TransformHistory.Num() > 0) {
-			if (TransformHistory[0].PacketNo < AuthorityAck) {
-				TransformHistory.RemoveAt(0);
+		if (MovementHistory.Num() > 0) {
+			if (MovementHistory[0].PacketNo < AuthorityAck) {
+				MovementHistory.RemoveAt(0);
 				++DeletionCnt;
 				continue;
 			}
-			if (TransformHistory[0].PacketNo == AuthorityAck) {
-				PastClientTransform = TransformHistory[0].PastActorTransform;
-				TransformHistory.RemoveAt(0);
+			if (MovementHistory[0].PacketNo == AuthorityAck) {
+				PastClientTransform = MovementHistory[0].Transform;
+				MovementHistory.RemoveAt(0);
 				++DeletionCnt;
 				break;
 			}
@@ -1058,9 +1056,12 @@ void AMainPawn::OnRep_AuthorityAck() {
 				break;
 			}
 		}
+		else {
+			break;
+		}
 	}
 
-	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Deleted " + FString::FromInt(DeletionCnt) + " old Transforms, pending to be approved : " + FString::FromInt(TransformHistory.Num()));
+	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Deleted " + FString::FromInt(DeletionCnt) + " old Transforms, pending to be approved : " + FString::FromInt(MovementHistory.Num()));
 
 	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Green, "Last acceptet Packet = " + FString::FromInt(AuthorityAck));
 	this->Ack = AuthorityAck;
