@@ -234,12 +234,12 @@ void AMainPawn::Tick(float DeltaTime) {
 			InputPackage.PacketNo++;
 
 			// the new current input package
-			FInput currentInput;
+			FPlayerInputPackage currentInput;
 			// set the package number
-			currentInput.PacketNo = InputPackage.PacketNo;
+			InputPackage.PacketNo = InputPackage.PacketNo;
 			// store the player input
-			currentInput.MouseInput = MouseInput;
-			currentInput.MovementInput = MovementInput;
+			InputPackage.MouseInput = MouseInput;
+			InputPackage.SetMovementInput(MovementInput);
 			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, FString::SanitizeFloat(MouseInput.X) + " x " + FString::SanitizeFloat(MouseInput.Y));
 			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, FString::SanitizeFloat(MouseInput.Size()));
 
@@ -248,18 +248,6 @@ void AMainPawn::Tick(float DeltaTime) {
 			CurrentTransform.PacketNo = InputPackage.PacketNo;
 			CurrentTransform.PastActorTransform = GetTransform();
 			TransformHistory.Add(CurrentTransform);
-
-			// prevent the package from growing too big
-			while (InputPackage.InputDataList.Num() >= 1) {
-				InputPackage.InputDataList.RemoveAtSwap(0);
-			}
-
-			// put the new inputpackage in the struct that will be sent to the server 
-			InputPackage.InputDataList.Add(currentInput);
-			// send the information 
-			InputPackage.Ack = Ack;
-
-			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, "Length of Array = " + FString::FromInt(InputPackage.InputDataList.Num()));
 
 			// send the input to server
 			GetPlayerInput(InputPackage);
@@ -271,29 +259,24 @@ void AMainPawn::Tick(float DeltaTime) {
 
 	if (Role == ROLE_Authority) {
 		// unpack received inputdata package
-		if (InputPackage.InputDataList.Num() > 0) {
+		MouseInput = InputPackage.MouseInput;
+		MovementInput = InputPackage.GetMovementInput();
 
-			const FInput &currentInput = InputPackage.InputDataList.Last();
-
-			MouseInput = currentInput.MouseInput;
-
-			MovementInput = currentInput.MovementInput;
-
-			if (!bCanReceivePlayerInput) {
-				MovementInput = MouseInput = FVector2D::ZeroVector;
-			}
-		}
-		// player movement on authority
-		MainPlayerMovement(DeltaTime);
-
-		// movement replication
-		{
-			TransformOnAuthority = GetTransform();
-			LinearVelocity = ArmorMesh->GetPhysicsLinearVelocity();
-			//AngularVelocity = ArmorMesh->GetPhysicsAngularVelocity();
+		if (!bCanReceivePlayerInput) {
+			MovementInput = MouseInput = FVector2D::ZeroVector;
 		}
 	}
-	else if (IsLocallyControlled()) {
+	// player movement on authority
+	MainPlayerMovement(DeltaTime);
+
+	// movement replication
+	{
+		TransformOnAuthority = GetTransform();
+		LinearVelocity = ArmorMesh->GetPhysicsLinearVelocity();
+		//AngularVelocity = ArmorMesh->GetPhysicsAngularVelocity();
+	}
+
+	if (Role < ROLE_Authority && IsLocallyControlled()) {
 		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Red, "Locally Controlled Client");
 
 		// clientside movement (predicting; will be corrected with information from authority)
@@ -305,6 +288,7 @@ void AMainPawn::Tick(float DeltaTime) {
 
 
 	}
+
 	else {
 		//if (ArmorMesh->IsSimulatingPhysics()) {
 		ArmorMesh->SetSimulatePhysics(true);
@@ -325,9 +309,9 @@ void AMainPawn::Tick(float DeltaTime) {
 		SetActorTransform(NewTransform, false, nullptr, ETeleportType::TeleportPhysics);
 	}
 
+
+
 }
-
-
 // replication of variables
 void AMainPawn::GetLifetimeReplicatedProps(TArray <FLifetimeProperty> &OutLifetimeProps) const {
 	DOREPLIFETIME_CONDITION(AMainPawn, bGunHasAmmo, COND_OwnerOnly);
@@ -1019,18 +1003,18 @@ void AMainPawn::SwitchTargetReleased() {
 
 
 // sends Playerinput to server
-void AMainPawn::GetPlayerInput(FInputsPackage inputData) {
+void AMainPawn::GetPlayerInput(FPlayerInputPackage inputData) {
 
 	Server_GetPlayerInput(inputData);
 
 }
 
-bool AMainPawn::Server_GetPlayerInput_Validate(FInputsPackage inputData) {
+bool AMainPawn::Server_GetPlayerInput_Validate(FPlayerInputPackage inputData) {
 	return true;
 }
 
 //Server receives Input
-void AMainPawn::Server_GetPlayerInput_Implementation(FInputsPackage receivedInputData) {
+void AMainPawn::Server_GetPlayerInput_Implementation(FPlayerInputPackage inputData) {
 	float NetDelta;
 	if (GetWorld()) {
 		NetDelta = GetWorld()->RealTimeSeconds - lastUpdate;
@@ -1041,20 +1025,20 @@ void AMainPawn::Server_GetPlayerInput_Implementation(FInputsPackage receivedInpu
 				FString::FromInt(GetVelocity().Size() * 0.036f) + " km/h");
 	}
 
-	if (receivedInputData.PacketNo > Ack) {
-		Ack = receivedInputData.PacketNo;
-		this->InputPackage = receivedInputData;
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Blue, "accepting Packet = " + FString::FromInt(receivedInputData.PacketNo));
+	if (inputData.PacketNo > Ack) {
+		Ack = inputData.PacketNo;
+		this->InputPackage = inputData;
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Blue, "accepting Packet = " + FString::FromInt(inputData.PacketNo));
 	}
 	else {
 		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Red, "Packet not Accepted");
+		return;
 	}
 
 	AuthorityAck = Ack;
 }
 
 void AMainPawn::OnRep_AuthorityAck() {
-	TArray<FInput> pendingInputs = TArray<FInput>();
 	int DeletionCnt = 0;
 
 	while (true) {
@@ -1077,24 +1061,6 @@ void AMainPawn::OnRep_AuthorityAck() {
 	}
 
 	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Deleted " + FString::FromInt(DeletionCnt) + " old Transforms, pending to be approved : " + FString::FromInt(TransformHistory.Num()));
-
-
-
-	//for (FInput &package : InputPackage.InputDataList) {
-	//	if (package.PacketNo > acceptedPacket) {
-	//		pendingInputs.Add(package);
-	//		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Red, "Entry still pending");
-	//	}
-	//	else {
-	//		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Green, "Entry removed");
-	//	}
-	//
-	//}
-
-	// TODO: implement client correction from accepted packets
-
-	InputPackage.InputDataList = pendingInputs;
-
 
 	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Green, "Last acceptet Packet = " + FString::FromInt(AuthorityAck));
 	this->Ack = AuthorityAck;
