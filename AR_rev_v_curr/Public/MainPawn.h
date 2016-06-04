@@ -23,60 +23,125 @@ enum class DebugTurning : uint8
 USTRUCT()
 struct FPlayerInputPackage {
 	GENERATED_USTRUCT_BODY()
-		UPROPERTY()
-		uint16 PacketNo;
-
+	
 	UPROPERTY()
-		FVector2D MouseInput;
+		uint64 PlayerDataCompressed;
 
-	// 0000 backwards forward left right
-	UPROPERTY()		
-		uint8 MovementData;
+	void SetMovementInput(const FVector2D & MovementInput) {
+		uint64 const rightPressed = 1llu;
+		uint64 const leftPressed = 1llu << 1;
+		uint64 const forwardPressed = 1llu << 2;
+		uint64 const backwardsPressed = 1llu << 3;
+		uint64 const clearMovementInput = ~15llu;
 
-	/*UPROPERTY()
-		uint64 PlayerDataCompressed;*/
-
-	void SetMovementInput(const FVector2D &MovementInput) {
-		MovementData = 0;
+		PlayerDataCompressed &= clearMovementInput;
 		// forward
 		if (MovementInput.X > 0.0f) {
-			MovementData |= 1 << 2;
+			PlayerDataCompressed |= forwardPressed;
 		}
 		// backwards
 		if (MovementInput.X < 0.0f) {
-			MovementData |= 1 << 3;
+			PlayerDataCompressed |= backwardsPressed;
 		}
 		// right
 		if (MovementInput.Y > 0.0f) {
-			MovementData |= 1 << 0;
+			PlayerDataCompressed |= rightPressed;
 		}
 		// left
 		if (MovementInput.Y < 0.0f) {
-			MovementData |= 1 << 1;
+			PlayerDataCompressed |= leftPressed;
 		}
 	}
 
-	FVector2D GetMovementInput() {
-		FVector2D Input;
+	FVector2D GetMovementInput() const {
+		uint64 const rightPressed = 1llu;
+		uint64 const leftPressed = 1llu << 1;
+		uint64 const forwardPressed = 1llu << 2;
+		uint64 const backwardsPressed = 1llu << 3;
+		FVector2D Input = FVector2D::ZeroVector;
 		// forward
-		if (MovementData & 1 << 2) {
+		if ((PlayerDataCompressed & forwardPressed) == forwardPressed) {
 			Input.X = 1.0f;
 		}
 		// backwards
-		if (MovementData & 1 << 3) {
+		if ((PlayerDataCompressed & backwardsPressed) == backwardsPressed) {
 			Input.X = -1.0f;
 		}
 		// right
-		if (MovementData & 1 << 0) {
+		if ((PlayerDataCompressed & rightPressed) == rightPressed){
 			Input.Y = 1.0f;
 		}
 		// left
-		if (MovementData & 1 << 1) {
+		if ((PlayerDataCompressed & leftPressed) == leftPressed) {
 			Input.Y = -1.0f;
 		}
 		return Input;
 	}
+	
+	void setMouseInput(const FVector2D MouseInput) {
+		uint64 const mouseInputClear = ~(16777215llu << 4);
+		uint64 const mouseYawIsNegative = 1llu << 15;
+		uint64 const mousePitchIsNegative = 1llu << 27;
+
+		PlayerDataCompressed &= mouseInputClear;
+
+		PlayerDataCompressed |= ((uint64)(2047 * FMath::Abs(MouseInput.X))) << 4;
+		if (MouseInput.X < 0.0f) {
+			PlayerDataCompressed |= mouseYawIsNegative;
+		}
+
+		PlayerDataCompressed |= ((uint64)(2047 * FMath::Abs(MouseInput.Y))) << 16;
+		if (MouseInput.Y < 0.0f) {
+			PlayerDataCompressed |= mousePitchIsNegative;
+		}
+	}
+
+	float getMouseYaw() const {
+		uint64 const mouseYaw = 2047llu << 4;
+		uint64 const mouseYawIsNegative = 1llu << 15;
+
+		if ((PlayerDataCompressed & mouseYawIsNegative ) == mouseYawIsNegative) {
+
+			return 0.0f - (((PlayerDataCompressed & mouseYaw) >> 4) / 2047.0f);
+
+		}
+		return ((PlayerDataCompressed & mouseYaw) >> 4) / 2047.0f;
+	}
+
+	float getMousePitch() const {
+		uint64 const mousePitch = 2047llu << 16;
+		uint64 const mousePitchIsNegative = 1llu << 27;
+
+		if ((PlayerDataCompressed & mousePitchIsNegative) == mousePitchIsNegative) {
+			return 0.0f - (((PlayerDataCompressed & mousePitch) >> 16) / 2047.0f);
+		}
+		return ((PlayerDataCompressed & mousePitch) >> 16) / 2047.0f;
+	}
+
+	FVector2D getMouseInput() const {
+		return FVector2D(getMouseYaw(), getMousePitch());
+	}
+
+	void setPacketNumber(const uint32 newPacketNumber) {
+		uint64 const PacketNoClear = ~(33554431llu << 28);
+		PlayerDataCompressed &= PacketNoClear;
+		PlayerDataCompressed |= ((uint64)newPacketNumber) << 28;
+	}
+
+	void IncrementPacketNumber() {
+		setPacketNumber(1 + getPacketNumber());
+	}
+
+	uint32 getPacketNumber() const {
+		uint64 const PacketNo = 33554431llu << 28;
+		return (uint32)((PlayerDataCompressed & PacketNo) >> 28);		
+	}
 };
+
+// const int * Constant2 // value that is pointed to is constant
+// int const * Constant2 // value that is pointed to is constant
+// int * const Constant3 // pointer is constant
+// int const * const Constant4 // pointer and value constant
 
 
 USTRUCT()
@@ -385,13 +450,13 @@ protected:
 		void Server_GetPlayerInput(FPlayerInputPackage inputData);
 	virtual void GetPlayerInput(FPlayerInputPackage inputData); // executed on client
 
-	
+
 	UPROPERTY()
 		FPlayerInputPackage InputPackage;
 	UPROPERTY()
-		uint16 Ack;
+		uint32 Ack;
 	UPROPERTY(ReplicatedUsing = OnRep_AuthorityAck)
-		uint16 AuthorityAck;
+		uint32 AuthorityAck;
 	UFUNCTION()
 		void OnRep_AuthorityAck();
 	FTransform PastClientTransform;
