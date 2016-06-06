@@ -419,9 +419,30 @@ protected:
 	void SwitchTargetPressed();
 	void SwitchTargetReleased();
 
-
 	void StartBoost();
 	void StopBoost();
+
+	void Skill_01_Pressed();
+	void Skill_02_Pressed();
+	void Skill_03_Pressed();
+	void Skill_04_Pressed();
+	void Skill_05_Pressed();
+	void Skill_06_Pressed();
+	void Skill_07_Pressed();
+	void Skill_08_Pressed();
+	void Skill_09_Pressed();
+	void Skill_10_Pressed();
+
+	void Skill_01_Released();
+	void Skill_02_Released();
+	void Skill_03_Released();
+	void Skill_04_Released();
+	void Skill_05_Released();
+	void Skill_06_Released();
+	void Skill_07_Released();
+	void Skill_08_Released();
+	void Skill_09_Released();
+	void Skill_10_Released();
 
 	void StopMovement();
 	UFUNCTION(Server, reliable, WithValidation)

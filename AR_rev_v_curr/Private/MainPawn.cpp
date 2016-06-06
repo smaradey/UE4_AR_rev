@@ -248,7 +248,7 @@ void AMainPawn::Tick(float DeltaTime) {
 			InputPackage.SetMovementInput(MovementInput);
 			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, FString::SanitizeFloat(MouseInput.X) + " x " + FString::SanitizeFloat(MouseInput.Y));
 			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, FString::SanitizeFloat(MouseInput.Size()));
-			
+
 
 			// store client movement for later correction when correct server transform is received
 			FPositionHistoryElement CurrentPositionData;
@@ -257,7 +257,7 @@ void AMainPawn::Tick(float DeltaTime) {
 			MovementHistory.Add(CurrentPositionData);
 
 			// send the input to server
-			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, "Sending Packet = "  + FString::FromInt(InputPackage.getPacketNumber()));
+			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, "Sending Packet = " + FString::FromInt(InputPackage.getPacketNumber()));
 			GetPlayerInput(InputPackage);
 		}
 
@@ -270,7 +270,7 @@ void AMainPawn::Tick(float DeltaTime) {
 		if (!IsLocallyControlled()) {
 			MouseInput = InputPackage.getMouseInput();
 			MovementInput = InputPackage.GetMovementInput();
-			if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, "Server receiving Movement :" +  FString::SanitizeFloat(MovementInput.Size()));
+			if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, "Server receiving Movement :" + FString::SanitizeFloat(MovementInput.Size()));
 		}
 		if (!bCanReceivePlayerInput) {
 			MovementInput = MouseInput = FVector2D::ZeroVector;
@@ -629,6 +629,28 @@ void AMainPawn::SetupPlayerInputComponent(class UInputComponent *InputComponent)
 	InputComponent->BindAxis("LookUp", this, &AMainPawn::PitchCamera);
 	InputComponent->BindAxis("LookRight", this, &AMainPawn::YawCamera);
 
+
+	InputComponent->BindAction("SkillSlot1", IE_Pressed, this, &AMainPawn::Skill_01_Pressed);
+	InputComponent->BindAction("SkillSlot2", IE_Pressed, this, &AMainPawn::Skill_02_Pressed);
+	InputComponent->BindAction("SkillSlot3", IE_Pressed, this, &AMainPawn::Skill_03_Pressed);
+	InputComponent->BindAction("SkillSlot4", IE_Pressed, this, &AMainPawn::Skill_04_Pressed);
+	InputComponent->BindAction("SkillSlot5", IE_Pressed, this, &AMainPawn::Skill_05_Pressed);
+	InputComponent->BindAction("SkillSlot6", IE_Pressed, this, &AMainPawn::Skill_06_Pressed);
+	InputComponent->BindAction("SkillSlot7", IE_Pressed, this, &AMainPawn::Skill_07_Pressed);
+	InputComponent->BindAction("SkillSlot8", IE_Pressed, this, &AMainPawn::Skill_08_Pressed);
+	InputComponent->BindAction("SkillSlot9", IE_Pressed, this, &AMainPawn::Skill_09_Pressed);
+	InputComponent->BindAction("SkillSlot10", IE_Pressed, this, &AMainPawn::Skill_10_Pressed);
+
+	InputComponent->BindAction("SkillSlot1", IE_Released, this, &AMainPawn::Skill_01_Released);
+	InputComponent->BindAction("SkillSlot2", IE_Released, this, &AMainPawn::Skill_02_Released);
+	InputComponent->BindAction("SkillSlot3", IE_Released, this, &AMainPawn::Skill_03_Released);
+	InputComponent->BindAction("SkillSlot4", IE_Released, this, &AMainPawn::Skill_04_Released);
+	InputComponent->BindAction("SkillSlot5", IE_Released, this, &AMainPawn::Skill_05_Released);
+	InputComponent->BindAction("SkillSlot6", IE_Released, this, &AMainPawn::Skill_06_Released);
+	InputComponent->BindAction("SkillSlot7", IE_Released, this, &AMainPawn::Skill_07_Released);
+	InputComponent->BindAction("SkillSlot8", IE_Released, this, &AMainPawn::Skill_08_Released);
+	InputComponent->BindAction("SkillSlot9", IE_Released, this, &AMainPawn::Skill_09_Released);
+	InputComponent->BindAction("SkillSlot10", IE_Released, this, &AMainPawn::Skill_10_Released);
 }
 
 //Input functions
@@ -1036,7 +1058,7 @@ void AMainPawn::Server_GetPlayerInput_Implementation(FPlayerInputPackage inputDa
 		InputPackage = inputData;
 	}
 	else {
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Red, "Packet not Accepted = "+ FString::FromInt(inputData.getPacketNumber()));
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Red, "Packet not Accepted = " + FString::FromInt(inputData.getPacketNumber()));
 		return;
 	}
 
@@ -1230,6 +1252,71 @@ void AMainPawn::Server_SetTargets_Implementation(AActor * MainTarget, const  TAr
 bool AMainPawn::Server_SetTargets_Validate(AActor * MainTarget, const TArray<AActor*> &OtherTargets) {
 	return true;
 }
+
+void AMainPawn::Skill_01_Pressed() {
+
+}
+void AMainPawn::Skill_02_Pressed() {
+
+}
+void AMainPawn::Skill_03_Pressed() {
+
+}
+void AMainPawn::Skill_04_Pressed() {
+
+}
+void AMainPawn::Skill_05_Pressed() {
+
+}
+void AMainPawn::Skill_06_Pressed() {
+
+}
+void AMainPawn::Skill_07_Pressed() {
+
+}
+void AMainPawn::Skill_08_Pressed() {
+
+}
+void AMainPawn::Skill_09_Pressed() {
+
+}
+void AMainPawn::Skill_10_Pressed() {
+
+}
+
+void AMainPawn::Skill_01_Released() {
+
+}
+void AMainPawn::Skill_02_Released() {
+
+}
+void AMainPawn::Skill_03_Released() {
+
+}
+void AMainPawn::Skill_04_Released() {
+
+}
+void AMainPawn::Skill_05_Released() {
+
+}
+void AMainPawn::Skill_06_Released() {
+
+}
+void AMainPawn::Skill_07_Released() {
+
+}
+void AMainPawn::Skill_08_Released() {
+
+}
+void AMainPawn::Skill_09_Released() {
+
+}
+void AMainPawn::Skill_10_Released() {
+
+}
+
+
+
 
 /* TESTING
 AActor * ClosestActor = nullptr;
