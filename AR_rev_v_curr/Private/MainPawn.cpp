@@ -262,10 +262,12 @@ void AMainPawn::Tick(float DeltaTime) {
 		}
 
 		// radar and weapons only on player side
-		TargetLock();
+		//TargetLock();
 	}
 
 	if (Role == ROLE_Authority) {
+		TargetLock();
+
 		// unpack received inputdata package
 		if (!IsLocallyControlled()) {
 			MouseInput = InputPackage.getMouseInput();
@@ -331,6 +333,10 @@ void AMainPawn::GetLifetimeReplicatedProps(TArray <FLifetimeProperty> &OutLifeti
 	DOREPLIFETIME_CONDITION(AMainPawn, bMultiTarget, COND_OwnerOnly);
 	DOREPLIFETIME_CONDITION(AMainPawn, AutoLevelAxis, COND_OwnerOnly);
 	DOREPLIFETIME_CONDITION(AMainPawn, AuthorityAck, COND_OwnerOnly);
+
+	DOREPLIFETIME_CONDITION(AMainPawn, bGunFire, COND_SkipOwner);
+	DOREPLIFETIME_CONDITION(AMainPawn, bMissileFire, COND_SkipOwner);
+	
 }
 
 void AMainPawn::MainPlayerMovement(const float DeltaTime, const FVector &CorrectionVelocity, const FVector &CorrectionAngularVelocity) {
@@ -712,10 +718,23 @@ void AMainPawn::DeactivateFreeCamera() {
 	SpringArm->SetRelativeRotation(FRotator::ZeroRotator, false, nullptr, ETeleportType::None);
 }
 
+
+void AMainPawn::OnRep_GunFire() {
+	if (bGunFire) {
+		StartGunFire();
+	}
+	else {
+		StopGunFire();
+	}
+}
+
+
+
 void AMainPawn::StartGunFire() {
 
 	// player has gunfire button pressed
 	bGunFire = true;
+	InputPackage.setGunFire(bGunFire);
 	if (bGunReady && bGunHasAmmo) { // gun is ready to fire
 		// make sure no other gunfire timer is activ by clearing it
 		GetWorldTimerManager().ClearTimer(GunFireHandle);
@@ -745,8 +764,10 @@ void AMainPawn::StartGunFire() {
 }
 
 void AMainPawn::StopGunFire() {
+
 	// player has gunfire button released
 	bGunFire = false;
+	InputPackage.setGunFire(bGunFire);
 	// is a gunfire timer active
 	if (GetWorldTimerManager().IsTimerActive(GunFireHandle)) {
 		// stop the timer
@@ -838,10 +859,20 @@ void AMainPawn::SpawnProjectile_Implementation(const FTransform &SocketTransform
 
 // Missile spawning START --------------------------------
 
+void AMainPawn::OnRep_MissileFire() {
+	if (bMissileFire) {
+		StartMissileFire();
+	}
+	else {
+		StopMissileFire();
+	}
+}
 void AMainPawn::StartMissileFire() {
 
 	// player has Missilefire button pressed
 	bMissileFire = true;
+	InputPackage.setMissileFire(bMissileFire);
+	if (Role < ROLE_Authority && IsLocallyControlled()) return;
 	if (bMissileReady && bMissileHasAmmo) { // Missile is ready to fire
 		// make sure no other Missilefire timer is activ by clearing it
 		GetWorldTimerManager().ClearTimer(MissileFireHandle);
@@ -873,6 +904,10 @@ void AMainPawn::StartMissileFire() {
 void AMainPawn::StopMissileFire() {
 	// player has Missilefire button released
 	bMissileFire = false;
+	InputPackage.setMissileFire(bMissileFire);
+
+	if (Role < ROLE_Authority && IsLocallyControlled()) return;
+
 	// is a Missilefire timer active
 	if (GetWorldTimerManager().IsTimerActive(MissileFireHandle)) {
 		// stop the timer
@@ -1061,6 +1096,37 @@ void AMainPawn::Server_GetPlayerInput_Implementation(FPlayerInputPackage inputDa
 		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Red, "Packet not Accepted = " + FString::FromInt(inputData.getPacketNumber()));
 		return;
 	}
+
+	
+	if (InputPackage.getGunFire()) {
+		if (!bGunFire) {
+			StartGunFire();
+		}
+	}
+	else {
+		if (bGunFire) {
+			StopGunFire();
+		}		
+	}
+
+	if (InputPackage.getMissileFire()) {
+		if (!bMissileFire) {
+			StartMissileFire();
+		}
+	}
+	else {
+		if (bMissileFire) {
+			StopMissileFire();
+		}
+	}
+
+
+
+
+
+	if (GEngine && bGunFire) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "Received GunfireInput");
+	if (GEngine && bMissileFire) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "Received GunfireInput");
+
 
 	AuthorityAck = Ack;
 }

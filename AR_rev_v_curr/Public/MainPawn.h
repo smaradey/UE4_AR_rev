@@ -27,6 +27,7 @@ struct FPlayerInputPackage {
 	UPROPERTY()
 		uint64 PlayerDataCompressed;
 
+	// 4 bit
 	void SetMovementInput(const FVector2D & MovementInput) {
 		uint64 const rightPressed = 1llu;
 		uint64 const leftPressed = 1llu << 1;
@@ -78,6 +79,7 @@ struct FPlayerInputPackage {
 		return Input;
 	}
 	
+	// 24 bit
 	void setMouseInput(const FVector2D MouseInput) {
 		uint64 const mouseInputClear = ~(16777215llu << 4);
 		uint64 const mouseYawIsNegative = 1llu << 15;
@@ -132,10 +134,43 @@ struct FPlayerInputPackage {
 		setPacketNumber(1 + getPacketNumber());
 	}
 
+	// 24 bit
 	uint32 getPacketNumber() const {
 		uint64 const PacketNo = 16777215llu << 28;
 		return (uint32)((PlayerDataCompressed & PacketNo) >> 28);		
 	}
+
+	// 1 bit 64th
+	void setGunFire(const uint32 bGunFire) {
+		if (bGunFire) {
+			PlayerDataCompressed |= (1llu << 63);
+		}
+		else {
+			PlayerDataCompressed &= ~(1llu << 63);
+		}
+	}
+
+	bool getGunFire() const {
+		return (PlayerDataCompressed & (1llu << 63)) == (1llu << 63);
+	}
+
+	// 1 bit 63th
+	void setMissileFire(const uint32 bMissileFire) {
+		if (bMissileFire) {
+			PlayerDataCompressed |= (1llu << 62);
+		}
+		else {
+			PlayerDataCompressed &= ~(1llu << 62);
+		}
+	}
+
+	bool getMissileFire() const {
+		return (PlayerDataCompressed & (1llu << 62)) == (1llu << 62);
+	}
+
+
+
+
 };
 
 // const int * Constant2 // value that is pointed to is constant
@@ -287,7 +322,12 @@ protected:
 	// Guns ------------------------------------------------------------------------
 	void StartGunFire();
 	void StopGunFire();
-	uint32 bGunFire;
+
+	UPROPERTY(ReplicatedUsing = OnRep_GunFire)
+	bool bGunFire;
+	UFUNCTION()
+	void OnRep_GunFire();
+
 	UPROPERTY(Replicated)
 		uint32 bGunReady : 1;
 	void GunFire();
@@ -358,7 +398,12 @@ protected:
 	// Missiles -----------------------------------------------------------------------
 	void StartMissileFire();
 	void StopMissileFire();
-	uint32 bMissileFire;
+
+	UPROPERTY(ReplicatedUsing = OnRep_MissileFire)
+		bool bMissileFire;
+	UFUNCTION()
+	void OnRep_MissileFire();
+	
 	UPROPERTY(Replicated)
 		uint32 bMissileReady : 1;
 	void MissileFire();
