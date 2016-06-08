@@ -123,7 +123,7 @@ struct FPlayerInputPackage {
 	}
 
 	void setPacketNumber(const uint32 newPacketNumber) {
-		uint64 const PacketNoClear = ~(33554431llu << 28);
+		uint64 const PacketNoClear = ~(16777215llu << 28);
 		PlayerDataCompressed &= PacketNoClear;
 		PlayerDataCompressed |= ((uint64)newPacketNumber) << 28;
 	}
@@ -133,7 +133,7 @@ struct FPlayerInputPackage {
 	}
 
 	uint32 getPacketNumber() const {
-		uint64 const PacketNo = 33554431llu << 28;
+		uint64 const PacketNo = 16777215llu << 28;
 		return (uint32)((PlayerDataCompressed & PacketNo) >> 28);		
 	}
 };
