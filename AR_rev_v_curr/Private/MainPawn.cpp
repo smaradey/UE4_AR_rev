@@ -1048,6 +1048,7 @@ void AMainPawn::StopBoost() {
 	bBoostPressed = false;
 }
 void AMainPawn::SwitchTargetPressed() {
+	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Green, "Switch Target PRESSED");
 	bSwitchTargetPressed = true;
 	CurrLockOnTarget = nullptr;
 	MultiTargets.Empty();
@@ -1058,7 +1059,7 @@ void AMainPawn::SwitchTargetPressed() {
 
 void AMainPawn::SwitchTargetReleased() {
 	bSwitchTargetPressed = false;
-	SetTargets(CurrLockOnTarget, MultiTargets);
+	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Green, "Switch Target RELEASED");
 }
 
 
@@ -1192,23 +1193,16 @@ inline void AMainPawn::GetMouseInput(FVector2D &MouseInput, FVector2D &CursorLoc
 }
 
 void AMainPawn::TargetLock() {
-	// execute on locally controlled instance of pawn
-	if (bSwitchTargetPressed && !bLockOnDelayActiv) {
+	// execute on locally controlled instance of pawn	
+	if (bSwitchTargetPressed && !GetWorldTimerManager().IsTimerActive(ContinuousLockOnDelay)) {
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, "-----------------------------------------------------------------------");
 		CurrLockOnTarget = nullptr;
 	}
 
+	// check whether Missile can lock on to main target
 	if (CurrLockOnTarget) {
 		const float DeltaAngleRad = FVector::DotProduct(ArmorMesh->GetForwardVector(), (CurrLockOnTarget->GetActorLocation() - GetActorLocation()).GetSafeNormal());
-
-		//const float Distance = currActor->GetDistanceTo(this);		
-
-		if (DeltaAngleRad > MissileLockOnAngleRad/* && DeltaAngleRad > CurrDeltaAngleRad*/) {
-			//CurrDeltaAngleRad = DeltaAngleRad;
-			bHasMissileLock = true;
-		}
-		else {
-			bHasMissileLock = false;
-		}
+		bHasMissileLock = (DeltaAngleRad > MissileLockOnAngleRad) ? true : false;
 	}
 
 	if (/*!bCanReceivePlayerInput ||*/ bLockOnDelayActiv || (CurrLockOnTarget && !bMultiTarget)) return;
@@ -1217,40 +1211,38 @@ void AMainPawn::TargetLock() {
 	float smallestAngle = -1.0f;
 	AActor * newTarget = nullptr;
 	TArray<AActor*> NewMultiTargets;
-
 	TMap<float, AActor*> PossibleMultitargets;
 
-
-
+	// get all targetable actors
 	for (TActorIterator<AActor> currActor(GetWorld()); currActor; ++currActor) {
-
-		//Run the Event specific to the actor, if the actor has the interface
 		if (*currActor != this && currActor->Implements<UTarget_Interface>()) {
+
 			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, currActor->GetName() + " has the Interface");
-			// TODO: get only the closest targets
 
-			float DeltaAngleRad = FVector::DotProduct(ArmorMesh->GetForwardVector(), (currActor->GetActorLocation() - GetActorLocation()).GetSafeNormal());
-
-			//const float Distance = currActor->GetDistanceTo(this);			
-
+			const float DeltaAngleRad = FVector::DotProduct(ArmorMesh->GetForwardVector(), (currActor->GetActorLocation() - GetActorLocation()).GetSafeNormal());
+			// TODO: take distance to target into account	
+			// get the closest target to forward vector
 			if (DeltaAngleRad > smallestAngle && DeltaAngleRad > GunLockOnAngleRad) {
 				smallestAngle = DeltaAngleRad;
 				newTarget = *currActor;
 			}
-
+			// Add target to list when in range for targeting
 			if (bMultiTarget && DeltaAngleRad > MultiTargetLockOnAngleRad) {
 				PossibleMultitargets.Add(DeltaAngleRad, *currActor);
 			}
 		}
 	}
+	// sort the targets with their angles
 	PossibleMultitargets.KeySort([](const float A, const float B) {
 		return (A - B) > 0.0f;
 	});
 
+	// copy the targets to the multitarget list
 	for (const auto& entry : PossibleMultitargets) {
 		NewMultiTargets.Add(entry.Value);
 	}
 
+	// remove targets while list has more targets then allowed
 	while (true) {
 		if (NewMultiTargets.IsValidIndex(MaxNumTargets)) {
 			NewMultiTargets.RemoveAtSwap(MaxNumTargets);
@@ -1259,8 +1251,10 @@ void AMainPawn::TargetLock() {
 			break;
 		}
 	}
-	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Red, CurrLockOnTarget->GetName() + "-----------------------------------------------------------------------");
+
+	// set the main target
 	if (!CurrLockOnTarget) {
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Red, "-----------------------------------------------------------------------");
 		CurrLockOnTarget = newTarget;
 	}
 
@@ -1269,12 +1263,11 @@ void AMainPawn::TargetLock() {
 		if (!bContinuousLockOn) {
 			// activate the delay for continueous LockOn
 			GetWorldTimerManager().SetTimer(ContinuousLockOnDelay, this, &AMainPawn::ActivateContinueousLockOn, 0.5f, false);
-			bLockOnDelayActiv = true;
 		}
 	}
 
 	// remove duplicates
-	if (!(bMultiTarget && NewMultiTargets.Num() > 0 && NewMultiTargets.Contains(CurrLockOnTarget))) {
+	if (!bMultiTarget) {
 		MultiTargets.Empty();
 	}
 
@@ -1299,7 +1292,6 @@ void AMainPawn::TargetLock() {
 
 void AMainPawn::ActivateContinueousLockOn() {
 	bContinuousLockOn = true;
-	bLockOnDelayActiv = false;
 }
 
 void AMainPawn::OnRep_MultiTarget() {
