@@ -29,6 +29,7 @@ class AR_REV_V_CURR_API UCustomRadialForceComponent : public USceneComponent
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Impulse)
 		uint32 bImpulseVelChange : 1;
 
+
 	/** If true, do not apply force/impulse to any physics objects that are part of the Actor that owns this component. */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Impulse)
 		uint32 bIgnoreOwningActor : 1;
@@ -36,6 +37,10 @@ class AR_REV_V_CURR_API UCustomRadialForceComponent : public USceneComponent
 	/** How strong the force should be */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Force)
 		float ForceStrength;
+
+	/** If true, the force applied will act as acceleration */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Force)
+		uint32 bAccelChange : 1;
 
 	/** If > 0.f, will cause damage to destructible meshes as well  */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Destructible)
@@ -78,4 +83,8 @@ protected:
 
 	/** Update CollisionObjectQueryParams from ObjectTypesToAffect */
 	void UpdateCollisionObjectQueryParams();
+
+private:
+	UPrimitiveComponent *OwnerRoot;
+	const float GravitationConstant = 6.67408E-11f;
 };

@@ -23,6 +23,8 @@ UCustomRadialForceComponent::UCustomRadialForceComponent(const FObjectInitialize
 	AddCollisionChannelToAffect(ECC_Destructible);
 
 	UpdateCollisionObjectQueryParams();
+
+	
 }
 
 // Called every frame
@@ -46,7 +48,7 @@ void UCustomRadialForceComponent::TickComponent( float DeltaTime, ELevelTick Tic
 			Params.AddIgnoredActor(GetOwner());
 		}
 
-		GetWorld()->OverlapMultiByObjectType(Overlaps, Origin, FQuat::Identity, CollisionObjectQueryParams, FCollisionShape::MakeSphere(Radius), Params);
+		if(GetWorld()) GetWorld()->OverlapMultiByObjectType(Overlaps, Origin, FQuat::Identity, CollisionObjectQueryParams, FCollisionShape::MakeSphere(Radius), Params);
 
 		// Iterate over each and apply force
 		for (int32 OverlapIdx = 0; OverlapIdx<Overlaps.Num(); OverlapIdx++)
@@ -54,7 +56,27 @@ void UCustomRadialForceComponent::TickComponent( float DeltaTime, ELevelTick Tic
 			UPrimitiveComponent* PokeComp = Overlaps[OverlapIdx].Component.Get();
 			if (PokeComp)
 			{
-				PokeComp->AddRadialForce(Origin, Radius, ForceStrength, Falloff);
+				
+
+				if (GetOwner()->GetRootComponent()) {
+					OwnerRoot = Cast<UPrimitiveComponent>(GetOwner()->GetRootComponent());
+					if (OwnerRoot->IsSimulatingPhysics()) {
+						FVector Dir = OwnerRoot->GetComponentLocation() - PokeComp->GetComponentLocation();
+						const float DistSquarred = Dir.SizeSquared();
+						const float MyMass = OwnerRoot->GetMass();
+						const float OtherMass = PokeComp->GetMass();
+						const float Factor = GravitationConstant / DistSquarred;
+						const float Force = Factor * MyMass * OtherMass * 0.01f;
+						Dir.Normalize();
+						//ForceStrength
+						if (OwnerRoot->IsSimulatingPhysics()) {
+							OwnerRoot->AddForce(Dir * ForceStrength, NAME_None, bAccelChange);
+						}
+						PokeComp->AddRadialForce(Origin, Radius, ForceStrength,ERadialImpulseFalloff::RIF_Constant , bAccelChange);
+					}
+				}
+
+
 
 				// see if this is a target for a movement component
 				AActor* PokeOwner = PokeComp->GetOwner();
@@ -163,6 +185,7 @@ void UCustomRadialForceComponent::FireImpulse()
 
 			// Do impulse after
 			PokeComp->AddRadialImpulse(Origin, Radius, ImpulseStrength, Falloff, bImpulseVelChange);
+
 
 			// see if this is a target for a movement component
 			TInlineComponentArray<UMovementComponent*> MovementComponents;

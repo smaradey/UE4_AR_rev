@@ -409,6 +409,12 @@ protected:
 	void MissileFire();
 	FTimerHandle MissileFireHandle;
 
+	UPROPERTY()
+		uint32 bHasMissileLock;
+
+
+	int CurrTargetIndex = 0;
+
 	UFUNCTION(BlueprintNativeEvent, Category = "Weapons | Missiles")
 		void SpawnMissile(const FTransform &SocketTransform, class USceneComponent * HomingTarget, const FVector &FireBaseVelocity = FVector::ZeroVector);
 

@@ -336,7 +336,7 @@ void AMainPawn::GetLifetimeReplicatedProps(TArray <FLifetimeProperty> &OutLifeti
 
 	DOREPLIFETIME_CONDITION(AMainPawn, bGunFire, COND_SkipOwner);
 	DOREPLIFETIME_CONDITION(AMainPawn, bMissileFire, COND_SkipOwner);
-	
+
 }
 
 void AMainPawn::MainPlayerMovement(const float DeltaTime, const FVector &CorrectionVelocity, const FVector &CorrectionAngularVelocity) {
@@ -950,7 +950,6 @@ void AMainPawn::MissileFire() {
 
 void AMainPawn::MissileFireSalve() {
 	if (MissileCurrentSalve < MissileNumSalves) {
-		int CurrTargetIndex = 0;
 		for (uint8 shot = 0; shot < NumMissiles; ++shot) {
 			// choose next avaliable Missile sockets or start over from the first if last was used
 			CurrMissileSocketIndex = (CurrMissileSocketIndex + 1) % MissileSockets.Num();
@@ -964,22 +963,22 @@ void AMainPawn::MissileFireSalve() {
 			const FVector &AdditionalVelocity = ArmorMesh->GetPhysicsLinearVelocityAtPoint(CurrentSocketTransform.GetLocation());
 
 			USceneComponent * HomingTarget = nullptr;
-
+			if (bMultiTarget && MultiTargets.Num() > 0) {
+				CurrTargetIndex = (CurrTargetIndex + 1) % MultiTargets.Num();
+			}
 			if (bMultiTarget && MultiTargets.Num() > 0 && MultiTargets.IsValidIndex(CurrTargetIndex) && MultiTargets[CurrTargetIndex]) {
 				HomingTarget = MultiTargets[CurrTargetIndex]->GetRootComponent();
 				// calculate a direction and apply weaponspread
 				SpawnDirection = FMath::VRandCone(CurrentSocketTransform.GetRotation().GetForwardVector(), MissileSpreadRadian);
-				CurrTargetIndex = (CurrTargetIndex + 1) % MultiTargets.Num();
 			}
 			else {
-				if (CurrLockOnTarget) {
+				CurrTargetIndex = 0;
+				if (CurrLockOnTarget && bHasMissileLock) {
 					HomingTarget = CurrLockOnTarget->GetRootComponent();
 					// calculate a direction and apply weaponspread
 					SpawnDirection = FMath::VRandCone(CurrentSocketTransform.GetRotation().GetForwardVector(), MissileSpreadRadian);
 				}
 			}
-
-
 			SpawnMissile(FTransform(SpawnDirection.Rotation(), CurrentSocketTransform.GetLocation()), HomingTarget, AdditionalVelocity);
 
 			// decrease ammunition
@@ -993,7 +992,6 @@ void AMainPawn::MissileFireSalve() {
 				if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 10.0f, FColor::Red, "Missile OUT OF AMMO!");
 				GetWorldTimerManager().ClearTimer(MissileSalveTimerHandle);
 			}
-
 		}
 		++MissileCurrentSalve;
 		return;
@@ -1097,7 +1095,7 @@ void AMainPawn::Server_GetPlayerInput_Implementation(FPlayerInputPackage inputDa
 		return;
 	}
 
-	
+
 	if (InputPackage.getGunFire()) {
 		if (!bGunFire) {
 			StartGunFire();
@@ -1106,7 +1104,7 @@ void AMainPawn::Server_GetPlayerInput_Implementation(FPlayerInputPackage inputDa
 	else {
 		if (bGunFire) {
 			StopGunFire();
-		}		
+		}
 	}
 
 	if (InputPackage.getMissileFire()) {
@@ -1199,63 +1197,75 @@ void AMainPawn::TargetLock() {
 		CurrLockOnTarget = nullptr;
 	}
 
-	if (!bCanReceivePlayerInput || bLockOnDelayActiv || (CurrLockOnTarget && !bMultiTarget)) return;
+	if (CurrLockOnTarget) {
+		const float DeltaAngleRad = FVector::DotProduct(ArmorMesh->GetForwardVector(), (CurrLockOnTarget->GetActorLocation() - GetActorLocation()).GetSafeNormal());
+
+		//const float Distance = currActor->GetDistanceTo(this);		
+
+		if (DeltaAngleRad > MissileLockOnAngleRad/* && DeltaAngleRad > CurrDeltaAngleRad*/) {
+			//CurrDeltaAngleRad = DeltaAngleRad;
+			bHasMissileLock = true;
+		}
+		else {
+			bHasMissileLock = false;
+		}
+	}
+
+	if (/*!bCanReceivePlayerInput ||*/ bLockOnDelayActiv || (CurrLockOnTarget && !bMultiTarget)) return;
 
 	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, "... looking for targets");
-	float CurrDeltaAngleRad = -1.0f;
+	float smallestAngle = -1.0f;
 	AActor * newTarget = nullptr;
 	TArray<AActor*> NewMultiTargets;
-	TArray<float> DeltaAnglesRad;
+
+	TMap<float, AActor*> PossibleMultitargets;
+
 
 
 	for (TActorIterator<AActor> currActor(GetWorld()); currActor; ++currActor) {
 
 		//Run the Event specific to the actor, if the actor has the interface
 		if (*currActor != this && currActor->Implements<UTarget_Interface>()) {
-			if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, currActor->GetName() + " has the Interface");
+			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, currActor->GetName() + " has the Interface");
 			// TODO: get only the closest targets
 
-			const float DeltaAngleRad = FVector::DotProduct(ArmorMesh->GetForwardVector(), (currActor->GetActorLocation() - GetActorLocation()).GetSafeNormal());
+			float DeltaAngleRad = FVector::DotProduct(ArmorMesh->GetForwardVector(), (currActor->GetActorLocation() - GetActorLocation()).GetSafeNormal());
 
 			//const float Distance = currActor->GetDistanceTo(this);			
 
-			if (DeltaAngleRad > MultiTargetLockOnAngleRad/* && DeltaAngleRad > CurrDeltaAngleRad*/) {
-				//CurrDeltaAngleRad = DeltaAngleRad;
+			if (DeltaAngleRad > smallestAngle && DeltaAngleRad > GunLockOnAngleRad) {
+				smallestAngle = DeltaAngleRad;
 				newTarget = *currActor;
-				// multiple targets allowed
-				if (bMultiTarget) {
-					// add current new closest actor	
+			}
 
-					if (MaxNumTargets > NewMultiTargets.Num()) {
-						NewMultiTargets.Add(newTarget);
-						int32 index = -1;
-						NewMultiTargets.Find(newTarget, index);
-						DeltaAnglesRad.Insert(DeltaAngleRad, index);
-
-						continue;
-					}
-					else {
-						// if maximum number of multitargets already in array, remove the least close actor
-						float MaxAlreadyExistingAngle = 0.0f;
-						for (float Angle : DeltaAnglesRad) {
-							if (Angle > MaxAlreadyExistingAngle) {
-								MaxAlreadyExistingAngle = Angle;
-							}
-						}
-
-						AActor * toRemove = NewMultiTargets[0];
-						NewMultiTargets.Remove(toRemove);
-					}
-				}
+			if (bMultiTarget && DeltaAngleRad > MultiTargetLockOnAngleRad) {
+				PossibleMultitargets.Add(DeltaAngleRad, *currActor);
 			}
 		}
 	}
+	PossibleMultitargets.KeySort([](const float A, const float B) {
+		return (A - B) > 0.0f;
+	});
+
+	for (const auto& entry : PossibleMultitargets) {
+		NewMultiTargets.Add(entry.Value);
+	}
+
+	while (true) {
+		if (NewMultiTargets.IsValidIndex(MaxNumTargets)) {
+			NewMultiTargets.RemoveAtSwap(MaxNumTargets);
+		}
+		else {
+			break;
+		}
+	}
+	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Red, CurrLockOnTarget->GetName() + "-----------------------------------------------------------------------");
 	if (!CurrLockOnTarget) {
 		CurrLockOnTarget = newTarget;
 	}
 
 	if (CurrLockOnTarget) {
-		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, CurrLockOnTarget->GetName() + " : " + FString::SanitizeFloat(CurrDeltaAngleRad) + " rad");
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, CurrLockOnTarget->GetName() + " : " + FString::SanitizeFloat(smallestAngle) + " rad");
 		if (!bContinuousLockOn) {
 			// activate the delay for continueous LockOn
 			GetWorldTimerManager().SetTimer(ContinuousLockOnDelay, this, &AMainPawn::ActivateContinueousLockOn, 0.5f, false);
@@ -1264,10 +1274,7 @@ void AMainPawn::TargetLock() {
 	}
 
 	// remove duplicates
-	if (bMultiTarget && NewMultiTargets.Num() > 0 && NewMultiTargets.Contains(CurrLockOnTarget)) {
-		NewMultiTargets.RemoveSwap(CurrLockOnTarget);
-	}
-	else {
+	if (!(bMultiTarget && NewMultiTargets.Num() > 0 && NewMultiTargets.Contains(CurrLockOnTarget))) {
 		MultiTargets.Empty();
 	}
 
@@ -1277,11 +1284,11 @@ void AMainPawn::TargetLock() {
 		if (actor && MultiTargets.Contains(actor)) {
 			continue;
 		}
-		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Red, "Actor List changed");
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Red, "Actor List changed");
 		bMultiTargetListChanged = true;
 		break;
 	}
-	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, "Number of additionally targeted actors: " + FString::FromInt(NewMultiTargets.Num()));
+	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, "Number of additionally targeted actors: " + FString::FromInt(NewMultiTargets.Num()));
 
 	// in case the list has changed sent list to server
 	if (bMultiTargetListChanged || MultiTargets.Num() != NewMultiTargets.Num()) {
@@ -1302,7 +1309,7 @@ void AMainPawn::OnRep_MultiTarget() {
 
 void AMainPawn::SetTargets(AActor * MainTarget, const  TArray<AActor*> &OtherTargets) {
 
-	if (GetNetMode() == NM_Client) {
+	if (Role < ROLE_Authority) {
 		Server_SetTargets(MainTarget, OtherTargets);
 		return;
 	}
