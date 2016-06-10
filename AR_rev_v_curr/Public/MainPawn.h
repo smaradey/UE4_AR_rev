@@ -39,7 +39,7 @@ struct FPlayerInputPackage {
 		// forward
 		if (MovementInput.X > 0.0f) {
 			PlayerDataCompressed |= forwardPressed;
-		}
+		}else 
 		// backwards
 		if (MovementInput.X < 0.0f) {
 			PlayerDataCompressed |= backwardsPressed;
@@ -47,7 +47,7 @@ struct FPlayerInputPackage {
 		// right
 		if (MovementInput.Y > 0.0f) {
 			PlayerDataCompressed |= rightPressed;
-		}
+		} else
 		// left
 		if (MovementInput.Y < 0.0f) {
 			PlayerDataCompressed |= leftPressed;
@@ -142,12 +142,7 @@ struct FPlayerInputPackage {
 
 	// 1 bit 64th
 	void setGunFire(const uint32 bGunFire) {
-		if (bGunFire) {
-			PlayerDataCompressed |= (1llu << 63);
-		}
-		else {
-			PlayerDataCompressed &= ~(1llu << 63);
-		}
+		setBit(bGunFire, 63);
 	}
 
 	bool getGunFire() const {
@@ -156,19 +151,22 @@ struct FPlayerInputPackage {
 
 	// 1 bit 63th
 	void setMissileFire(const uint32 bMissileFire) {
-		if (bMissileFire) {
-			PlayerDataCompressed |= (1llu << 62);
-		}
-		else {
-			PlayerDataCompressed &= ~(1llu << 62);
-		}
+		setBit(bMissileFire, 62);
 	}
 
 	bool getMissileFire() const {
 		return (PlayerDataCompressed & (1llu << 62)) == (1llu << 62);
 	}
 
-
+	// help function to reduce redundancy
+	void setBit(const uint32 bSet, const int Position) {
+		if (bSet) {
+			PlayerDataCompressed |= (1llu << Position);
+		}
+		else {
+			PlayerDataCompressed &= ~(1llu << Position);
+		}
+	}
 
 
 };
