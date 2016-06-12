@@ -168,6 +168,15 @@ struct FPlayerInputPackage {
 		}
 	}
 
+	// 1 bit 62th
+	void setSwitchTarget(const uint32 bSwitchTarget) {
+		setBit(bSwitchTarget, 61);
+	}
+
+	bool getSwitchTarget() const {
+		return (PlayerDataCompressed & (1llu << 61)) == (1llu << 61);
+	}
+
 
 };
 

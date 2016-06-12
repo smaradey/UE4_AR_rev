@@ -860,19 +860,23 @@ void AMainPawn::SpawnProjectile_Implementation(const FTransform &SocketTransform
 // Missile spawning START --------------------------------
 
 void AMainPawn::OnRep_MissileFire() {
-	if (bMissileFire) {
-		StartMissileFire();
-	}
-	else {
-		StopMissileFire();
-	}
+	//if (bMissileFire) {
+	//	StartMissileFire();
+	//}
+	//else {
+	//	StopMissileFire();
+	//}
 }
+
 void AMainPawn::StartMissileFire() {
 
 	// player has Missilefire button pressed
 	bMissileFire = true;
-	InputPackage.setMissileFire(bMissileFire);
-	if (Role < ROLE_Authority && IsLocallyControlled()) return;
+	if (Role < ROLE_Authority && IsLocallyControlled()) {
+		InputPackage.setMissileFire(bMissileFire);
+		return;
+	}
+
 	if (bMissileReady && bMissileHasAmmo) { // Missile is ready to fire
 		// make sure no other Missilefire timer is activ by clearing it
 		GetWorldTimerManager().ClearTimer(MissileFireHandle);
@@ -904,9 +908,11 @@ void AMainPawn::StartMissileFire() {
 void AMainPawn::StopMissileFire() {
 	// player has Missilefire button released
 	bMissileFire = false;
-	InputPackage.setMissileFire(bMissileFire);
 
-	if (Role < ROLE_Authority && IsLocallyControlled()) return;
+	if (Role < ROLE_Authority && IsLocallyControlled()) {
+		InputPackage.setMissileFire(bMissileFire);
+		return;
+	}
 
 	// is a Missilefire timer active
 	if (GetWorldTimerManager().IsTimerActive(MissileFireHandle)) {
@@ -1048,7 +1054,18 @@ void AMainPawn::StopBoost() {
 	bBoostPressed = false;
 }
 void AMainPawn::SwitchTargetPressed() {
+	
+
+	if (bSwitchTargetPressed) return;
+
 	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Green, "Switch Target PRESSED");
+
+	if (Role < ROLE_Authority && IsLocallyControlled()) {
+		InputPackage.setSwitchTarget(true);
+		return;
+	}
+
+
 	bSwitchTargetPressed = true;
 	CurrLockOnTarget = nullptr;
 	MultiTargets.Empty();
@@ -1058,8 +1075,13 @@ void AMainPawn::SwitchTargetPressed() {
 }
 
 void AMainPawn::SwitchTargetReleased() {
+	if (Role < ROLE_Authority && IsLocallyControlled()) {
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Green, "Switch Target RELEASED");
+		InputPackage.setSwitchTarget(false);
+		return;
+	}
 	bSwitchTargetPressed = false;
-	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Green, "Switch Target RELEASED");
+	
 }
 
 
@@ -1118,6 +1140,14 @@ void AMainPawn::Server_GetPlayerInput_Implementation(FPlayerInputPackage inputDa
 			StopMissileFire();
 		}
 	}
+
+	if (InputPackage.getSwitchTarget()) {
+		SwitchTargetPressed();
+	}
+	else {
+		SwitchTargetReleased();
+	}
+
 
 
 
@@ -1199,15 +1229,16 @@ void AMainPawn::TargetLock() {
 		CurrLockOnTarget = nullptr;
 	}
 
+	const FVector ForwardVector = bFreeCameraActive ? ArmorMesh->GetForwardVector() : Camera->GetForwardVector();
 	// check whether Missile can lock on to main target
 	if (CurrLockOnTarget) {
-		const float DeltaAngleRad = FVector::DotProduct(ArmorMesh->GetForwardVector(), (CurrLockOnTarget->GetActorLocation() - GetActorLocation()).GetSafeNormal());
+		const float DeltaAngleRad = FVector::DotProduct(ForwardVector, (CurrLockOnTarget->GetActorLocation() - GetActorLocation()).GetSafeNormal());
 		bHasMissileLock = (DeltaAngleRad > MissileLockOnAngleRad) ? true : false;
 	}
 
 	if (/*!bCanReceivePlayerInput ||*/ bLockOnDelayActiv || (CurrLockOnTarget && !bMultiTarget)) return;
 
-	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, "... looking for targets");
+	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, "... looking for targets");
 	float smallestAngle = -1.0f;
 	AActor * newTarget = nullptr;
 	TArray<AActor*> NewMultiTargets;
@@ -1219,7 +1250,7 @@ void AMainPawn::TargetLock() {
 
 			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, currActor->GetName() + " has the Interface");
 
-			const float DeltaAngleRad = FVector::DotProduct(ArmorMesh->GetForwardVector(), (currActor->GetActorLocation() - GetActorLocation()).GetSafeNormal());
+			const float DeltaAngleRad = FVector::DotProduct(ForwardVector, (currActor->GetActorLocation() - GetActorLocation()).GetSafeNormal());
 			// TODO: take distance to target into account	
 			// get the closest target to forward vector
 			if (DeltaAngleRad > smallestAngle && DeltaAngleRad > GunLockOnAngleRad) {
@@ -1254,7 +1285,6 @@ void AMainPawn::TargetLock() {
 
 	// set the main target
 	if (!CurrLockOnTarget) {
-		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Red, "-----------------------------------------------------------------------");
 		CurrLockOnTarget = newTarget;
 	}
 
