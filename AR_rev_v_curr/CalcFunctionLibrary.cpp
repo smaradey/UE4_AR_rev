@@ -232,7 +232,7 @@ bool UCalcFunctionLibrary::TracerMotionBlur(
 				FVector &LineStart = OutWorldPosition;
 				FVector LineEnd = OutWorldDirection * length + LineStart;
 
-				FVector OutLocationForOldScreenPos = FMath::ClosestPointOnLine(LineStart, LineEnd, InOldProjectileLocation);
+				OutLocationForOldScreenPos = FMath::ClosestPointOnLine(LineStart, LineEnd, InOldProjectileLocation);
 
 				OutTracerRotation = FRotationMatrix::MakeFromX((InNewProjectileLocation - OutLocationForOldScreenPos).GetSafeNormal()).Rotator();
 
