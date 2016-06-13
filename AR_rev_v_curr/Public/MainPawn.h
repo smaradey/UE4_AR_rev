@@ -276,6 +276,8 @@ protected:
 	FVector2D ViewPortCenter;
 	void GetViewportSizeCenter(FVector2D& ViewPortSize, FVector2D& ViewPortCenter);
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+		FVector2D RawTurnInput;
 	FVector2D MouseInput;
 	void GetMouseInput(FVector2D& MouseInput, FVector2D& CursorLoc, FVector2D& ViewPortCenter);
 
@@ -306,8 +308,12 @@ protected:
 
 
 
+	UPROPERTY(ReplicatedUsing = OnRep_MainLockOnTarget)
+	AActor* MainLockOnTarget;
+	UFUNCTION()
+		void OnRep_MainLockOnTarget();
 
-	AActor* CurrLockOnTarget;
+
 	TArray<AActor*> MultiTargets;
 	UFUNCTION(Server, reliable, WithValidation)
 		void Server_SetTargets(AActor * MainTarget, const TArray<AActor*> &OtherTargets);
@@ -418,6 +424,9 @@ protected:
 
 	UPROPERTY()
 		uint32 bHasMissileLock;
+
+	UPROPERTY(Replicated)
+		bool bHasGunLock;
 
 
 	int CurrTargetIndex = 0;

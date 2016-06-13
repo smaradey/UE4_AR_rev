@@ -189,7 +189,14 @@ void AMainPawn::Tick(float DeltaTime) {
 		// clamp the axis to make sure the player can't turn more than maxTurnrate
 		InputAxis.X = FMath::Clamp(InputAxis.X, -1.0f, 1.0f);
 		InputAxis.Y = FMath::Clamp(InputAxis.Y, -1.0f, 1.0f);
-		MouseInput = InputAxis * InputAxis.GetSafeNormal().GetAbsMax();
+
+		float InputAxisLength = MouseInput.Size();
+		if (InputAxisLength > 1.0f) {
+			InputAxis.X /= InputAxisLength;
+			InputAxis.Y /= InputAxisLength;
+		}
+		MouseInput = InputAxis;
+		//MouseInput = InputAxis * InputAxis.GetSafeNormal().GetAbsMax();
 
 		// debug
 		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Black, FString::SanitizeFloat(InputAxis.X) + " x " + FString::SanitizeFloat(InputAxis.Y));
@@ -217,7 +224,15 @@ void AMainPawn::Tick(float DeltaTime) {
 			MouseInput.X = FMath::Lerp(InputAxis.X, MouseInput.X, CenterPrecision);
 			MouseInput.Y = FMath::Lerp(InputAxis.Y, MouseInput.Y, CenterPrecision);
 
-			MouseInput *= MouseInput.GetSafeNormal().GetAbsMax();
+
+			float MouseInputLength = MouseInput.Size();
+			if (MouseInputLength > 1.0f) {
+				MouseInput.X /= MouseInputLength;
+				MouseInput.Y /= MouseInputLength;
+			}
+
+
+			//MouseInput *= MouseInput.GetSafeNormal().GetAbsMax();
 		}
 
 		if (bFreeCameraActive) {
@@ -233,6 +248,8 @@ void AMainPawn::Tick(float DeltaTime) {
 			// disable strafeinput
 			MovementInput.Y = 0.0f;
 		}
+
+		RawTurnInput = MouseInput;
 
 		// disable input when player has stopped
 		if (!bCanReceivePlayerInput) {
@@ -336,6 +353,12 @@ void AMainPawn::GetLifetimeReplicatedProps(TArray <FLifetimeProperty> &OutLifeti
 
 	DOREPLIFETIME_CONDITION(AMainPawn, bGunFire, COND_SkipOwner);
 	DOREPLIFETIME_CONDITION(AMainPawn, bMissileFire, COND_SkipOwner);
+	DOREPLIFETIME(AMainPawn, MainLockOnTarget);
+	DOREPLIFETIME(AMainPawn, bHasGunLock);
+	
+
+}
+void AMainPawn::OnRep_MainLockOnTarget() {
 
 }
 
@@ -816,11 +839,34 @@ void AMainPawn::GunFireSalve() {
 			CurrGunSocketIndex = (CurrGunSocketIndex + 1) % GunSockets.Num();
 			// get the tranform of the choosen socket
 			const FTransform &CurrentSocketTransform = ArmorMesh->GetSocketTransform(GunSockets[CurrGunSocketIndex]);
-			// calculate a direction and apply weaponspread
-			const FVector SpawnDirection = FMath::VRandCone(CurrentSocketTransform.GetRotation().GetForwardVector(), WeaponSpreadRadian);
-			// spawn/fire projectile
 
 			const FVector &AdditionalVelocity = ArmorMesh->GetPhysicsLinearVelocityAtPoint(CurrentSocketTransform.GetLocation());
+
+			FVector SpawnDirection;
+			// TODO: aim at target
+			if (MainLockOnTarget && bHasGunLock) {
+				// linear targetprediction
+				const FVector &TargetLocation = MainLockOnTarget->GetActorLocation();
+				const FVector &StartLocation = CurrentSocketTransform.GetLocation();
+				const FVector AB = (TargetLocation - StartLocation).GetSafeNormal();
+				const FVector TargetVelocity = MainLockOnTarget->GetVelocity() - AdditionalVelocity;
+				const FVector vi = TargetVelocity - (FVector::DotProduct(AB, TargetVelocity) * AB);
+				const FVector AimLocation = StartLocation + vi + AB * FMath::Sqrt(FMath::Square(ProjectileVel) - FMath::Pow((vi.Size()), 2.f));
+
+				SpawnDirection = (AimLocation - StartLocation).GetSafeNormal();
+
+			}
+			else {
+				SpawnDirection = CurrentSocketTransform.GetRotation().GetForwardVector();
+			}
+
+
+			// apply weaponspread
+			SpawnDirection = FMath::VRandCone(SpawnDirection, WeaponSpreadRadian);
+
+
+			// spawn/fire projectile
+
 
 			if (TracerIntervall > 0) {
 				const FVector TracerOffset = CurrentSocketTransform.GetLocation() + SpawnDirection * FMath::FRandRange(0.0f, (ProjectileVel + AdditionalVelocity.Size()) * GetWorld()->DeltaTimeSeconds);
@@ -979,8 +1025,8 @@ void AMainPawn::MissileFireSalve() {
 			}
 			else {
 				CurrTargetIndex = 0;
-				if (CurrLockOnTarget && bHasMissileLock) {
-					HomingTarget = CurrLockOnTarget->GetRootComponent();
+				if (MainLockOnTarget && bHasMissileLock) {
+					HomingTarget = MainLockOnTarget->GetRootComponent();
 					// calculate a direction and apply weaponspread
 					SpawnDirection = FMath::VRandCone(CurrentSocketTransform.GetRotation().GetForwardVector(), MissileSpreadRadian);
 				}
@@ -1067,7 +1113,7 @@ void AMainPawn::SwitchTargetPressed() {
 
 
 	bSwitchTargetPressed = true;
-	CurrLockOnTarget = nullptr;
+	MainLockOnTarget = nullptr;
 	MultiTargets.Empty();
 	bContinuousLockOn = false;
 	bLockOnDelayActiv = false;
@@ -1226,17 +1272,18 @@ void AMainPawn::TargetLock() {
 	// execute on locally controlled instance of pawn	
 	if (bSwitchTargetPressed && !GetWorldTimerManager().IsTimerActive(ContinuousLockOnDelay)) {
 		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, "-----------------------------------------------------------------------");
-		CurrLockOnTarget = nullptr;
+		MainLockOnTarget = nullptr;
 	}
 
 	const FVector ForwardVector = bFreeCameraActive ? ArmorMesh->GetForwardVector() : Camera->GetForwardVector();
 	// check whether Missile can lock on to main target
-	if (CurrLockOnTarget) {
-		const float DeltaAngleRad = FVector::DotProduct(ForwardVector, (CurrLockOnTarget->GetActorLocation() - GetActorLocation()).GetSafeNormal());
+	if (MainLockOnTarget) {
+		const float DeltaAngleRad = FVector::DotProduct(ForwardVector, (MainLockOnTarget->GetActorLocation() - GetActorLocation()).GetSafeNormal());
 		bHasMissileLock = (DeltaAngleRad > MissileLockOnAngleRad) ? true : false;
+		bHasGunLock = (DeltaAngleRad > GunLockOnAngleRad) ? true : false;
 	}
 
-	if (/*!bCanReceivePlayerInput ||*/ bLockOnDelayActiv || (CurrLockOnTarget && !bMultiTarget)) return;
+	if (/*!bCanReceivePlayerInput ||*/ bLockOnDelayActiv || (MainLockOnTarget && !bMultiTarget)) return;
 
 	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, "... looking for targets");
 	float smallestAngle = -1.0f;
@@ -1284,12 +1331,12 @@ void AMainPawn::TargetLock() {
 	}
 
 	// set the main target
-	if (!CurrLockOnTarget) {
-		CurrLockOnTarget = newTarget;
+	if (!MainLockOnTarget) {
+		MainLockOnTarget = newTarget;
 	}
 
-	if (CurrLockOnTarget) {
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, CurrLockOnTarget->GetName() + " : " + FString::SanitizeFloat(smallestAngle) + " rad");
+	if (MainLockOnTarget) {
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, MainLockOnTarget->GetName() + " : " + FString::SanitizeFloat(smallestAngle) + " rad");
 		if (!bContinuousLockOn) {
 			// activate the delay for continueous LockOn
 			GetWorldTimerManager().SetTimer(ContinuousLockOnDelay, this, &AMainPawn::ActivateContinueousLockOn, 0.5f, false);
@@ -1316,7 +1363,7 @@ void AMainPawn::TargetLock() {
 	// in case the list has changed sent list to server
 	if (bMultiTargetListChanged || MultiTargets.Num() != NewMultiTargets.Num()) {
 		MultiTargets = TArray<AActor*>(NewMultiTargets);
-		SetTargets(CurrLockOnTarget, MultiTargets);
+		SetTargets(MainLockOnTarget, MultiTargets);
 	}
 }
 
@@ -1336,7 +1383,7 @@ void AMainPawn::SetTargets(AActor * MainTarget, const  TArray<AActor*> &OtherTar
 		return;
 	}
 
-	CurrLockOnTarget = MainTarget;
+	MainLockOnTarget = MainTarget;
 	MultiTargets = OtherTargets;
 	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, "Server received number of Targets by player : " + FString::FromInt(OtherTargets.Num()));
 }
