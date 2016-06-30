@@ -24,8 +24,7 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
 
 	ArmorMesh->SetCollisionObjectType(ECC_Pawn);
 	ArmorMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-	ArmorMesh->SetCollisionProfileName(TEXT("BlockAll"));
-	ArmorMesh->SetMassOverrideInKg(NAME_None, 15000.0f, true);
+	ArmorMesh->SetCollisionProfileName(TEXT("BlockAll"));	
 	ArmorMesh->SetLinearDamping(0.0f);
 	ArmorMesh->SetSimulatePhysics(true);
 	ArmorMesh->SetEnableGravity(false);
@@ -152,14 +151,13 @@ void AMainPawn::BeginPlay() {
 
 	// start with player stopped
 	bCanReceivePlayerInput = false;
-
-	// calculate nessecery values
+	
 	InitWeapon();
 	InitRadar();
 	InitVelocities();
 	InitNetwork();
 
-	// initiallize variables in order to prevent crashes
+	// initialize variables in order to prevent crashes
 	lastUpdate = GetWorld()->RealTimeSeconds;
 
 	// make sure the vehicle mass is the same on all instances
