@@ -12,6 +12,8 @@
 #include "Target_Interface.h"
 #include "MainPawn.generated.h"
 
+
+// Enum to select a specific Turn-Algorithm (deprecated)
 UENUM(BlueprintType)		//"BlueprintType" is essential to include
 enum class DebugTurning : uint8
 {
@@ -20,21 +22,47 @@ enum class DebugTurning : uint8
 	Smooth	            UMETA(DisplayName = "Smooth")
 };
 
+
+/*
+Struct to send Player-Input-Data (Compressed to 64 bit) to server:
+Movement-Input: Forward/Side [left,right,forward,backwards]
+Cumulative Mouse-Input: Up/Right [-1.0..1.0]
+Packet-Number
+Gun-Button pressed: [true,false]
+Missile-Button pressed: [true,false]
+Target-Lock-Button pressed: [true,false]
+*/
 USTRUCT()
 struct FPlayerInputPackage {
 	GENERATED_USTRUCT_BODY()
-		/* TODO */
-		UPROPERTY()
+		// Default Constructor
+		FPlayerInputPackage() {
+		PlayerDataCompressed = 0LLU;
+	};
+
+	// Constructor to initialize the Struct
+	FPlayerInputPackage(bool Gun, bool Missile, bool Lock, const FVector2D & MovementInput, const FVector2D &MouseInput, const uint32 newPacketNumber) {
+		PlayerDataCompressed = 0LLU;
+		setGunFire(Gun);
+		setMissileFire(Missile);
+		setSwitchTarget(Lock);
+		SetMovementInput(MovementInput);
+		setMouseInput(MouseInput);
+		setPacketNumber(newPacketNumber);
+	};
+
+	/* TODO */
+	UPROPERTY()
 		uint64 PlayerDataCompressed;
 
 	// 4 bit
 	/* TODO */
 	void SetMovementInput(const FVector2D & MovementInput) {
-		uint64 const rightPressed = 1llu;
-		uint64 const leftPressed = 1llu << 1;
-		uint64 const forwardPressed = 1llu << 2;
-		uint64 const backwardsPressed = 1llu << 3;
-		uint64 const clearMovementInput = ~15llu;
+		uint64 const rightPressed = 1LLU;
+		uint64 const leftPressed = 1LLU << 1;
+		uint64 const forwardPressed = 1LLU << 2;
+		uint64 const backwardsPressed = 1LLU << 3;
+		uint64 const clearMovementInput = ~15LLU;
 
 		PlayerDataCompressed &= clearMovementInput;
 		// forward
@@ -59,10 +87,10 @@ struct FPlayerInputPackage {
 
 	/* TODO */
 	FVector2D GetMovementInput() const {
-		uint64 const rightPressed = 1llu;
-		uint64 const leftPressed = 1llu << 1;
-		uint64 const forwardPressed = 1llu << 2;
-		uint64 const backwardsPressed = 1llu << 3;
+		uint64 const rightPressed = 1LLU;
+		uint64 const leftPressed = 1LLU << 1;
+		uint64 const forwardPressed = 1LLU << 2;
+		uint64 const backwardsPressed = 1LLU << 3;
 		FVector2D Input = FVector2D::ZeroVector;
 		// forward
 		if ((PlayerDataCompressed & forwardPressed) == forwardPressed) {
@@ -85,10 +113,10 @@ struct FPlayerInputPackage {
 
 	// 24 bit
 	/* TODO */
-	void setMouseInput(const FVector2D MouseInput) {
-		uint64 const mouseInputClear = ~(16777215llu << 4);
-		uint64 const mouseYawIsNegative = 1llu << 15;
-		uint64 const mousePitchIsNegative = 1llu << 27;
+	void setMouseInput(const FVector2D &MouseInput) {
+		uint64 const mouseInputClear = ~(16777215LLU << 4);
+		uint64 const mouseYawIsNegative = 1LLU << 15;
+		uint64 const mousePitchIsNegative = 1LLU << 27;
 
 		PlayerDataCompressed &= mouseInputClear;
 
@@ -105,8 +133,8 @@ struct FPlayerInputPackage {
 
 	/* TODO */
 	float getMouseYaw() const {
-		uint64 const mouseYaw = 2047llu << 4;
-		uint64 const mouseYawIsNegative = 1llu << 15;
+		uint64 const mouseYaw = 2047LLU << 4;
+		uint64 const mouseYawIsNegative = 1LLU << 15;
 
 		if ((PlayerDataCompressed & mouseYawIsNegative) == mouseYawIsNegative) {
 
@@ -118,8 +146,8 @@ struct FPlayerInputPackage {
 
 	/* TODO */
 	float getMousePitch() const {
-		uint64 const mousePitch = 2047llu << 16;
-		uint64 const mousePitchIsNegative = 1llu << 27;
+		uint64 const mousePitch = 2047LLU << 16;
+		uint64 const mousePitchIsNegative = 1LLU << 27;
 
 		if ((PlayerDataCompressed & mousePitchIsNegative) == mousePitchIsNegative) {
 			return 0.0f - (((PlayerDataCompressed & mousePitch) >> 16) / 2047.0f);
@@ -134,7 +162,7 @@ struct FPlayerInputPackage {
 
 	/* TODO */
 	void setPacketNumber(const uint32 newPacketNumber) {
-		uint64 const PacketNoClear = ~(16777215llu << 28);
+		uint64 const PacketNoClear = ~(16777215LLU << 28);
 		PlayerDataCompressed &= PacketNoClear;
 		PlayerDataCompressed |= ((uint64)newPacketNumber) << 28;
 	}
@@ -147,7 +175,7 @@ struct FPlayerInputPackage {
 	// 24 bit
 	/* TODO */
 	uint32 getPacketNumber() const {
-		uint64 const PacketNo = 16777215llu << 28;
+		uint64 const PacketNo = 16777215LLU << 28;
 		return (uint32)((PlayerDataCompressed & PacketNo) >> 28);
 	}
 
@@ -159,7 +187,7 @@ struct FPlayerInputPackage {
 
 	/* TODO */
 	bool getGunFire() const {
-		return (PlayerDataCompressed & (1llu << 63)) == (1llu << 63);
+		return (PlayerDataCompressed & (1LLU << 63)) == (1LLU << 63);
 	}
 
 	// 1 bit 63th
@@ -170,16 +198,16 @@ struct FPlayerInputPackage {
 
 	/* TODO */
 	bool getMissileFire() const {
-		return (PlayerDataCompressed & (1llu << 62)) == (1llu << 62);
+		return (PlayerDataCompressed & (1LLU << 62)) == (1LLU << 62);
 	}
 
 	// help function to reduce redundancy
 	void setBit(const uint32 bSet, const int Position) {
 		if (bSet) {
-			PlayerDataCompressed |= (1llu << Position);
+			PlayerDataCompressed |= (1LLU << Position);
 		}
 		else {
-			PlayerDataCompressed &= ~(1llu << Position);
+			PlayerDataCompressed &= ~(1LLU << Position);
 		}
 	}
 
@@ -191,25 +219,23 @@ struct FPlayerInputPackage {
 
 	/* TODO */
 	bool getSwitchTarget() const {
-		return (PlayerDataCompressed & (1llu << 61)) == (1llu << 61);
+		return (PlayerDataCompressed & (1LLU << 61)) == (1LLU << 61);
 	}
 
 
 };
 
-// const int * Constant2 // value that is pointed to is constant
-// int const * Constant2 // value that is pointed to is constant
-// int * const Constant3 // pointer is constant
-// int const * const Constant4 // pointer and value constant
-
-
+/* Struct that stores the current Pawn-Transform with the corresponding Packet-Number of the Player-Input.
+Used to see how much the client has desynchronized when an accepted Player-Input is received from the server */
 USTRUCT()
 struct FPositionHistoryElement {
 	GENERATED_USTRUCT_BODY()
-		/* TODO */
+
+		/* Current Player-Input-Packet-Number */
 		UPROPERTY()
 		uint16 PacketNo;
-	/* TODO */
+
+	/* Corresponding Transform of the Pawn in Time when Player-Input with PacketNo was created */
 	UPROPERTY()
 		FTransform Transform;
 };
@@ -222,19 +248,50 @@ class AR_REV_V_CURR_API AMainPawn : public APawn, public ITarget_Interface
 
 public:
 
-	/* TODO */
+	/* Interface Implementations: ---------------------------------------
+	---------------------------------------------------------------------*/
+
+	/* Implementation of the function to set this pawn to be target-able */
 	virtual bool GetIsTargetable_Implementation() override {
+		// TODO: when dead -> not target-able
 		return true;
 	}
 
-	// Sets default values for this pawn's properties
-	// AMainPawn();
+	/*-------------------------------------------------------------------
+	 End Interface Implementations--------------------------------------- */
 
-	// Sets default values for this actor's properties
+
+	 /* Initialization Functions: ----------------------------------------
+	 ---------------------------------------------------------------------*/
+
+	 // Sets default values for this actor's properties
 	AMainPawn(const FObjectInitializer& ObjectInitializer);
+
+	// Called to bind functionality to input
+	virtual void SetupPlayerInputComponent(class UInputComponent* InputComponent) override;
 
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
+
+	/* TODO */
+	void InitWeapon();
+
+	/* TODO */
+	void InitRadar();
+
+	/* TODO */
+	void InitVelocities();
+
+	/* TODO */
+	void InitNetwork();
+
+	/*-------------------------------------------------------------------
+	End Initialization Functions----------------------------------------- */
+
+
+	/* TODO */
+	void TargetLock();
+
 
 	// Called every frame
 	virtual void Tick(float DeltaSeconds) override;
@@ -243,8 +300,7 @@ public:
 	UFUNCTION()
 		void ArmorHit(UPrimitiveComponent * ThisComponent, class AActor* OtherActor, class UPrimitiveComponent * OtherComponent, FVector Loc, const FHitResult& FHitResult);
 
-	// Called to bind functionality to input
-	virtual void SetupPlayerInputComponent(class UInputComponent* InputComponent) override;
+
 
 	/** StaticMesh component that will be the visuals for the missile */
 	UPROPERTY(Category = Mesh, VisibleDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
@@ -358,10 +414,7 @@ protected:
 	FQuat CurrentSpringArmRotation;
 
 	// Weapons 
-	/* TODO */
-	void InitWeapon();
-	/* TODO */
-	void TargetLock();
+
 
 	/* TODO */
 	UPROPERTY(ReplicatedUsing = OnRep_MainLockOnTarget)
@@ -494,8 +547,7 @@ protected:
 
 	// Radar  ------------------------------------------------------------------------
 
-	/* TODO */
-	void InitRadar();
+
 	/* TODO */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons", meta = (ClampMin = "0.0", ClampMax = "180.0", UIMin = "0.0", UIMax = "90.0"))
 		float MultiTargetLockOnAngleDeg = 30.0f;
@@ -579,7 +631,7 @@ protected:
 	/** smaller values lower the time between the salves and increase the time between last salve and next first salve */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Missiles", meta = (ClampMin = "0.05", ClampMax = "1.0", UIMin = "0.05", UIMax = "1.0"))
 		float MissileSalveDensity = 1.0f;
-	/** number of simultaniously fired Missiles in a salve */
+	/** number of fired Missiles in a salve */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Missiles")
 		uint8 NumMissiles = 2;
 
@@ -587,7 +639,7 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Missiles")
 		TArray<FName> MissileSockets;
 
-	/** number of degrees the projectiles can deviate from actual firedirection */
+	/** number of degrees the projectiles can deviate from actual Fire-Direction */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Missiles")
 		float MissileSpreadHalfAngle = 30.0f;
 
@@ -758,8 +810,7 @@ protected:
 		float MinVelocity = 2500.0f;
 	float VelForwardDelta;
 	float VelBackwardsDelta;
-	UFUNCTION()
-		void InitVelocities();
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		float CurrentVelocitySize;
 	/** max velocity to the right and to the left */
@@ -823,8 +874,7 @@ private:
 	/* TODO */
 	void MainPlayerMovement(const float DeltaTime, const FVector &CorrectionVelocity = FVector::ZeroVector, const FVector &CorrectionAngularVelocity = FVector::ZeroVector);
 
-	/* TODO */
-	void InitNetwork();
+
 	// how many updates to buffer
 	int NumberOfBufferedNetUpdates;
 	// factor to slow down movement to compensate long Buffer-Time
@@ -891,7 +941,7 @@ private:
 	/* TODO */
 	float NetDelta;
 
-	// playerstate
+	// Player-State
 	UPROPERTY()
 		APlayerState* State;
 
@@ -903,3 +953,4 @@ private:
 	/* TODO */
 	float Alpha;
 };
+
