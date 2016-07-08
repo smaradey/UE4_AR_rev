@@ -23,11 +23,12 @@ enum class DebugTurning : uint8
 USTRUCT()
 struct FPlayerInputPackage {
 	GENERATED_USTRUCT_BODY()
-	
-	UPROPERTY()
+		/* TODO */
+		UPROPERTY()
 		uint64 PlayerDataCompressed;
 
 	// 4 bit
+	/* TODO */
 	void SetMovementInput(const FVector2D & MovementInput) {
 		uint64 const rightPressed = 1llu;
 		uint64 const leftPressed = 1llu << 1;
@@ -39,21 +40,24 @@ struct FPlayerInputPackage {
 		// forward
 		if (MovementInput.X > 0.0f) {
 			PlayerDataCompressed |= forwardPressed;
-		}else 
-		// backwards
-		if (MovementInput.X < 0.0f) {
-			PlayerDataCompressed |= backwardsPressed;
 		}
+		else
+			// backwards
+			if (MovementInput.X < 0.0f) {
+				PlayerDataCompressed |= backwardsPressed;
+			}
 		// right
 		if (MovementInput.Y > 0.0f) {
 			PlayerDataCompressed |= rightPressed;
-		} else
-		// left
-		if (MovementInput.Y < 0.0f) {
-			PlayerDataCompressed |= leftPressed;
 		}
+		else
+			// left
+			if (MovementInput.Y < 0.0f) {
+				PlayerDataCompressed |= leftPressed;
+			}
 	}
 
+	/* TODO */
 	FVector2D GetMovementInput() const {
 		uint64 const rightPressed = 1llu;
 		uint64 const leftPressed = 1llu << 1;
@@ -69,7 +73,7 @@ struct FPlayerInputPackage {
 			Input.X = -1.0f;
 		}
 		// right
-		if ((PlayerDataCompressed & rightPressed) == rightPressed){
+		if ((PlayerDataCompressed & rightPressed) == rightPressed) {
 			Input.Y = 1.0f;
 		}
 		// left
@@ -78,8 +82,9 @@ struct FPlayerInputPackage {
 		}
 		return Input;
 	}
-	
+
 	// 24 bit
+	/* TODO */
 	void setMouseInput(const FVector2D MouseInput) {
 		uint64 const mouseInputClear = ~(16777215llu << 4);
 		uint64 const mouseYawIsNegative = 1llu << 15;
@@ -98,11 +103,12 @@ struct FPlayerInputPackage {
 		}
 	}
 
+	/* TODO */
 	float getMouseYaw() const {
 		uint64 const mouseYaw = 2047llu << 4;
 		uint64 const mouseYawIsNegative = 1llu << 15;
 
-		if ((PlayerDataCompressed & mouseYawIsNegative ) == mouseYawIsNegative) {
+		if ((PlayerDataCompressed & mouseYawIsNegative) == mouseYawIsNegative) {
 
 			return 0.0f - (((PlayerDataCompressed & mouseYaw) >> 4) / 2047.0f);
 
@@ -110,6 +116,7 @@ struct FPlayerInputPackage {
 		return ((PlayerDataCompressed & mouseYaw) >> 4) / 2047.0f;
 	}
 
+	/* TODO */
 	float getMousePitch() const {
 		uint64 const mousePitch = 2047llu << 16;
 		uint64 const mousePitchIsNegative = 1llu << 27;
@@ -120,40 +127,48 @@ struct FPlayerInputPackage {
 		return ((PlayerDataCompressed & mousePitch) >> 16) / 2047.0f;
 	}
 
+	/* TODO */
 	FVector2D getMouseInput() const {
 		return FVector2D(getMouseYaw(), getMousePitch());
 	}
 
+	/* TODO */
 	void setPacketNumber(const uint32 newPacketNumber) {
 		uint64 const PacketNoClear = ~(16777215llu << 28);
 		PlayerDataCompressed &= PacketNoClear;
 		PlayerDataCompressed |= ((uint64)newPacketNumber) << 28;
 	}
 
+	/* TODO */
 	void IncrementPacketNumber() {
 		setPacketNumber(1 + getPacketNumber());
 	}
 
 	// 24 bit
+	/* TODO */
 	uint32 getPacketNumber() const {
 		uint64 const PacketNo = 16777215llu << 28;
-		return (uint32)((PlayerDataCompressed & PacketNo) >> 28);		
+		return (uint32)((PlayerDataCompressed & PacketNo) >> 28);
 	}
 
 	// 1 bit 64th
+	/* TODO */
 	void setGunFire(const uint32 bGunFire) {
 		setBit(bGunFire, 63);
 	}
 
+	/* TODO */
 	bool getGunFire() const {
 		return (PlayerDataCompressed & (1llu << 63)) == (1llu << 63);
 	}
 
 	// 1 bit 63th
+	/* TODO */
 	void setMissileFire(const uint32 bMissileFire) {
 		setBit(bMissileFire, 62);
 	}
 
+	/* TODO */
 	bool getMissileFire() const {
 		return (PlayerDataCompressed & (1llu << 62)) == (1llu << 62);
 	}
@@ -169,10 +184,12 @@ struct FPlayerInputPackage {
 	}
 
 	// 1 bit 62th
+	/* TODO */
 	void setSwitchTarget(const uint32 bSwitchTarget) {
 		setBit(bSwitchTarget, 61);
 	}
 
+	/* TODO */
 	bool getSwitchTarget() const {
 		return (PlayerDataCompressed & (1llu << 61)) == (1llu << 61);
 	}
@@ -189,8 +206,10 @@ struct FPlayerInputPackage {
 USTRUCT()
 struct FPositionHistoryElement {
 	GENERATED_USTRUCT_BODY()
+		/* TODO */
 		UPROPERTY()
 		uint16 PacketNo;
+	/* TODO */
 	UPROPERTY()
 		FTransform Transform;
 };
@@ -203,12 +222,13 @@ class AR_REV_V_CURR_API AMainPawn : public APawn, public ITarget_Interface
 
 public:
 
+	/* TODO */
 	virtual bool GetIsTargetable_Implementation() override {
 		return true;
 	}
 
 	// Sets default values for this pawn's properties
-	AMainPawn();
+	// AMainPawn();
 
 	// Sets default values for this actor's properties
 	AMainPawn(const FObjectInitializer& ObjectInitializer);
@@ -219,6 +239,7 @@ public:
 	// Called every frame
 	virtual void Tick(float DeltaSeconds) override;
 
+	/* TODO */
 	UFUNCTION()
 		void ArmorHit(UPrimitiveComponent * ThisComponent, class AActor* OtherActor, class UPrimitiveComponent * OtherComponent, FVector Loc, const FHitResult& FHitResult);
 
@@ -233,8 +254,11 @@ public:
 	UPROPERTY(Category = Mesh, VisibleDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 		class UStaticMeshComponent* Dummy;
 
+	/* TODO */
 	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 		USpringArmComponent* SpringArm;
+
+	/* TODO */
 	UPROPERTY(VisibleDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
 		UCameraComponent* Camera;
 
@@ -254,8 +278,11 @@ public:
 		float TurnInterpSpeed = 3.0f;
 
 
+	/* TODO */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		float RotControlStrength = 1.0f;
+
+	/* TODO */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		float MovControlStrength = 1.0f;
 
@@ -269,83 +296,139 @@ protected:
 
 	//Input variables
 	FVector2D CursorLoc;
+
+	/* TODO */
 	void GetCursorLocation(FVector2D& CursorLoc);
 
+	/* TODO */
 	FVector2D InputAxis;
+	/* TODO */
 	FVector2D ViewPortSize;
+	/* TODO */
 	FVector2D ViewPortCenter;
+
+	/* TODO */
 	void GetViewportSizeCenter(FVector2D& ViewPortSize, FVector2D& ViewPortCenter);
 
+
+	/* TODO */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		FVector2D RawTurnInput;
+
+	/* TODO */
 	FVector2D MouseInput;
+
+	/* TODO */
 	void GetMouseInput(FVector2D& MouseInput, FVector2D& CursorLoc, FVector2D& ViewPortCenter);
 
+	/* TODO */
 	FVector2D PreviousMouseInput;
 
 
+	/* TODO */
 	float ForwardVel;
+	/* TODO */
 	float StrafeVel;
+	/* TODO */
 	float PrevStrafeRot;
+	/* TODO */
 	float CurrStrafeRot;
+	/* TODO */
 	float InputSize;
+	/* TODO */
 	float NewInputSize;
+	/* TODO */
 	float OldInputSize;
+	/* TODO */
 	FVector2D MovementInput;
+	/* TODO */
 	FVector2D CameraInput;
+	/* TODO */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		bool bFreeCameraActive = false;
+	/* TODO */
 	float ZoomFactor;
+	/* TODO */
 	uint32 bZoomingIn;
+	/* TODO */
 	uint32 bBoostPressed;
+	/* TODO */
 	float SpringArmLength;
+	/* TODO */
 	FQuat CurrentSpringArmRotation;
 
 	// Weapons 
+	/* TODO */
 	void InitWeapon();
+	/* TODO */
 	void TargetLock();
 
-
-
-
+	/* TODO */
 	UPROPERTY(ReplicatedUsing = OnRep_MainLockOnTarget)
-	AActor* MainLockOnTarget;
+		AActor* MainLockOnTarget;
+
+	/* TODO */
 	UFUNCTION()
 		void OnRep_MainLockOnTarget();
 
 
+	/* TODO */
 	TArray<AActor*> MultiTargets;
+
+	/* TODO */
 	UFUNCTION(Server, reliable, WithValidation)
 		void Server_SetTargets(AActor * MainTarget, const TArray<AActor*> &OtherTargets);
+
+	/* TODO */
 	virtual void SetTargets(AActor * MainTarget, const TArray<AActor*> &OtherTargets);
+
+	/* TODO */
 	FTimerHandle ContinuousLockOnDelay;
+	/* TODO */
 	uint32 bLockOnDelayActiv;
+	/* TODO */
 	uint32 bSwitchTargetPressed;
+	/* TODO */
 	uint32 bContinuousLockOn;
 
+	/* TODO */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons", meta = (ClampMin = "1", ClampMax = "100", UIMin = "1", UIMax = "10"))
 		uint8 MaxNumTargets = 8;
 
+	/* TODO */
 	UPROPERTY(ReplicatedUsing = OnRep_MultiTarget, EditAnywhere, BlueprintReadWrite, Category = "Weapons")
 		bool bMultiTarget;
+	/* TODO */
 	UFUNCTION()
 		void OnRep_MultiTarget();
+	/* TODO */
 	void ActivateContinueousLockOn();
 
 	// Guns ------------------------------------------------------------------------
+	/* TODO */
 	void StartGunFire();
+	/* TODO */
 	void StopGunFire();
 
-	UPROPERTY(ReplicatedUsing = OnRep_GunFire)
-	bool bGunFire;
-	UFUNCTION()
-	void OnRep_GunFire();
 
+	/* TODO */
+	UPROPERTY(ReplicatedUsing = OnRep_GunFire)
+
+		/* TODO */
+		bool bGunFire;
+	/* TODO */
+	UFUNCTION()
+		void OnRep_GunFire();
+
+	/* TODO */
 	UPROPERTY(Replicated)
 		uint32 bGunReady : 1;
+	/* TODO */
 	void GunFire();
+	/* TODO */
 	FTimerHandle GunFireHandle;
 
+	/* TODO */
 	UFUNCTION(BlueprintNativeEvent, Category = "Weapons | Guns")
 		void SpawnProjectile(const FTransform &SocketTransform, const bool bTracer, const FVector &FireBaseVelocity = FVector::ZeroVector, const FVector &TracerStartLocation = FVector::ZeroVector);
 
@@ -353,12 +436,18 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Guns")
 		float FireRateGun = 1.0f;
 
+	/* TODO */
 	void GunCooldownElapsed();
+	/* TODO */
 	FTimerHandle GunFireCooldown;
 
+	/* TODO */
 	void GunFireSalve();
+	/* TODO */
 	FTimerHandle GunSalveTimerHandle;
+	/* TODO */
 	float GunSalveIntervall;
+	/* TODO */
 	uint8 GunCurrentSalve;
 
 	/** number of projectile salves fired after a shot has been triggered */
@@ -371,9 +460,11 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Guns")
 		uint8 NumProjectiles = 2;
 
+	/* TODO */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Guns")
 		TArray<FName> GunSockets;
 
+	/* TODO */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Guns")
 		float GunRecoilForce = -500000.0f;
 
@@ -385,52 +476,82 @@ protected:
 	/** number of projectiles available */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Guns")
 		int GunAmmunitionAmount = 10000;
+
+	/* TODO */
 	UPROPERTY(Replicated)
 		bool bGunHasAmmo = true;
 
 	/** every x-th projectile has a tracer, set to 0 to disable tracers completely */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Guns")
 		uint8 TracerIntervall = 1;
+	/* TODO */
 	uint8 CurrentTracer;
+	/* TODO */
 	uint8 CurrGunSocketIndex;
+	/* TODO */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Guns")
 		float ProjectileVel = 100000.0f;
 
 	// Radar  ------------------------------------------------------------------------
+
+	/* TODO */
 	void InitRadar();
+	/* TODO */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons", meta = (ClampMin = "0.0", ClampMax = "180.0", UIMin = "0.0", UIMax = "90.0"))
 		float MultiTargetLockOnAngleDeg = 30.0f;
+
+	/* TODO */
 	float MultiTargetLockOnAngleRad;
+
+	/* TODO */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons", meta = (ClampMin = "0.0", ClampMax = "180.0", UIMin = "0.0", UIMax = "90.0"))
 		float MissileLockOnAngleDeg = 10.0f;
+
+	/* TODO */
 	float MissileLockOnAngleRad;
+
+	/* TODO */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons", meta = (ClampMin = "0.0", ClampMax = "180.0", UIMin = "0.0", UIMax = "90.0"))
 		float GunLockOnAngleDeg = 6.0f;
+
+	/* TODO */
 	float GunLockOnAngleRad;
 
 	// Missiles -----------------------------------------------------------------------
+
+	/* TODO */
 	void StartMissileFire();
+	/* TODO */
 	void StopMissileFire();
 
+	/* TODO */
 	UPROPERTY(ReplicatedUsing = OnRep_MissileFire)
 		bool bMissileFire;
+	/* TODO */
 	UFUNCTION()
-	void OnRep_MissileFire();
-	
+		void OnRep_MissileFire();
+
+	/* TODO */
 	UPROPERTY(Replicated)
 		uint32 bMissileReady : 1;
+	/* TODO */
 	void MissileFire();
+	/* TODO */
 	FTimerHandle MissileFireHandle;
 
+	/* TODO */
 	UPROPERTY()
 		uint32 bHasMissileLock;
 
+	/* TODO */
 	UPROPERTY(Replicated)
 		bool bHasGunLock;
 
 
+	/* TODO */
 	int CurrTargetIndex = 0;
 
+	/* TODO */
 	UFUNCTION(BlueprintNativeEvent, Category = "Weapons | Missiles")
 		void SpawnMissile(const FTransform &SocketTransform, class USceneComponent * HomingTarget, const FVector &FireBaseVelocity = FVector::ZeroVector);
 
@@ -438,12 +559,18 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Missiles")
 		float FireRateMissile = 1.0f;
 
+	/* TODO */
 	void MissileCooldownElapsed();
+	/* TODO */
 	FTimerHandle MissileFireCooldown;
 
+	/* TODO */
 	void MissileFireSalve();
+	/* TODO */
 	FTimerHandle MissileSalveTimerHandle;
+	/* TODO */
 	float MissileSalveIntervall;
+	/* TODO */
 	uint8 MissileCurrentSalve;
 
 	/** number of Missile salves fired after a shot has been triggered */
@@ -456,39 +583,57 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Missiles")
 		uint8 NumMissiles = 2;
 
+	/* TODO */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Missiles")
 		TArray<FName> MissileSockets;
 
 	/** number of degrees the projectiles can deviate from actual firedirection */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Missiles")
 		float MissileSpreadHalfAngle = 30.0f;
+
+	/* TODO */
 	float MissileSpreadRadian;
 
 	/** number of projectiles available */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Missiles")
 		int MissileAmmunitionAmount = 10000;
+	/* TODO */
 	UPROPERTY(Replicated)
 		bool bMissileHasAmmo = true;
 
+	/* TODO */
 	uint8 CurrMissileSocketIndex;
 
 	// END Weapons ------------------------------------------------------------------------
 
 	//Input functions
+	/* TODO */
 	void MoveForward(float AxisValue);
+	/* TODO */
 	void MoveRight(float AxisValue);
+	/* TODO */
 	void PitchCamera(float AxisValue);
+	/* TODO */
 	void YawCamera(float AxisValue);
+	/* TODO */
 	void ActivateFreeCamera();
+	/* TODO */
 	void DeactivateFreeCamera();
+	/* TODO */
 	void ZoomIn();
+	/* TODO */
 	void ZoomOut();
+	/* TODO */
 	void SwitchTargetPressed();
+	/* TODO */
 	void SwitchTargetReleased();
 
+	/* TODO */
 	void StartBoost();
+	/* TODO */
 	void StopBoost();
 
+	/* TODO */
 	void Skill_01_Pressed();
 	void Skill_02_Pressed();
 	void Skill_03_Pressed();
@@ -511,46 +656,69 @@ protected:
 	void Skill_09_Released();
 	void Skill_10_Released();
 
+	/* TODO */
 	void StopMovement();
+	/* TODO */
 	UFUNCTION(Server, reliable, WithValidation)
 		void Server_StopPlayerMovement();
-	virtual void StopPlayerMovement(); // executed on client
+	/* TODO */
+	virtual void StopPlayerMovement();
+
+	/* TODO */
 	UPROPERTY(Replicated)
 		bool bCanReceivePlayerInput;
+	/* TODO */
 	UFUNCTION()
 		void StartMovementCoolDownElapsed();
+	/* TODO */
 	FTimerHandle StartMovementTimerHandle;
 
+	/* TODO */
 	int lagCounter = 0;
 
+	/* TODO */
 	FTransform RelativeArmorTransform;
 
+	/* TODO */
 	UPROPERTY(ReplicatedUsing = OnRep_AngularVelocity, EditAnywhere, BlueprintReadWrite)
 		FVector AngularVelocity;
+	/* TODO */
 	UFUNCTION()
 		void OnRep_AngularVelocity();
 
+	/* TODO */
 	FVector WorldAngVel;
+	/* TODO */
 	FVector TargetLinearVelocity;
+	/* TODO */
 	float TransformBlend;
 
+	/* TODO */
 	UFUNCTION(Server, unreliable, WithValidation)
 		void Server_GetPlayerInput(FPlayerInputPackage inputData);
-	virtual void GetPlayerInput(FPlayerInputPackage inputData); // executed on client
+	/* TODO */
+	virtual void GetPlayerInput(FPlayerInputPackage inputData);
 
 
+	/* TODO */
 	UPROPERTY()
 		FPlayerInputPackage InputPackage;
+	/* TODO */
 	UPROPERTY()
 		uint32 Ack;
+	/* TODO */
 	UPROPERTY(ReplicatedUsing = OnRep_AuthorityAck)
 		uint32 AuthorityAck;
+	/* TODO */
 	UFUNCTION()
 		void OnRep_AuthorityAck();
+	/* TODO */
 	FTransform PastClientTransform;
+	/* TODO */
 	FVector LocationCorrection;
 
 
+	/* TODO */
 	UPROPERTY()
 		TArray<FPositionHistoryElement> MovementHistory;
 
@@ -566,11 +734,11 @@ protected:
 
 
 
-	/** max turnrate in deg/second */
+	/** max Turn-Rate in deg/second */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Turning", meta = (ClampMin = "40.0", ClampMax = "360.0", UIMin = "40.0", UIMax = "180.0"))
 		float MaxTurnRate = 50.0f;
 
-	/** deadzone area with no turning, factor is percentage of screen width in range of 0 to 1 (100%) */
+	/** Dead-Zone area with no turning, factor is percentage of screen width in range of 0 to 1 (100%) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Turning", meta = (ClampMin = "0.0", ClampMax = "0.1", UIMin = "0.0", UIMax = "0.05"))
 		float Deadzone = 0.005f;
 	/** how long the player has no control after a crash */
@@ -597,10 +765,10 @@ protected:
 	/** max velocity to the right and to the left */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
 		float MaxStrafeVel = 3000.0f;
-	/** interpvelocity for forward movement */
+	/** Interp-velocity for forward movement */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
 		float ForwardAcceleration = 2.0f;
-	/** interpvelocity for backwards movement/braking */
+	/** Interp-velocity for backwards movement/braking */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
 		float BackwardsAcceleration = 3.0f;
 	/** if false  strafe input causes instant change to MaxStrafeVel */
@@ -611,11 +779,11 @@ protected:
 		float TimeToMaxStrafeVel = 0.15f;
 	float ConstantStrafeAcceleration;
 
-	/** interpvelocity for side movement */
+	/** Interp-velocity for side movement */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight")
 		float StrafeBankAcceleration = 2.0f;
 
-	/** straferotation angle in range of -72 to 72 deg (roll) */
+	/** Strafe-Rotation angle in range of -72 to 72 deg (roll) */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Flight", meta = (ClampMin = "0.0", ClampMax = "180.0", UIMin = "0.0", UIMax = "180.0"))
 		float MaxStrafeBankAngle = 72.0f;
 
@@ -627,18 +795,18 @@ protected:
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite)
 		FVector AutoLevelAxis = FVector(0.0f, 0.0f, 1.0f);
 
-	/** use the gravity of planets to determine what direction is or use world upvector when set to false */
+	/** use the gravity of planets to determine what direction is or use world Up-Vector when set to false */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PlayerControls")
 		bool bUseGravityDirForAutoLevel = true;
 
-	/** factor to speed up freelook camera  rotation */
+	/** factor to speed up Free-Look camera  rotation */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PlayerControls", meta = (ClampMin = "0.0", ClampMax = "720.0", UIMin = "0.0", UIMax = "100.0"))
 		float FreeCameraSpeed = 5.0f;
 
 	/** true: use separate mouseinput in combination with MouseSensitivity (better for widescreen displays); false: use the cursorposition inside game (same sensitivity as Windows, slightly higher inputlag); regardless of which method choosen: the max turnrates are the same */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PlayerControls")
 		bool bUseInternMouseSensitivity = true;
-	/** how sensitiv direction control is, only used in when UseInternMouseSensitivity is activ, otherwise the cursorposition on screen is used which uses the Windows sensitivity */
+	/** how Sensitivity direction control is, only used in when UseInternMouseSensitivity is active, otherwise the Cursor-Position on screen is used which uses the Windows sensitivity */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "PlayerControls", meta = (ClampMin = "0.0", ClampMax = "1.0", UIMin = "0.0", UIMax = "1.0"))
 		float MouseSensitivity = 0.01f;
 	/** CenterPrecision defines how sensitive the turning is around the center of the screen, towards 0: linear turning, towards 1: [1.0 - cos(x * CP * pi/2)] */
@@ -652,12 +820,14 @@ protected:
 
 private:
 
+	/* TODO */
 	void MainPlayerMovement(const float DeltaTime, const FVector &CorrectionVelocity = FVector::ZeroVector, const FVector &CorrectionAngularVelocity = FVector::ZeroVector);
 
+	/* TODO */
 	void InitNetwork();
 	// how many updates to buffer
 	int NumberOfBufferedNetUpdates;
-	// factor to slow down movement to compensate long buffertime
+	// factor to slow down movement to compensate long Buffer-Time
 	float LerpVelocity;
 	// how far the received Location will be predicted into the future
 	float PredictionAmount;
@@ -684,15 +854,23 @@ private:
 
 
 
+	/* TODO */
 	UFUNCTION()
 		void RecoverFromCollision(const float DeltaSeconds);
 
+	/* TODO */
 	FVector MostRecentCrashPoint;
+	/* TODO */
 	FVector CrashNormal;
+	/* TODO */
 	float CollisionTimeDelta;
+	/* TODO */
 	float PrevSafetyDistanceDelta;
+	/* TODO */
 	float PrevDeltaTime = 1.0f;
+	/* TODO */
 	float AntiCollisionVelocity;
+	/* TODO */
 	bool CollisionHandling;
 
 	// }
@@ -702,10 +880,15 @@ private:
 	// PI / 2
 	const float HalfPI = 0.5f * PI;
 	// }
+	/* TODO */
 	float lastUpdate;
+	/* TODO */
 	FVector PrevLocationOnServer;
+	/* TODO */
 	FTransform PrevReceivedTransform;
+	/* TODO */
 	float LinVelServer;
+	/* TODO */
 	float NetDelta;
 
 	// playerstate
@@ -715,6 +898,8 @@ private:
 	// network
 	UFUNCTION()
 		void GetPing();
+	/* TODO */
 	float Ping;
+	/* TODO */
 	float Alpha;
 };
