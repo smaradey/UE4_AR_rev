@@ -292,6 +292,12 @@ public:
 	/* TODO */
 	void TargetLock();
 
+	// maximum Distance at which the player is able to Lock on to target-able Targets
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Radar", meta = (ClampMin = "10000.0", ClampMax = "1000000.0", UIMin = "10000.0", UIMax = "1000000.0"))
+	float RadarMaxLockOnRange = 165000.0f;
+	// squared maximum Distance at which the player is able to Lock on to target-able Targets
+	float RadarMaxLockOnRangeSquarred = 0.0f;
+
 
 	// Called every frame
 	virtual void Tick(float DeltaSeconds) override;

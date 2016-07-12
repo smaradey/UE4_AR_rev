@@ -24,7 +24,7 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
 
 	ArmorMesh->SetCollisionObjectType(ECC_Pawn);
 	ArmorMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
-	ArmorMesh->SetCollisionProfileName(TEXT("BlockAll"));	
+	ArmorMesh->SetCollisionProfileName(TEXT("BlockAll"));
 	ArmorMesh->SetLinearDamping(0.0f);
 	ArmorMesh->SetSimulatePhysics(true);
 	ArmorMesh->SetEnableGravity(false);
@@ -138,6 +138,8 @@ void AMainPawn::InitRadar() {
 	GunLockOnAngleRad = FMath::Cos(GunLockOnAngleDeg / 180.0f * PI);
 	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 10.0f, FColor::Red, " Gun LockOn in radian : " + FString::SanitizeFloat(GunLockOnAngleRad));
 
+	RadarMaxLockOnRangeSquarred = RadarMaxLockOnRange * RadarMaxLockOnRange;
+
 }
 void AMainPawn::InitNetwork() {
 	NumberOfBufferedNetUpdates = FMath::RoundToInt(Smoothing * NetUpdateFrequency);
@@ -151,7 +153,7 @@ void AMainPawn::BeginPlay() {
 
 	// start with player stopped
 	bCanReceivePlayerInput = false;
-	
+
 	InitWeapon();
 	InitRadar();
 	InitVelocities();
@@ -353,7 +355,7 @@ void AMainPawn::GetLifetimeReplicatedProps(TArray <FLifetimeProperty> &OutLifeti
 	DOREPLIFETIME_CONDITION(AMainPawn, bMissileFire, COND_SkipOwner);
 	DOREPLIFETIME(AMainPawn, MainLockOnTarget);
 	DOREPLIFETIME(AMainPawn, bHasGunLock);
-	
+
 
 }
 void AMainPawn::OnRep_MainLockOnTarget() {
@@ -1098,7 +1100,7 @@ void AMainPawn::StopBoost() {
 	bBoostPressed = false;
 }
 void AMainPawn::SwitchTargetPressed() {
-	
+
 
 	if (bSwitchTargetPressed) return;
 
@@ -1125,7 +1127,7 @@ void AMainPawn::SwitchTargetReleased() {
 		return;
 	}
 	bSwitchTargetPressed = false;
-	
+
 }
 
 
@@ -1273,72 +1275,81 @@ void AMainPawn::TargetLock() {
 		MainLockOnTarget = nullptr;
 	}
 
-	const FVector ForwardVector = bFreeCameraActive ? ArmorMesh->GetForwardVector() : Camera->GetForwardVector();
-	// check whether Missile can lock on to main target
+	// normalized Forward-Vector from the Armor or the Camera, depending on where the player is looking, to prevent locking onto Targets that are not in front of the Player
+	const FVector &ForwardVector = bFreeCameraActive ? ArmorMesh->GetForwardVector() : Camera->GetForwardVector();
+
 	if (MainLockOnTarget) {
+		// angle between Forward-Vector and Vector to current Target
 		const float DeltaAngleRad = FVector::DotProduct(ForwardVector, (MainLockOnTarget->GetActorLocation() - GetActorLocation()).GetSafeNormal());
+
+		// set the booleans to enable Weapon-Lock-Ons
 		bHasMissileLock = (DeltaAngleRad > MissileLockOnAngleRad) ? true : false;
 		bHasGunLock = (DeltaAngleRad > GunLockOnAngleRad) ? true : false;
 	}
 
-	if (/*!bCanReceivePlayerInput ||*/ bLockOnDelayActiv || (MainLockOnTarget && !bMultiTarget)) return;
+	// skip Target-Selection when the delay is active or there has already been Locked-on to are Target and Multi-Target is not enabled
+	if (bLockOnDelayActiv || (MainLockOnTarget && !bMultiTarget)) {
+		return;
+	}
 
 	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, "... looking for targets");
-	float smallestAngle = -1.0f;
-	AActor * newTarget = nullptr;
-	TArray<AActor*> NewMultiTargets;
-	TMap<float, AActor*> PossibleMultitargets;
 
-	// get all targetable actors
-	for (TActorIterator<AActor> currActor(GetWorld()); currActor; ++currActor) {
+	TMap<float, AActor*> TargetableTargets;
+
+	// get all target-able Actors
+	for (TActorIterator<AActor> currActor(GetWorld()); currActor /* while is valid */; ++currActor) {
+
 		if (*currActor != this && currActor->Implements<UTarget_Interface>()) {
 
 			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, currActor->GetName() + " has the Interface");
 
-			const float DeltaAngleRad = FVector::DotProduct(ForwardVector, (currActor->GetActorLocation() - GetActorLocation()).GetSafeNormal());
-			// TODO: take distance to target into account	
-			// get the closest target to forward vector
-			if (DeltaAngleRad > smallestAngle && DeltaAngleRad > GunLockOnAngleRad) {
-				smallestAngle = DeltaAngleRad;
-				newTarget = *currActor;
+			// Vector to the current target-able Target
+			const FVector VecToTarget = currActor->GetActorLocation() - GetActorLocation();
+
+			// angle between Forward-Vector and Vector to current Target
+			const float DeltaAngleRad = FVector::DotProduct(ForwardVector, VecToTarget.GetUnsafeNormal());
+
+			// check whether the Actor is in Radar-Range
+			if (VecToTarget.SizeSquared() > RadarMaxLockOnRangeSquarred) {
+				continue;
 			}
-			// Add target to list when in range for targeting
-			if (bMultiTarget && DeltaAngleRad > MultiTargetLockOnAngleRad) {
-				PossibleMultitargets.Add(DeltaAngleRad, *currActor);
+
+			// add to list of TargetableTargets if in Gun-Lock-On-Range or when Multi-Targeting is enabled in Multi-Target-Lock-On-Range
+			if (DeltaAngleRad > GunLockOnAngleRad || (bMultiTarget && DeltaAngleRad > MultiTargetLockOnAngleRad)) {
+				TargetableTargets.Add(DeltaAngleRad, *currActor);
 			}
 		}
 	}
-	// sort the targets with their angles
-	PossibleMultitargets.KeySort([](const float A, const float B) {
+
+	// sort the Targets
+	TargetableTargets.KeySort([](const float A, const float B) {
 		return (A - B) > 0.0f;
 	});
 
-	// copy the targets to the multitarget list
-	for (const auto& entry : PossibleMultitargets) {
-		NewMultiTargets.Add(entry.Value);
-	}
 
-	// remove targets while list has more targets then allowed
-	while (true) {
-		if (NewMultiTargets.IsValidIndex(MaxNumTargets)) {
-			NewMultiTargets.RemoveAtSwap(MaxNumTargets);
+	TArray<AActor*> ChosenTargets;
+
+	int TargetCount = 0;
+	// copy only MaxNumTargets to the Chosen-Targets-List
+	for (const auto &entry : TargetableTargets) {
+		if (TargetCount < MaxNumTargets) {
+			ChosenTargets.Add(entry.Value);
+			++TargetCount;
 		}
-		else {
+		else { 
 			break;
 		}
 	}
 
+
 	// set the main target
 	if (!MainLockOnTarget) {
-		MainLockOnTarget = newTarget;
+		MainLockOnTarget = ChosenTargets.IsValidIndex(0) ? ChosenTargets[0] : nullptr;
 	}
 
-	if (MainLockOnTarget) {
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, MainLockOnTarget->GetName() + " : " + FString::SanitizeFloat(smallestAngle) + " rad");
-		if (!bContinuousLockOn) {
-			// activate the delay for continueous LockOn
+	if (MainLockOnTarget && !bContinuousLockOn) {
+			// activate the delay for continuous LockOn
 			GetWorldTimerManager().SetTimer(ContinuousLockOnDelay, this, &AMainPawn::ActivateContinueousLockOn, 0.5f, false);
-		}
 	}
 
 	// remove duplicates
@@ -1348,7 +1359,7 @@ void AMainPawn::TargetLock() {
 
 	// check whether the list of targets has to be sent to the server
 	bool bMultiTargetListChanged = false;
-	for (AActor * actor : NewMultiTargets) {
+	for (AActor * actor : ChosenTargets) {
 		if (actor && MultiTargets.Contains(actor)) {
 			continue;
 		}
@@ -1356,11 +1367,11 @@ void AMainPawn::TargetLock() {
 		bMultiTargetListChanged = true;
 		break;
 	}
-	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, "Number of additionally targeted actors: " + FString::FromInt(NewMultiTargets.Num()));
-
+	
 	// in case the list has changed sent list to server
-	if (bMultiTargetListChanged || MultiTargets.Num() != NewMultiTargets.Num()) {
-		MultiTargets = TArray<AActor*>(NewMultiTargets);
+	if (bMultiTargetListChanged || MultiTargets.Num() != ChosenTargets.Num()) {
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, "Number of additionally targeted actors: " + FString::FromInt(ChosenTargets.Num()));
+		MultiTargets = TArray<AActor*>(ChosenTargets);
 		SetTargets(MainLockOnTarget, MultiTargets);
 	}
 }
