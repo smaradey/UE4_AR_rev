@@ -30,70 +30,66 @@ public:
 	//02
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Math_C++")
 		static float DistanceBetween2Locations(
-		const FVector &Location1,
-		const FVector &Location2);
+			const FVector &Location1,
+			const FVector &Location2);
 	//03		
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Math_C++")
 		static void QuadReg(
-		const float x1,
-		const float x2,
-		const float x3,
-		const float y1,
-		const float y2,
-		const float y3,
-		float &a,
-		float &b,
-		float &c);
+			const float x1,
+			const float x2,
+			const float x3,
+			const float y1,
+			const float y2,
+			const float y3,
+			float &a,
+			float &b,
+			float &c);
 	//04
 	//
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Math_C++")
 		static bool IntersectLineWithParabel(
-		float ALin,
-		float BLin,
-		float AQuad,
-		float BQuad,
-		float CQuad,
-		float &TimeOfIntersection);
+			float ALin,
+			float BLin,
+			float AQuad,
+			float BQuad,
+			float CQuad,
+			float &TimeOfIntersection);
 
 
 	//05
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Projectile_C++")
 		static float ProjectileThickness(
-		const FVector &ProjectileLocation,
-		const FVector &CameraLocation,
-		const float &FOV,
-		const float &SizeFactor = 0.001f,
-		const float &MaxGrowingDistance = 15000.0f,
-		const float &ProjectileThickness = 3.0f);
+			const FVector &ProjectileLocation,
+			const FVector &CameraLocation,
+			const float MaxGrowingDistance = 15000.0f,
+			const float ProjectileThickness = 3.0f);
 	//06
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Projectile_C++")
 		static FVector ProjectileScale(
-		const FVector &OldLocation,
-		const FVector &NewLocation,
-		const FVector &CameraLocation,
-		const float ProjectileMeshLengthInCm = 100.0f,
-		const float TracerLengthFactor = 0.5f,
-		const float FOV = 90.0f,
-		const float SizeFactor = 0.001f,
-		const float MaxGrowingDistance = 15000.0f,
-		const float ProjectileThickness = 3.0f);
+			const FVector &OldLocation,
+			const FVector &NewLocation,
+			const FVector &CameraLocation,
+			const float ProjectileMeshLengthInCm = 100.0f,
+			const float TracerLengthFactor = 0.5f,
+			const float MaxGrowingDistance = 15000.0f,
+			const float ProjectileThickness = 3.0f);
 	//07
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Prediction_C++")
 		static FVector LinearTargetPrediction(
-		const FVector &TargetLocation,
-		const FVector &StartLocation,
-		const FVector &TargetVelocity,
-		const float ProjectileVelocity = 0.f);
+			const FVector &TargetLocation,
+			const FVector &StartLocation,
+			const FVector &TargetVelocity,
+			const float ProjectileVelocity = 0.f);
 	//08
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Movement_C++")
 		static FRotator DetermineTurnDirection(
-		const FVector &TargetLocation,
-		const FVector &ActorLocation,
-		const FVector &ActorUpVector,
-		const FVector &ActorRightVector,
-		const float DeltaSeconds,
-		const float TurnrateDegreePerSecond = 90.0f);
-	
+			const FVector &TargetLocation,
+			const FVector &ActorLocation,
+			const FVector &ActorUpVector,
+			const FVector &ActorRightVector,
+			const float DeltaSeconds,
+			const float TurnrateDegreePerSecond = 90.0f);
+
 	//10
 	UFUNCTION(BlueprintCallable, Category = "Projectile_C++")
 		static bool TracerMotionBlur(
@@ -107,34 +103,34 @@ public:
 			const FVector &InNewProjectileLocation,
 			FRotator &OutTracerRotation,
 			FVector2D &OutScreenPosition);
-		
+
 
 	//11
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Math_C++")
 		static float controller_PID(
-		const float Value,
-		const float Target,
-		const float OldError,
-		float &NewError,
-		const float P,
-		const float I,
-		const float old_I_Term,
-		float &ITerm,
-		const float D,
-		const float DeltaTime);
+			const float Value,
+			const float Target,
+			const float OldError,
+			float &NewError,
+			const float P,
+			const float I,
+			const float old_I_Term,
+			float &ITerm,
+			const float D,
+			const float DeltaTime);
 
 	//12
 	/* convert a given FOV to UE4 horizontal FOV */
 	UFUNCTION(BlueprintCallable, Category = "Math_C++ | Camera")
 		static void SetCameraFOV(const float newFOV, const bool bVertical, const bool bDiagonal, float &CameraFOV, const bool bHorizontal = true);
-	
+
 	UFUNCTION(BlueprintCallable, Category = "Actor | Replication")
-		static void GetReplicatedMovement(AActor* Actor, FVector &LinearVelocity, FVector &AngularVelocity );
+		static void GetReplicatedMovement(AActor* Actor, FVector &LinearVelocity, FVector &AngularVelocity);
 
 	//12
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Math_C++ | Gravity")
 		static FVector GetWorldGravity(UObject *other) {
-		if(other && other->GetWorld()){
+		if (other && other->GetWorld()) {
 			return FVector(0, 0, other->GetWorld()->GetGravityZ());
 		}
 		return FVector::ZeroVector;

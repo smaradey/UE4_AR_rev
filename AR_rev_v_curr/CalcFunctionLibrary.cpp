@@ -77,28 +77,12 @@ bool UCalcFunctionLibrary::IntersectLineWithParabel(
 float UCalcFunctionLibrary::ProjectileThickness(
 	const FVector &ProjectileLocation,
 	const FVector &CameraLocation,
-	const float &FOV,
-	const float &SizeFactor,
-	const float &MaxGrowingDistance,
-	const float &ProjectileThickness)
-	//return the thickness (of projectiles) multiplied by a factor based on distance to camera and onscreensize
-{
-	//V1
-	//float DeltaAngle = FMath::DegreesToRadians(FMath::Atan(FOV * SizeFactor));
-	//float ScaleValue = 1.f + DistanceBetween2Locations(ProjectileLocation, CameraLocation) * DeltaAngle;
-	//return ProjectileThickness * FMath::Clamp(ScaleValue, 1.f, MaxGrowingDistance * DeltaAngle);
-	//V2
-	//float DeltaAngle = 0.5f * FOV * SizeFactor;
-	//float ScaleValue = 0.5f + DistanceBetween2Locations(ProjectileLocation, CameraLocation) * FMath::Tan(DeltaAngle);
-	//return 2.f * ProjectileThickness * ScaleValue;
-	//V3
-	//return ProjectileThickness * (1.f + FVector::Dist(ProjectileLocation, CameraLocation) * FMath::Tan(FOV * SizeFactor));
-	//V4
+	const float MaxGrowingDistance,
+	const float ProjectileThickness)
+	//return the thickness (of projectiles) multiplied by a factor based on distance to camera and On-Screen-Size
+{	
 	const float distance = FVector::Dist(ProjectileLocation, CameraLocation);
-
-	return ProjectileThickness * FMath::Clamp<float>(distance, 1.f, MaxGrowingDistance)/* * FMath::Tan(FOV * SizeFactor)*/;
-
-	//FMath::Atan(distance) * TwoDivPI;
+	return ProjectileThickness * FMath::Clamp<float>(distance, 1.f, MaxGrowingDistance);
 }
 
 //06
@@ -108,8 +92,6 @@ FVector UCalcFunctionLibrary::ProjectileScale(
 	const FVector &CameraLocation,
 	const float ProjectileMeshLengthInCm,
 	const float TracerLengthFactor,
-	const float FOV,
-	const float SizeFactor,
 	const float MaxGrowingDistance,
 	const float ProjectileThickness)
 {
@@ -117,8 +99,6 @@ FVector UCalcFunctionLibrary::ProjectileScale(
 	float Thickness = UCalcFunctionLibrary::ProjectileThickness(
 		NewLocation,
 		CameraLocation,
-		FOV,
-		SizeFactor,
 		MaxGrowingDistance,
 		ProjectileThickness);
 
