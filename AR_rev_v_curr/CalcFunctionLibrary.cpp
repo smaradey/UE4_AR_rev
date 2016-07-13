@@ -80,7 +80,7 @@ float UCalcFunctionLibrary::ProjectileThickness(
 	const float MaxGrowingDistance,
 	const float ProjectileThickness)
 	//return the thickness (of projectiles) multiplied by a factor based on distance to camera and On-Screen-Size
-{	
+{
 	const float distance = FVector::Dist(ProjectileLocation, CameraLocation);
 	return ProjectileThickness * FMath::Clamp<float>(distance, 1.f, MaxGrowingDistance);
 }
@@ -291,5 +291,12 @@ void UCalcFunctionLibrary::GetReplicatedMovement(AActor * Actor, FVector &Linear
 		LinearVelocity = Actor->ReplicatedMovement.LinearVelocity;
 	}
 
+}
+
+// 13
+float  UCalcFunctionLibrary::FEaseInOutSin(const float A, const float B, const float Alpha) {
+	const float Factor = FMath::Clamp(Alpha, 0.0f, 1.0f) * PI;
+	const float ResultFactor = (-FMath::Cos(Factor) + 1.0f) * 0.5f;
+	return A + (B - A) * ResultFactor;
 }
 

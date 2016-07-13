@@ -136,4 +136,9 @@ public:
 		return FVector::ZeroVector;
 	}
 
+	// 13 interpolate from A to B using Alpha [0.0..1.0] and the sinus function
+	// Alpha will be clamped to 0.0..1.0
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Math_C++ | Ease")
+		static float FEaseInOutSin(const float A, const float B, const float Alpha);
+
 };
