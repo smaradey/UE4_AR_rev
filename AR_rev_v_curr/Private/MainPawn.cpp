@@ -279,7 +279,8 @@ void AMainPawn::Tick(float DeltaTime) {
 		}
 
 		// radar and weapons only on player side
-		//TargetLock();
+		// TODO: cheating possible?
+		WeaponLock();
 	}
 
 	if (Role == ROLE_Authority) {
@@ -1194,10 +1195,8 @@ void AMainPawn::Server_GetPlayerInput_Implementation(FPlayerInputPackage inputDa
 		SwitchTargetReleased();
 	}
 
-
-
-
-
+	bHasGunLock = InputPackage.getGunLock();
+	bHasMissileLock = InputPackage.getMissileLock();
 
 	if (GEngine && bGunFire) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "Received GunfireInput");
 	if (GEngine && bMissileFire) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "Received GunfireInput");
@@ -1268,6 +1267,25 @@ inline void AMainPawn::GetMouseInput(FVector2D &MouseInput, FVector2D &CursorLoc
 	}
 }
 
+
+void AMainPawn::WeaponLock() {
+	if (MainLockOnTarget) {
+		// normalized Forward-Vector from the Armor or the Camera, depending on where the player is looking, to prevent locking onto Targets that are not in front of the Player
+		const FVector &ForwardVector = bFreeCameraActive ? ArmorMesh->GetForwardVector() : Camera->GetForwardVector();
+
+		// angle between Forward-Vector and Vector to current Target
+		const float DeltaAngleRad = FVector::DotProduct(ForwardVector, (MainLockOnTarget->GetActorLocation() - GetActorLocation()).GetSafeNormal());
+
+		// set the booleans to enable Weapon-Lock-Ons
+		bHasMissileLock = (DeltaAngleRad > MissileLockOnAngleRad) ? true : false;
+		bHasGunLock = (DeltaAngleRad > GunLockOnAngleRad) ? true : false;
+
+		InputPackage.setGunLock(bHasGunLock);
+		InputPackage.setMissileLock(bHasMissileLock);
+	}
+}
+
+
 void AMainPawn::TargetLock() {
 	// execute on locally controlled instance of pawn	
 	if (bSwitchTargetPressed && !GetWorldTimerManager().IsTimerActive(ContinuousLockOnDelay)) {
@@ -1277,15 +1295,6 @@ void AMainPawn::TargetLock() {
 
 	// normalized Forward-Vector from the Armor or the Camera, depending on where the player is looking, to prevent locking onto Targets that are not in front of the Player
 	const FVector &ForwardVector = bFreeCameraActive ? ArmorMesh->GetForwardVector() : Camera->GetForwardVector();
-
-	if (MainLockOnTarget) {
-		// angle between Forward-Vector and Vector to current Target
-		const float DeltaAngleRad = FVector::DotProduct(ForwardVector, (MainLockOnTarget->GetActorLocation() - GetActorLocation()).GetSafeNormal());
-
-		// set the booleans to enable Weapon-Lock-Ons
-		bHasMissileLock = (DeltaAngleRad > MissileLockOnAngleRad) ? true : false;
-		bHasGunLock = (DeltaAngleRad > GunLockOnAngleRad) ? true : false;
-	}
 
 	// skip Target-Selection when the delay is active or there has already been Locked-on to are Target and Multi-Target is not enabled
 	if (bLockOnDelayActiv || (MainLockOnTarget && !bMultiTarget)) {

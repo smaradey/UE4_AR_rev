@@ -55,7 +55,7 @@ struct FPlayerInputPackage {
 	UPROPERTY()
 		uint64 PlayerDataCompressed;
 
-	// 4 bit
+	// 4 bit 64-4 = 60
 	/* TODO */
 	void SetMovementInput(const FVector2D & MovementInput) {
 		uint64 const rightPressed = 1LLU;
@@ -111,7 +111,7 @@ struct FPlayerInputPackage {
 		return Input;
 	}
 
-	// 24 bit
+	// 24 bit 60-24 = 36
 	/* TODO */
 	void setMouseInput(const FVector2D &MouseInput) {
 		uint64 const mouseInputClear = ~(16777215LLU << 4);
@@ -172,14 +172,14 @@ struct FPlayerInputPackage {
 		setPacketNumber(1 + getPacketNumber());
 	}
 
-	// 24 bit
+	// 24 bit 36-24 = 12
 	/* TODO */
 	uint32 getPacketNumber() const {
 		uint64 const PacketNo = 16777215LLU << 28;
 		return (uint32)((PlayerDataCompressed & PacketNo) >> 28);
 	}
 
-	// 1 bit 64th
+	// 1 bit 64th  11
 	/* TODO */
 	void setGunFire(const uint32 bGunFire) {
 		setBit(bGunFire, 63);
@@ -190,7 +190,7 @@ struct FPlayerInputPackage {
 		return (PlayerDataCompressed & (1LLU << 63)) == (1LLU << 63);
 	}
 
-	// 1 bit 63th
+	// 1 bit 63th 10
 	/* TODO */
 	void setMissileFire(const uint32 bMissileFire) {
 		setBit(bMissileFire, 62);
@@ -211,7 +211,7 @@ struct FPlayerInputPackage {
 		}
 	}
 
-	// 1 bit 62th
+	// 1 bit 62th 9
 	/* TODO */
 	void setSwitchTarget(const uint32 bSwitchTarget) {
 		setBit(bSwitchTarget, 61);
@@ -220,6 +220,28 @@ struct FPlayerInputPackage {
 	/* TODO */
 	bool getSwitchTarget() const {
 		return (PlayerDataCompressed & (1LLU << 61)) == (1LLU << 61);
+	}
+
+	// 1 bit 61th 8
+	/* TODO */
+	void setGunLock(const uint32 bGunLock) {
+		setBit(bGunLock, 60);
+	}
+
+	/* TODO */
+	bool getGunLock() const {
+		return (PlayerDataCompressed & (1LLU << 60)) == (1LLU << 60);
+	}
+
+	// 1 bit 60th 7
+	/* TODO */
+	void setMissileLock(const uint32 bMissileLock) {
+		setBit(bMissileLock, 59);
+	}
+
+	/* TODO */
+	bool getMissileLock() const {
+		return (PlayerDataCompressed & (1LLU << 59)) == (1LLU << 59);
 	}
 
 
@@ -291,6 +313,7 @@ public:
 
 	/* TODO */
 	void TargetLock();
+	void WeaponLock();
 
 	// maximum Distance at which the player is able to Lock on to target-able Targets
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Radar", meta = (ClampMin = "10000.0", ClampMax = "1000000.0", UIMin = "10000.0", UIMax = "1000000.0"))
