@@ -276,7 +276,8 @@ public:
 	/* Implementation of the function to set this pawn to be target-able */
 	virtual bool GetIsTargetable_Implementation() override {
 		// TODO: when dead -> not target-able
-		return true;
+		// if the timer for an active evasive action is active, the pawn is not target-able
+		return !GetWorldTimerManager().IsTimerActive(EvasiveActionHandle);
 	}
 
 	/*-------------------------------------------------------------------
@@ -291,7 +292,7 @@ public:
 
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* InputComponent) override;
-
+	
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
@@ -314,6 +315,42 @@ public:
 	/* TODO */
 	void TargetLock();
 	void WeaponLock();
+
+
+	/* Evasive Action Functions: ----------------------------------------
+	---------------------------------------------------------------------*/
+	// function bound to the activation of the evasive action (e.g. Barrel-Roll-Right)
+	void MissileEvasionRight();
+
+	// function bound to the activation of the evasive action (e.g. Barrel-Roll-Left)
+	void MissileEvasionLeft();
+
+	/* Function to request an evasive action (e.g. Barrel-Roll);
+	takes the roll direction as boolean */
+	void RequestEvasiveAction(const bool bDirRight);
+
+	/* Function to request an evasive action (e.g. Barrel-Roll);
+	takes the roll direction as boolean, call RequestEvasiveAction(bool) instead of using this function directly */
+	UFUNCTION(Server, reliable, WithValidation)
+		void Server_RequestEvasiveAction(const bool bDirRight);
+
+	// Handle for the cooldown timer
+	FTimerHandle EvasiveActionCoolDown;
+
+	// dummy function that is used for timer to run
+	void DoNothing();
+
+	// time in seconds between evasive actions
+	float EvasiveActionCoolDownDuration = 3.0f;
+
+	/* called when evasive action is possible and now has to be activated */
+	void ActivateEvasiveAction(const bool bDirRight);
+
+	// Handle for the cooldown timer
+	FTimerHandle EvasiveActionHandle;
+
+	/*-------------------------------------------------------------------
+	End Evasive Action Functions----------------------------------------- */
 
 	// maximum Distance at which the player is able to Lock on to target-able Targets
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Radar", meta = (ClampMin = "10000.0", ClampMax = "1000000.0", UIMin = "10000.0", UIMax = "1000000.0"))

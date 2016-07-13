@@ -5,7 +5,8 @@
 
 
 // Sets default values
-AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(ObjectInitializer) {
+AMainPawn::AMainPawn(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
+{
 	// Set this pawn to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
 	bReplicates = true;
@@ -65,10 +66,8 @@ AMainPawn::AMainPawn(const FObjectInitializer &ObjectInitializer) : Super(Object
 	//AutoPossessPlayer = EAutoReceiveInput::Player0;
 }
 
-void AMainPawn::ArmorHit(UPrimitiveComponent * ThisComponent, class AActor* OtherActor, class UPrimitiveComponent * OtherComponent, FVector Loc, const FHitResult& FHitResult) {
-
-
-
+void AMainPawn::ArmorHit(UPrimitiveComponent* ThisComponent, class AActor* OtherActor, class UPrimitiveComponent* OtherComponent, FVector Loc, const FHitResult& FHitResult)
+{
 	// TODO: prevent collisionhandling when colliding with
 	// - destructable
 	// - missiles / projectiles
@@ -81,10 +80,11 @@ void AMainPawn::ArmorHit(UPrimitiveComponent * ThisComponent, class AActor* Othe
 	CrashNormal = FHitResult.Normal;
 }
 
-void AMainPawn::RecoverFromCollision(const float DeltaSeconds) {
+void AMainPawn::RecoverFromCollision(const float DeltaSeconds)
+{
 	// system is activ and player has not stopped
-	if (CollisionHandling && bCanReceivePlayerInput) {
-
+	if (CollisionHandling && bCanReceivePlayerInput)
+	{
 		const float SafeDistance = 3000.0f;
 		const float AntiCollisionSystemStrength = 0.01f;
 
@@ -95,7 +95,7 @@ void AMainPawn::RecoverFromCollision(const float DeltaSeconds) {
 		// factor to slow down the vehicle to prevent overshooting the point of safedistance
 		const float Derivative = (DeltaDistance - PrevSafetyDistanceDelta) / PrevDeltaTime;
 		// Velocity that will be added to the vehicle in order to get away from the collision point
-		AntiCollisionVelocity = (DeltaDistance + 0.5f*Derivative) * (CollisionTimeDelta * AntiCollisionSystemStrength);
+		AntiCollisionVelocity = (DeltaDistance + 0.5f * Derivative) * (CollisionTimeDelta * AntiCollisionSystemStrength);
 		// apply the the impuls away from the collision point
 		ArmorMesh->AddImpulse(CrashNormal * AntiCollisionVelocity, NAME_None, true);
 		// add the elapsed time
@@ -104,7 +104,8 @@ void AMainPawn::RecoverFromCollision(const float DeltaSeconds) {
 		// - the timelimit has been passed
 		// - distance to safe distance has been passed
 		// - the vehicle got behind the original collisionpoint
-		if (CollisionTimeDelta > TimeOfAntiCollisionSystem || DeltaDistance < 0.0f || CurrDistanceToColl > SafeDistance) {
+		if (CollisionTimeDelta > TimeOfAntiCollisionSystem || DeltaDistance < 0.0f || CurrDistanceToColl > SafeDistance)
+		{
 			CollisionHandling = false;
 			AntiCollisionVelocity = 0.0f;
 			CollisionTimeDelta = 0.0f;
@@ -117,18 +118,19 @@ void AMainPawn::RecoverFromCollision(const float DeltaSeconds) {
 }
 
 
-void AMainPawn::InitWeapon() {
+void AMainPawn::InitWeapon()
+{
 	WeaponSpreadRadian = WeaponSpreadHalfAngle * PI / 180.0f;
 	GunSalveIntervall = (GunSalveDensity * FireRateGun) / GunNumSalves;
 	bGunHasAmmo = GunAmmunitionAmount > 0;
 
-	MissileSpreadRadian = MissileSpreadHalfAngle  * PI / 180.0f;
+	MissileSpreadRadian = MissileSpreadHalfAngle * PI / 180.0f;
 	MissileSalveIntervall = (MissileSalveDensity * FireRateMissile) / MissileNumSalves;
 	bMissileHasAmmo = MissileAmmunitionAmount > 0;
 }
 
-void AMainPawn::InitRadar() {
-
+void AMainPawn::InitRadar()
+{
 	MultiTargetLockOnAngleRad = FMath::Cos(MultiTargetLockOnAngleDeg / 180.0f * PI);
 	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 10.0f, FColor::Red, " MultiTarget LockOn in radian : " + FString::SanitizeFloat(MultiTargetLockOnAngleRad));
 
@@ -139,16 +141,19 @@ void AMainPawn::InitRadar() {
 	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 10.0f, FColor::Red, " Gun LockOn in radian : " + FString::SanitizeFloat(GunLockOnAngleRad));
 
 	RadarMaxLockOnRangeSquarred = RadarMaxLockOnRange * RadarMaxLockOnRange;
-
 }
-void AMainPawn::InitNetwork() {
+
+void AMainPawn::InitNetwork()
+{
 	NumberOfBufferedNetUpdates = FMath::RoundToInt(Smoothing * NetUpdateFrequency);
 	NumberOfBufferedNetUpdates = FMath::Max(NumberOfBufferedNetUpdates, 2);
 	LerpVelocity = NetUpdateFrequency / NumberOfBufferedNetUpdates;
 	PredictionAmount = (NumberOfBufferedNetUpdates + AdditionalUpdatePredictions) / NetUpdateFrequency;
 }
+
 // Called when the game starts or when spawned
-void AMainPawn::BeginPlay() {
+void AMainPawn::BeginPlay()
+{
 	Super::BeginPlay();
 
 	// start with player stopped
@@ -167,18 +172,22 @@ void AMainPawn::BeginPlay() {
 }
 
 // Called every frame
-void AMainPawn::Tick(float DeltaTime) {
+void AMainPawn::Tick(float DeltaTime)
+{
 	Super::Tick(DeltaTime);
 
 	CurrentVelocitySize = GetVelocity().Size();
 
 	// handle player input	
-	if (IsLocallyControlled()) {
+	if (IsLocallyControlled())
+	{
 		// choose mouseinput method
-		if (bUseInternMouseSensitivity) {
+		if (bUseInternMouseSensitivity)
+		{
 			InputAxis += CameraInput * MouseSensitivity;
 		}
-		else {
+		else
+		{
 			// get mouse position
 			GetCursorLocation(CursorLoc);
 
@@ -191,7 +200,8 @@ void AMainPawn::Tick(float DeltaTime) {
 		InputAxis.Y = FMath::Clamp(InputAxis.Y, -1.0f, 1.0f);
 
 		float InputAxisLength = MouseInput.Size();
-		if (InputAxisLength > 1.0f) {
+		if (InputAxisLength > 1.0f)
+		{
 			InputAxis.X /= InputAxisLength;
 			InputAxis.Y /= InputAxisLength;
 		}
@@ -212,13 +222,15 @@ void AMainPawn::Tick(float DeltaTime) {
 
 
 		// deadzone with no turning -> mouseinput interpreted as zero
-		if (MouseInput.SizeSquared() < Deadzone*Deadzone) {
+		if (MouseInput.SizeSquared() < Deadzone * Deadzone)
+		{
 			MouseInput = FVector2D::ZeroVector;
 		}
-		else {
+		else
+		{
 			// converting the mouseinput to use more precise turning around the screencenter
 			MouseInput.X = (1.0f - FMath::Cos(InputAxis.X * HalfPI)) * FMath::Sign(InputAxis.X);
-			MouseInput.Y = (1.0f - FMath::Cos(InputAxis.Y * HalfPI))* FMath::Sign(InputAxis.Y);
+			MouseInput.Y = (1.0f - FMath::Cos(InputAxis.Y * HalfPI)) * FMath::Sign(InputAxis.Y);
 
 			// lerping with the customizable Precisionfactor
 			MouseInput.X = FMath::Lerp(InputAxis.X, MouseInput.X, CenterPrecision);
@@ -226,7 +238,8 @@ void AMainPawn::Tick(float DeltaTime) {
 
 
 			float MouseInputLength = MouseInput.Size();
-			if (MouseInputLength > 1.0f) {
+			if (MouseInputLength > 1.0f)
+			{
 				MouseInput.X /= MouseInputLength;
 				MouseInput.Y /= MouseInputLength;
 			}
@@ -235,7 +248,8 @@ void AMainPawn::Tick(float DeltaTime) {
 			//MouseInput *= MouseInput.GetSafeNormal().GetAbsMax();
 		}
 
-		if (bFreeCameraActive) {
+		if (bFreeCameraActive)
+		{
 			// rotation from mousemovement (input axis lookup and lookright)
 			CurrentSpringArmRotation = CurrentSpringArmRotation * FQuat(FRotator(CameraInput.Y * -FreeCameraSpeed, CameraInput.X * FreeCameraSpeed, 0.0f));
 
@@ -252,11 +266,13 @@ void AMainPawn::Tick(float DeltaTime) {
 		RawTurnInput = MouseInput;
 
 		// disable input when player has stopped
-		if (!bCanReceivePlayerInput) {
+		if (!bCanReceivePlayerInput)
+		{
 			MovementInput = MouseInput = FVector2D::ZeroVector;
 		}
 
-		if (Role < ROLE_Authority) {
+		if (Role < ROLE_Authority)
+		{
 			// keep track of how many packages have been created		
 			InputPackage.IncrementPacketNumber();
 			// store the player input
@@ -283,16 +299,19 @@ void AMainPawn::Tick(float DeltaTime) {
 		WeaponLock();
 	}
 
-	if (Role == ROLE_Authority) {
+	if (Role == ROLE_Authority)
+	{
 		TargetLock();
 
 		// unpack received inputdata package
-		if (!IsLocallyControlled()) {
+		if (!IsLocallyControlled())
+		{
 			MouseInput = InputPackage.getMouseInput();
 			MovementInput = InputPackage.GetMovementInput();
 			if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, "Server receiving Movement :" + FString::SanitizeFloat(MovementInput.Size()));
 		}
-		if (!bCanReceivePlayerInput) {
+		if (!bCanReceivePlayerInput)
+		{
 			MovementInput = MouseInput = FVector2D::ZeroVector;
 		}
 
@@ -305,17 +324,18 @@ void AMainPawn::Tick(float DeltaTime) {
 		TransformOnAuthority = ArmorMesh->GetComponentTransform();
 		LinearVelocity = ArmorMesh->GetPhysicsLinearVelocity();
 		//AngularVelocity = ArmorMesh->GetPhysicsAngularVelocity();
-
 	}
 
-	if (Role < ROLE_Authority && IsLocallyControlled()) {
+	if (Role < ROLE_Authority && IsLocallyControlled())
+	{
 		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Red, "Locally Controlled Client");
 
 		// clientside movement (predicting; will be corrected with information from authority)
 		MainPlayerMovement(DeltaTime, LinVelError, AngVelError);
 	}
 
-	if (Role < ROLE_Authority && !IsLocallyControlled()) {
+	if (Role < ROLE_Authority && !IsLocallyControlled())
+	{
 		//if (ArmorMesh->IsSimulatingPhysics()) {
 		ArmorMesh->SetSimulatePhysics(true);
 		ArmorMesh->SetEnableGravity(false);
@@ -337,7 +357,8 @@ void AMainPawn::Tick(float DeltaTime) {
 }
 
 // replication of variables
-void AMainPawn::GetLifetimeReplicatedProps(TArray <FLifetimeProperty> &OutLifetimeProps) const {
+void AMainPawn::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
+{
 	DOREPLIFETIME_CONDITION(AMainPawn, bGunHasAmmo, COND_OwnerOnly);
 	DOREPLIFETIME_CONDITION(AMainPawn, bGunReady, COND_OwnerOnly);
 	DOREPLIFETIME_CONDITION(AMainPawn, bMissileHasAmmo, COND_OwnerOnly);
@@ -356,14 +377,14 @@ void AMainPawn::GetLifetimeReplicatedProps(TArray <FLifetimeProperty> &OutLifeti
 	DOREPLIFETIME_CONDITION(AMainPawn, bMissileFire, COND_SkipOwner);
 	DOREPLIFETIME(AMainPawn, MainLockOnTarget);
 	DOREPLIFETIME(AMainPawn, bHasGunLock);
-
-
-}
-void AMainPawn::OnRep_MainLockOnTarget() {
-
 }
 
-void AMainPawn::MainPlayerMovement(const float DeltaTime, const FVector &CorrectionVelocity, const FVector &CorrectionAngularVelocity) {
+void AMainPawn::OnRep_MainLockOnTarget()
+{
+}
+
+void AMainPawn::MainPlayerMovement(const float DeltaTime, const FVector& CorrectionVelocity, const FVector& CorrectionAngularVelocity)
+{
 	// equal for locally controlled --------------------------------------------------------------
 	FVector2D PrevUsedMouseInput = PreviousMouseInput;
 	{
@@ -373,7 +394,8 @@ void AMainPawn::MainPlayerMovement(const float DeltaTime, const FVector &Correct
 		{
 			MouseInput.X = FMath::FInterpTo(PrevUsedMouseInput.X, MouseInput.X, DeltaTime, TurnInterpSpeed * ResetSpeed);
 		}
-		else {
+		else
+		{
 			MouseInput.X = FMath::FInterpTo(PrevUsedMouseInput.X, MouseInput.X, DeltaTime, TurnInterpSpeed);
 		}
 
@@ -383,52 +405,64 @@ void AMainPawn::MainPlayerMovement(const float DeltaTime, const FVector &Correct
 		{
 			MouseInput.Y = FMath::FInterpTo(PrevUsedMouseInput.Y, MouseInput.Y, DeltaTime, TurnInterpSpeed * ResetSpeed);
 		}
-		else {
+		else
+		{
 			MouseInput.Y = FMath::FInterpTo(PrevUsedMouseInput.Y, MouseInput.Y, DeltaTime, TurnInterpSpeed);
 		}
 	}
 
 	// player is flying and not stopped
-	if (bCanReceivePlayerInput) {
+	if (bCanReceivePlayerInput)
+	{
 		// Forward Velocity during flight
-		if (MovementInput.X > 0.0f) {
+		if (MovementInput.X > 0.0f)
+		{
 			// forward
 			ForwardVel = FMath::FInterpTo(ForwardVel, MovementInput.X * VelForwardDelta + DefaultForwardVel, DeltaTime, ForwardAcceleration);
 		}
-		else {
+		else
+		{
 			// backwards
 			ForwardVel = FMath::FInterpTo(ForwardVel, MovementInput.X * VelBackwardsDelta + DefaultForwardVel, DeltaTime, BackwardsAcceleration);
 		}
 		// Strafe Velocity during flight
-		if (bUseConstantStrafeAcceleration) {
-			if (MovementInput.Y == 0.0f) {
+		if (bUseConstantStrafeAcceleration)
+		{
+			if (MovementInput.Y == 0.0f)
+			{
 				StrafeVel = FMath::FInterpTo(StrafeVel, MovementInput.Y * MaxStrafeVel, DeltaTime, StrafeBankAcceleration);
 			}
-			else {
+			else
+			{
 				StrafeVel = FMath::FInterpConstantTo(StrafeVel, MovementInput.Y * MaxStrafeVel, DeltaTime, ConstantStrafeAcceleration);
 			}
 		}
-		else {
+		else
+		{
 			StrafeVel = FMath::FInterpTo(StrafeVel, MovementInput.Y * MaxStrafeVel, DeltaTime, StrafeBankAcceleration);
 		}
 	}
-	else {
+	else
+	{
 		// player has not input/has stopped
 		ForwardVel = FMath::FInterpTo(ForwardVel, 0.0f, DeltaTime, BackwardsAcceleration);
 		StrafeVel = FMath::FInterpTo(StrafeVel, 0.0f, DeltaTime, StrafeBankAcceleration);
 	}
 
 	// after a collision disable playerinput for a specified amount of time
-	if (MovControlStrength < TimeOfNoControl) {
+	if (MovControlStrength < TimeOfNoControl)
+	{
 		ForwardVel = StrafeVel = 0.0f;
 	}
 
 	// select new bankrotation either from strafe input or from current turnvalue 
-	if (MovementInput.Y != 0) {
+	if (MovementInput.Y != 0)
+	{
 		// rot from strafeinput
 		CurrStrafeRot = FMath::FInterpTo(PrevStrafeRot, MovementInput.Y * -MaxStrafeBankAngle, DeltaTime, StrafeBankAcceleration);
 	}
-	else {
+	else
+	{
 		// rot from turning
 		CurrStrafeRot = FMath::FInterpTo(PrevStrafeRot, MouseInput.X * -MaxStrafeBankAngle, DeltaTime, TurnInterpSpeed);
 	}
@@ -455,7 +489,8 @@ void AMainPawn::MainPlayerMovement(const float DeltaTime, const FVector &Correct
 		RotControlStrength = FMath::FInterpConstantTo(RotControlStrength, TimeOfNoControl + 1.0f, DeltaTime, 1.0f);
 
 		// if 1 second has passed and not yet fully recovered
-		if (RotControlStrength > TimeOfNoControl && RotControlStrength < TimeOfNoControl + 1.0f) {
+		if (RotControlStrength > TimeOfNoControl && RotControlStrength < TimeOfNoControl + 1.0f)
+		{
 			ArmorMesh->SetAngularDamping(0.0f);
 			const float Alpha = FMath::Square(RotControlStrength - TimeOfNoControl);
 			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Orange, "ROTATION control CHARGING " + FString::SanitizeFloat(Alpha));
@@ -467,16 +502,19 @@ void AMainPawn::MainPlayerMovement(const float DeltaTime, const FVector &Correct
 			ArmorMesh->SetPhysicsAngularVelocity(NewAngVel + CorrectionAngularVelocity);
 
 			// rotate springarm/camera in local space to compensate for straferotation 
-			if (!bFreeCameraActive) {
+			if (!bFreeCameraActive)
+			{
 				SpringArm->SetRelativeRotation(FRotator(0, 0, CurrStrafeRot), false, nullptr, ETeleportType::None);
 			}
 		}
 		// no collision handling (normal flight)
-		else if (RotControlStrength >= TimeOfNoControl + 1.0f) {
+		else if (RotControlStrength >= TimeOfNoControl + 1.0f)
+		{
 			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Green, "ROTATION control FULL");
 
 			// auto level function  
-			if (LevelVel > 0.0f && !bFreeCameraActive) {
+			if (LevelVel > 0.0f && !bFreeCameraActive)
+			{
 				// TODO: get rid of Acos
 				// dot product between gravity vector and actor rightvector
 				const float DotUpRight = FVector::DotProduct(Camera->GetRightVector(), bUseGravityDirForAutoLevel ? AutoLevelAxis : FVector(0.0f, 0.0f, 1.0f));
@@ -489,22 +527,26 @@ void AMainPawn::MainPlayerMovement(const float DeltaTime, const FVector &Correct
 				// rotate springarm/camera in local space to compensate for straferotation 
 				SpringArm->SetRelativeRotation(FRotator(0, 0, CurrStrafeRot + LevelHorizonVel * DeltaTime), false, nullptr, ETeleportType::None);
 			}
-			else {
+			else
+			{
 				const FVector AngVelStrafeCompensation = GetActorRotation().RotateVector(FVector(DeltaRot / DeltaTime, 0, 0));
 
 				// player input is directly translated into movement
 				ArmorMesh->SetPhysicsAngularVelocity(WorldAngVel - AngVelStrafeCompensation + CorrectionAngularVelocity);
 				// rotate springarm/camera in local space to compensate for straferotation 
-				if (!bFreeCameraActive) {
+				if (!bFreeCameraActive)
+				{
 					SpringArm->SetRelativeRotation(FRotator(0, 0, CurrStrafeRot), false, nullptr, ETeleportType::None);
 				}
 			}
 		}
-		else {
+		else
+		{
 			// RotControlStrength is between 0 and TimeOfNoControl -> player has no control: collision or input disabled
 			ArmorMesh->SetAngularDamping(5.0f);
 			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Red, "ROTATION control DEACTIVATED");
-			if (!bFreeCameraActive) {
+			if (!bFreeCameraActive)
+			{
 				SpringArm->SetRelativeRotation(FRotator(0, 0, CurrStrafeRot), false, nullptr, ETeleportType::None);
 			}
 		}
@@ -520,10 +562,12 @@ void AMainPawn::MainPlayerMovement(const float DeltaTime, const FVector &Correct
 		MovControlStrength = FMath::FInterpConstantTo(MovControlStrength, TimeOfNoControl + 1.0f, DeltaTime, 1.0f);
 
 		// return the control to the player over a time of 1 second
-		if (MovControlStrength > TimeOfNoControl && MovControlStrength < TimeOfNoControl + 1.0f) {
+		if (MovControlStrength > TimeOfNoControl && MovControlStrength < TimeOfNoControl + 1.0f)
+		{
 			ArmorMesh->SetPhysicsLinearVelocity(FMath::Lerp(ArmorMesh->GetPhysicsLinearVelocity(), TargetLinearVelocity, MovControlStrength - TimeOfNoControl));
 		}
-		else if (MovControlStrength >= TimeOfNoControl + 1.0f) {
+		else if (MovControlStrength >= TimeOfNoControl + 1.0f)
+		{
 			// normal flight: set velocities directly
 			ArmorMesh->SetPhysicsLinearVelocity(TargetLinearVelocity);
 		}
@@ -535,18 +579,20 @@ void AMainPawn::MainPlayerMovement(const float DeltaTime, const FVector &Correct
 	}
 
 	// end both -----------------------------------------
-
 }
 
-void AMainPawn::OnRep_TransformOnAuthority() {
+void AMainPawn::OnRep_TransformOnAuthority()
+{
 	// calculate the time between this and the previous update
-	if (GetWorld()) {
+	if (GetWorld())
+	{
 		NetDelta = GetWorld()->RealTimeSeconds - lastUpdate;
 		lastUpdate = GetWorld()->RealTimeSeconds;
 	}
 
 	// uncontrolled client
-	if (Role < ROLE_Authority && !IsLocallyControlled()) {
+	if (Role < ROLE_Authority && !IsLocallyControlled())
+	{
 		//Alpha = GetWorld()->DeltaTimeSeconds;
 
 		// store starttransform
@@ -562,33 +608,35 @@ void AMainPawn::OnRep_TransformOnAuthority() {
 		return;
 	}
 
-	if (Role < ROLE_Authority && IsLocallyControlled()) {
-
+	if (Role < ROLE_Authority && IsLocallyControlled())
+	{
 		// vector between server location and client location
 		// velocity to correct the client
 		LinVelError = (TransformOnAuthority.GetLocation() - PastClientTransform.GetLocation()) /*NetDelta*/;
 
-		if (GEngine&& DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Orange, "         Location Error  = " + FString::SanitizeFloat(LinVelError.Size() * 0.01f) + " m");
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Orange, "         Location Error  = " + FString::SanitizeFloat(LinVelError.Size() * 0.01f) + " m");
 
 		// the rotation delta between client and server
 		const FQuat RotationError = TransformOnAuthority.GetRotation() * PastClientTransform.GetRotation().Inverse();
 		const FRotator ErrorDelta = RotationError.Rotator();
 
-		if (GEngine&& DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "Yaw   Error  " + FString::SanitizeFloat(ErrorDelta.Yaw));
-		if (GEngine&& DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "Pitch Error  " + FString::SanitizeFloat(ErrorDelta.Pitch));
-		if (GEngine&& DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "Roll  Error  " + FString::SanitizeFloat(ErrorDelta.Roll));
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "Yaw   Error  " + FString::SanitizeFloat(ErrorDelta.Yaw));
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "Pitch Error  " + FString::SanitizeFloat(ErrorDelta.Pitch));
+		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "Roll  Error  " + FString::SanitizeFloat(ErrorDelta.Roll));
 
 		// angular velocity to correct the client
 		AngVelError = FVector(-ErrorDelta.Roll, -ErrorDelta.Pitch, ErrorDelta.Yaw)/* * NetDelta*/;
 
 		// teleport the client if the distance to correct location is too big
-		if (LinVelError.Size() > 5000.0f) {
+		if (LinVelError.Size() > 5000.0f)
+		{
 			SetActorLocation(TransformOnAuthority.GetLocation(), false, nullptr, ETeleportType::None);
 			LinVelError = FVector::ZeroVector;
 		}
 
 		// if rotation delta is too big add the correction
-		if (AngVelError.Size() > 90.0f) {
+		if (AngVelError.Size() > 90.0f)
+		{
 			AddActorWorldRotation(RotationError, false, nullptr, ETeleportType::None);
 			//SetActorRotation(TransformOnAuthority.GetRotation(), ETeleportType::None);
 			AngVelError = FVector::ZeroVector;
@@ -598,43 +646,50 @@ void AMainPawn::OnRep_TransformOnAuthority() {
 
 //void AMainPawn::ApplyTranformCorrection()
 
-void AMainPawn::OnRep_LinearVelocity() {
+void AMainPawn::OnRep_LinearVelocity()
+{
 	//	if (Role < ROLE_Authority) {
 	//		if (ArmorMesh->IsSimulatingPhysics()) ArmorMesh->SetPhysicsLinearVelocity(LinearVelocity, false);
 	//	}
 }
 
-void AMainPawn::OnRep_AngularVelocity() {
+void AMainPawn::OnRep_AngularVelocity()
+{
 	//if (Role < ROLE_Authority) {
 	//	if (ArmorMesh->IsSimulatingPhysics()) ArmorMesh->SetPhysicsAngularVelocity(AngularVelocity, false);
 	//}
 }
 
-void AMainPawn::InitVelocities() {
+void AMainPawn::InitVelocities()
+{
 	VelForwardDelta = MaxVelocity - DefaultForwardVel;
 	VelBackwardsDelta = -MinVelocity + DefaultForwardVel;
 
 	ConstantStrafeAcceleration = FMath::Abs(MaxStrafeVel / TimeToMaxStrafeVel);
 }
 
-void AMainPawn::GetPing() {
-	if (State) {
+void AMainPawn::GetPing()
+{
+	if (State)
+	{
 		Ping = State->ExactPing * 0.001f;
 		return;
 	}
-	if (GetWorld()->GetFirstPlayerController()) {      // get ping
+	if (GetWorld()->GetFirstPlayerController())
+	{ // get ping
 		State = Cast<APlayerState>(
 			GetWorld()->GetFirstPlayerController()->PlayerState); // "APlayerState" hardcoded, needs to be changed for main project
-		if (State) {
+		if (State)
+		{
 			Ping = State->ExactPing * 0.001f;
 			// client has now the most recent ping in seconds
 		}
 	}
-
 }
 
 // Called to bind functionality to input
-void AMainPawn::SetupPlayerInputComponent(class UInputComponent *InputComponent) {
+void AMainPawn::SetupPlayerInputComponent(class UInputComponent* InputComponent)
+{
 	Super::SetupPlayerInputComponent(InputComponent);
 
 	// action events
@@ -655,6 +710,8 @@ void AMainPawn::SetupPlayerInputComponent(class UInputComponent *InputComponent)
 	// axis events
 	InputComponent->BindAxis("MoveForward", this, &AMainPawn::MoveForward);
 	InputComponent->BindAxis("MoveRight", this, &AMainPawn::MoveRight);
+	InputComponent->BindAction("StrafeLeft", IE_DoubleClick, this, &AMainPawn::MissileEvasionLeft);
+	InputComponent->BindAction("StrafeRight", IE_DoubleClick, this, &AMainPawn::MissileEvasionRight);
 
 	InputComponent->BindAxis("LookUp", this, &AMainPawn::PitchCamera);
 	InputComponent->BindAxis("LookRight", this, &AMainPawn::YawCamera);
@@ -683,26 +740,86 @@ void AMainPawn::SetupPlayerInputComponent(class UInputComponent *InputComponent)
 	InputComponent->BindAction("SkillSlot10", IE_Released, this, &AMainPawn::Skill_10_Released);
 }
 
+void AMainPawn::MissileEvasionRight()
+{
+	RequestEvasiveAction(true);
+}
+
+void AMainPawn::MissileEvasionLeft()
+{
+	RequestEvasiveAction(false);
+}
+
+void AMainPawn::RequestEvasiveAction(const bool bDirRight)
+{
+	if (Role < ROLE_Authority)
+	{
+		Server_RequestEvasiveAction(bDirRight);
+		return;
+	}
+	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::White, "Server received request for evasive action: " + FString(bDirRight ? "Right" : "Left"));
+	// Check if evasive action is possible
+	if (!GetWorldTimerManager().IsTimerActive(EvasiveActionCoolDown))
+	{
+		// activate evasive action
+		GetWorldTimerManager().SetTimer(EvasiveActionCoolDown, this, &AMainPawn::DoNothing, EvasiveActionCoolDownDuration, false);
+		ActivateEvasiveAction(bDirRight);
+	}
+	else
+	{
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, "You have to wait " + FString::SanitizeFloat(EvasiveActionCoolDownDuration) + " Seconds between Evasive Actions");
+	}
+}
+
+void AMainPawn::DoNothing()
+{
+	// Does absolutely nothing
+}
+
+void AMainPawn::Server_RequestEvasiveAction_Implementation(const bool bDirRight)
+{
+	RequestEvasiveAction(bDirRight);
+}
+
+bool AMainPawn::Server_RequestEvasiveAction_Validate(const bool bDirRight)
+{
+	return true;
+}
+
+void AMainPawn::ActivateEvasiveAction(const bool bDirRight)
+{
+	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Green, "Request for evasive action granted: " + FString(bDirRight ? "Right" : "Left"));
+	GetWorldTimerManager().ClearTimer(EvasiveActionHandle);
+	GetWorldTimerManager().SetTimer(EvasiveActionHandle, this, &AMainPawn::DoNothing, 1.0f, false);
+}
+
+
 //Input functions
-void AMainPawn::MoveForward(float AxisValue) {
-	if (bBoostPressed) {
+void AMainPawn::MoveForward(float AxisValue)
+{
+	if (bBoostPressed)
+	{
 		MovementInput.X = 1.0f;
 	}
-	else {
+	else
+	{
 		MovementInput.X = FMath::Clamp<float>(AxisValue, -1.0f, 1.0f);
 	}
 }
 
 
-void AMainPawn::MoveRight(float AxisValue) {
+void AMainPawn::MoveRight(float AxisValue)
+{
 	MovementInput.Y = FMath::Clamp<float>(AxisValue, -1.0f, 1.0f);
 }
 
-void AMainPawn::PitchCamera(float AxisValue) {
+void AMainPawn::PitchCamera(float AxisValue)
+{
 	CameraInput.Y = AxisValue;
 }
 
-void AMainPawn::YawCamera(float AxisValue) {
+void AMainPawn::YawCamera(float AxisValue)
+{
 	CameraInput.X = AxisValue;
 
 	//Rotate our actor's yaw, which will turn our camera because we're attached to it
@@ -713,18 +830,21 @@ void AMainPawn::YawCamera(float AxisValue) {
 	//}
 }
 
-void AMainPawn::ZoomIn() {
+void AMainPawn::ZoomIn()
+{
 	bZoomingIn = true;
 	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(1, 0.0f/*seconds*/, FColor::Red, "ZoomPressed");
 	Camera->FieldOfView = 30.0f;
 }
 
-void AMainPawn::ZoomOut() {
+void AMainPawn::ZoomOut()
+{
 	bZoomingIn = false;
 	Camera->FieldOfView = 90.0f;
 }
 
-void AMainPawn::ActivateFreeCamera() {
+void AMainPawn::ActivateFreeCamera()
+{
 	bFreeCameraActive = true;
 	SpringArm->SetRelativeRotation(FRotator(0, 0, SpringArm->GetRelativeTransform().Rotator().Roll), false, nullptr, ETeleportType::None);
 	CurrentSpringArmRotation = SpringArm->GetComponentQuat();
@@ -734,7 +854,8 @@ void AMainPawn::ActivateFreeCamera() {
 	SpringArm->CameraRotationLagSpeed = 10.0f;
 }
 
-void AMainPawn::DeactivateFreeCamera() {
+void AMainPawn::DeactivateFreeCamera()
+{
 	bFreeCameraActive = false;
 	SpringArm->bEnableCameraLag = true;
 	SpringArm->TargetArmLength = SpringArmLength;
@@ -743,23 +864,26 @@ void AMainPawn::DeactivateFreeCamera() {
 }
 
 
-void AMainPawn::OnRep_GunFire() {
-	if (bGunFire) {
+void AMainPawn::OnRep_GunFire()
+{
+	if (bGunFire)
+	{
 		StartGunFire();
 	}
-	else {
+	else
+	{
 		StopGunFire();
 	}
 }
 
 
-
-void AMainPawn::StartGunFire() {
-
+void AMainPawn::StartGunFire()
+{
 	// player has gunfire button pressed
 	bGunFire = true;
 	InputPackage.setGunFire(bGunFire);
-	if (bGunReady && bGunHasAmmo) { // gun is ready to fire
+	if (bGunReady && bGunHasAmmo)
+	{ // gun is ready to fire
 		// make sure no other gunfire timer is activ by clearing it
 		GetWorldTimerManager().ClearTimer(GunFireHandle);
 		// activate a new gunfire timer
@@ -767,33 +891,38 @@ void AMainPawn::StartGunFire() {
 		// debug
 		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Green, "Gun ON");
 	}
-	else if (!GetWorldTimerManager().IsTimerActive(GunFireCooldown)) { // gun is not cooling down but could not be fired
+	else if (!GetWorldTimerManager().IsTimerActive(GunFireCooldown))
+	{ // gun is not cooling down but could not be fired
 		// enable gun
 		bGunReady = true;
 		// debug
 		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Gun COOLDOWN NOT ACTIVATED");
 		// try again to fire gun
-		if (bGunHasAmmo) {
+		if (bGunHasAmmo)
+		{
 			StartGunFire();
 		}
-		else {
+		else
+		{
 			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Gun OUT OF AMMO");
 		}
 	}
-	else {
+	else
+	{
 		// gun is cooling down
 		// debug
 		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Gun STILL COOLING DOWN");
 	}
 }
 
-void AMainPawn::StopGunFire() {
-
+void AMainPawn::StopGunFire()
+{
 	// player has gunfire button released
 	bGunFire = false;
 	InputPackage.setGunFire(bGunFire);
 	// is a gunfire timer active
-	if (GetWorldTimerManager().IsTimerActive(GunFireHandle)) {
+	if (GetWorldTimerManager().IsTimerActive(GunFireHandle))
+	{
 		// stop the timer
 		GetWorldTimerManager().PauseTimer(GunFireHandle);
 		// make sure gun is disabled
@@ -809,21 +938,24 @@ void AMainPawn::StopGunFire() {
 	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Gun OFF");
 }
 
-void AMainPawn::GunCooldownElapsed() {
+void AMainPawn::GunCooldownElapsed()
+{
 	// debug
 	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Blue, "Gun COOLED");
 	// gun has cooled down and is again ready to fire
 	bGunReady = true;
 	// has the user requested fireing reactivate gunfire
-	if (bGunFire) {
+	if (bGunFire)
+	{
 		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Green, "Gun CONTINUE");
 		StartGunFire();
 	}
-
 }
 
-void AMainPawn::GunFire() {
-	if (GunAmmunitionAmount > 0) {
+void AMainPawn::GunFire()
+{
+	if (GunAmmunitionAmount > 0)
+	{
 		// reset the salve counter
 		GunCurrentSalve = 0;
 		// the gunfire timer starts a subtimer that fires all the salves
@@ -832,32 +964,35 @@ void AMainPawn::GunFire() {
 	}
 }
 
-void AMainPawn::GunFireSalve() {
-	if (GunCurrentSalve < GunNumSalves) {
-
-		for (uint8 shot = 0; shot < NumProjectiles; ++shot) {
+void AMainPawn::GunFireSalve()
+{
+	if (GunCurrentSalve < GunNumSalves)
+	{
+		for (uint8 shot = 0; shot < NumProjectiles; ++shot)
+		{
 			// choose next avaliable gun sockets or start over from the first if last was used
 			CurrGunSocketIndex = (CurrGunSocketIndex + 1) % GunSockets.Num();
 			// get the tranform of the choosen socket
-			const FTransform &CurrentSocketTransform = ArmorMesh->GetSocketTransform(GunSockets[CurrGunSocketIndex]);
+			const FTransform& CurrentSocketTransform = ArmorMesh->GetSocketTransform(GunSockets[CurrGunSocketIndex]);
 
-			const FVector &AdditionalVelocity = ArmorMesh->GetPhysicsLinearVelocityAtPoint(CurrentSocketTransform.GetLocation());
+			const FVector& AdditionalVelocity = ArmorMesh->GetPhysicsLinearVelocityAtPoint(CurrentSocketTransform.GetLocation());
 
 			FVector SpawnDirection;
 			// TODO: aim at target
-			if (MainLockOnTarget && bHasGunLock) {
+			if (MainLockOnTarget && bHasGunLock)
+			{
 				// linear targetprediction
-				const FVector &TargetLocation = MainLockOnTarget->GetActorLocation();
-				const FVector &StartLocation = CurrentSocketTransform.GetLocation();
+				const FVector& TargetLocation = MainLockOnTarget->GetActorLocation();
+				const FVector& StartLocation = CurrentSocketTransform.GetLocation();
 				const FVector AB = (TargetLocation - StartLocation).GetSafeNormal();
 				const FVector TargetVelocity = MainLockOnTarget->GetVelocity() - AdditionalVelocity;
 				const FVector vi = TargetVelocity - (FVector::DotProduct(AB, TargetVelocity) * AB);
 				const FVector AimLocation = StartLocation + vi + AB * FMath::Sqrt(FMath::Square(ProjectileVel) - FMath::Pow((vi.Size()), 2.f));
 
 				SpawnDirection = (AimLocation - StartLocation).GetSafeNormal();
-
 			}
-			else {
+			else
+			{
 				SpawnDirection = CurrentSocketTransform.GetRotation().GetForwardVector();
 			}
 
@@ -869,22 +1004,26 @@ void AMainPawn::GunFireSalve() {
 			// spawn/fire projectile
 
 
-			if (TracerIntervall > 0) {
+			if (TracerIntervall > 0)
+			{
 				const FVector TracerOffset = CurrentSocketTransform.GetLocation() + SpawnDirection * FMath::FRandRange(0.0f, (ProjectileVel + AdditionalVelocity.Size()) * GetWorld()->DeltaTimeSeconds);
 				// not every projectile has a tracer
 				CurrentTracer = (CurrentTracer + 1) % TracerIntervall;
 				SpawnProjectile(FTransform(SpawnDirection.Rotation(), CurrentSocketTransform.GetLocation()), CurrentTracer == 0, AdditionalVelocity, TracerOffset);
 			}
-			else { // if tracerintervall was set to 0 there will be tracers
+			else
+			{ // if tracerintervall was set to 0 there will be tracers
 				SpawnProjectile(FTransform(SpawnDirection.Rotation(), CurrentSocketTransform.GetLocation()), false, AdditionalVelocity);
 			}
 			// decrease ammunition
 			--GunAmmunitionAmount;
-			if (GunAmmunitionAmount > 0) {
+			if (GunAmmunitionAmount > 0)
+			{
 				// debug
 				if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::White, "Bang Ammo left: " + FString::FromInt(GunAmmunitionAmount));
 			}
-			else {
+			else
+			{
 				bGunHasAmmo = false;
 				if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 10.0f, FColor::Red, "Gun OUT OF AMMO!");
 				GetWorldTimerManager().ClearTimer(GunSalveTimerHandle);
@@ -900,13 +1039,15 @@ void AMainPawn::GunFireSalve() {
 	GetWorldTimerManager().ClearTimer(GunSalveTimerHandle);
 }
 
-void AMainPawn::SpawnProjectile_Implementation(const FTransform &SocketTransform, const bool bTracer, const FVector &FireBaseVelocity, const FVector &TracerStartLocation) {
+void AMainPawn::SpawnProjectile_Implementation(const FTransform& SocketTransform, const bool bTracer, const FVector& FireBaseVelocity, const FVector& TracerStartLocation)
+{
 	// method overridden by blueprint to spawn the projectile
 }
 
 // Missile spawning START --------------------------------
 
-void AMainPawn::OnRep_MissileFire() {
+void AMainPawn::OnRep_MissileFire()
+{
 	//if (bMissileFire) {
 	//	StartMissileFire();
 	//}
@@ -915,16 +1056,18 @@ void AMainPawn::OnRep_MissileFire() {
 	//}
 }
 
-void AMainPawn::StartMissileFire() {
-
+void AMainPawn::StartMissileFire()
+{
 	// player has Missilefire button pressed
 	bMissileFire = true;
-	if (Role < ROLE_Authority && IsLocallyControlled()) {
+	if (Role < ROLE_Authority && IsLocallyControlled())
+	{
 		InputPackage.setMissileFire(bMissileFire);
 		return;
 	}
 
-	if (bMissileReady && bMissileHasAmmo) { // Missile is ready to fire
+	if (bMissileReady && bMissileHasAmmo)
+	{ // Missile is ready to fire
 		// make sure no other Missilefire timer is activ by clearing it
 		GetWorldTimerManager().ClearTimer(MissileFireHandle);
 		// activate a new Missilefire timer
@@ -932,37 +1075,44 @@ void AMainPawn::StartMissileFire() {
 		// debug
 		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Green, "Missile ON");
 	}
-	else if (!GetWorldTimerManager().IsTimerActive(MissileFireCooldown)) { // Missile is not cooling down but could not be fired
+	else if (!GetWorldTimerManager().IsTimerActive(MissileFireCooldown))
+	{ // Missile is not cooling down but could not be fired
 		// enable Missile
 		bMissileReady = true;
 		// debug
 		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Missile COOLDOWN NOT ACTIVATED");
 		// try again to fire Missile
-		if (bMissileHasAmmo) {
+		if (bMissileHasAmmo)
+		{
 			StartMissileFire();
 		}
-		else {
+		else
+		{
 			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Missile OUT OF AMMO");
 		}
 	}
-	else {
+	else
+	{
 		// Missile is cooling down
 		// debug
 		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Missile STILL COOLING DOWN");
 	}
 }
 
-void AMainPawn::StopMissileFire() {
+void AMainPawn::StopMissileFire()
+{
 	// player has Missilefire button released
 	bMissileFire = false;
 
-	if (Role < ROLE_Authority && IsLocallyControlled()) {
+	if (Role < ROLE_Authority && IsLocallyControlled())
+	{
 		InputPackage.setMissileFire(bMissileFire);
 		return;
 	}
 
 	// is a Missilefire timer active
-	if (GetWorldTimerManager().IsTimerActive(MissileFireHandle)) {
+	if (GetWorldTimerManager().IsTimerActive(MissileFireHandle))
+	{
 		// stop the timer
 		GetWorldTimerManager().PauseTimer(MissileFireHandle);
 		// make sure Missile is disabled
@@ -978,21 +1128,24 @@ void AMainPawn::StopMissileFire() {
 	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Missile OFF");
 }
 
-void AMainPawn::MissileCooldownElapsed() {
+void AMainPawn::MissileCooldownElapsed()
+{
 	// debug
 	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Blue, "Missile COOLED");
 	// Missile has cooled down and is again ready to fire
 	bMissileReady = true;
 	// has the user requested fireing reactivate Missilefire
-	if (bMissileFire) {
+	if (bMissileFire)
+	{
 		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Green, "Missile CONTINUE");
 		StartMissileFire();
 	}
-
 }
 
-void AMainPawn::MissileFire() {
-	if (MissileAmmunitionAmount > 0) {
+void AMainPawn::MissileFire()
+{
+	if (MissileAmmunitionAmount > 0)
+	{
 		// reset the salve counter
 		MissileCurrentSalve = 0;
 		// the Missilefire timer starts a subtimer that fires all the salves
@@ -1001,32 +1154,39 @@ void AMainPawn::MissileFire() {
 	}
 }
 
-void AMainPawn::MissileFireSalve() {
-	if (MissileCurrentSalve < MissileNumSalves) {
-		for (uint8 shot = 0; shot < NumMissiles; ++shot) {
+void AMainPawn::MissileFireSalve()
+{
+	if (MissileCurrentSalve < MissileNumSalves)
+	{
+		for (uint8 shot = 0; shot < NumMissiles; ++shot)
+		{
 			// choose next avaliable Missile sockets or start over from the first if last was used
 			CurrMissileSocketIndex = (CurrMissileSocketIndex + 1) % MissileSockets.Num();
 			// get the tranform of the choosen socket
-			const FTransform &CurrentSocketTransform = ArmorMesh->GetSocketTransform(MissileSockets[CurrMissileSocketIndex]);
+			const FTransform& CurrentSocketTransform = ArmorMesh->GetSocketTransform(MissileSockets[CurrMissileSocketIndex]);
 
 			// calculate a direction
 			FVector SpawnDirection = CurrentSocketTransform.GetRotation().GetForwardVector();
 
 
-			const FVector &AdditionalVelocity = ArmorMesh->GetPhysicsLinearVelocityAtPoint(CurrentSocketTransform.GetLocation());
+			const FVector& AdditionalVelocity = ArmorMesh->GetPhysicsLinearVelocityAtPoint(CurrentSocketTransform.GetLocation());
 
-			USceneComponent * HomingTarget = nullptr;
-			if (bMultiTarget && MultiTargets.Num() > 0) {
+			USceneComponent* HomingTarget = nullptr;
+			if (bMultiTarget && MultiTargets.Num() > 0)
+			{
 				CurrTargetIndex = (CurrTargetIndex + 1) % MultiTargets.Num();
 			}
-			if (bMultiTarget && MultiTargets.Num() > 0 && MultiTargets.IsValidIndex(CurrTargetIndex) && MultiTargets[CurrTargetIndex]) {
+			if (bMultiTarget && MultiTargets.Num() > 0 && MultiTargets.IsValidIndex(CurrTargetIndex) && MultiTargets[CurrTargetIndex])
+			{
 				HomingTarget = MultiTargets[CurrTargetIndex]->GetRootComponent();
 				// calculate a direction and apply weaponspread
 				SpawnDirection = FMath::VRandCone(CurrentSocketTransform.GetRotation().GetForwardVector(), MissileSpreadRadian);
 			}
-			else {
+			else
+			{
 				CurrTargetIndex = 0;
-				if (MainLockOnTarget && bHasMissileLock) {
+				if (MainLockOnTarget && bHasMissileLock)
+				{
 					HomingTarget = MainLockOnTarget->GetRootComponent();
 					// calculate a direction and apply weaponspread
 					SpawnDirection = FMath::VRandCone(CurrentSocketTransform.GetRotation().GetForwardVector(), MissileSpreadRadian);
@@ -1036,11 +1196,13 @@ void AMainPawn::MissileFireSalve() {
 
 			// decrease ammunition
 			--MissileAmmunitionAmount;
-			if (MissileAmmunitionAmount > 0) {
+			if (MissileAmmunitionAmount > 0)
+			{
 				// debug
 				if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::White, "Missiles left: " + FString::FromInt(MissileAmmunitionAmount));
 			}
-			else {
+			else
+			{
 				bMissileHasAmmo = false;
 				if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 10.0f, FColor::Red, "Missile OUT OF AMMO!");
 				GetWorldTimerManager().ClearTimer(MissileSalveTimerHandle);
@@ -1053,24 +1215,33 @@ void AMainPawn::MissileFireSalve() {
 	GetWorldTimerManager().ClearTimer(MissileSalveTimerHandle);
 }
 
-void AMainPawn::SpawnMissile_Implementation(const FTransform &SocketTransform, class USceneComponent * HomingTarget, const FVector &FireBaseVelocity) {
+void AMainPawn::SpawnMissile_Implementation(const FTransform& SocketTransform, class USceneComponent* HomingTarget, const FVector& FireBaseVelocity)
+{
 	// method overridden by blueprint to spawn the projectile
 }
+
 // Missile spawning END ----------------------------------
 
 
-void AMainPawn::StopMovement() {
+void AMainPawn::StopMovement()
+{
 	StopPlayerMovement();
 }
 
-void AMainPawn::StopPlayerMovement() {
+void AMainPawn::StopPlayerMovement()
+{
 	Server_StopPlayerMovement();
 }
-bool AMainPawn::Server_StopPlayerMovement_Validate() {
+
+bool AMainPawn::Server_StopPlayerMovement_Validate()
+{
 	return true;
 }
-void AMainPawn::Server_StopPlayerMovement_Implementation() {
-	if (bCanReceivePlayerInput) {
+
+void AMainPawn::Server_StopPlayerMovement_Implementation()
+{
+	if (bCanReceivePlayerInput)
+	{
 		bGunReady = false;
 		bMissileReady = false;
 		// make sure there is no pending movement activation
@@ -1078,12 +1249,14 @@ void AMainPawn::Server_StopPlayerMovement_Implementation() {
 		bCanReceivePlayerInput = false;
 		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, "Movement STOPPED");
 	}
-	else {
+	else
+	{
 		GetWorldTimerManager().SetTimer(StartMovementTimerHandle, this, &AMainPawn::StartMovementCoolDownElapsed, 1.0f, false);
 	}
 }
 
-void AMainPawn::StartMovementCoolDownElapsed() {
+void AMainPawn::StartMovementCoolDownElapsed()
+{
 	bGunReady = true;
 	bMissileReady = true;
 	bCanReceivePlayerInput = true;
@@ -1093,21 +1266,24 @@ void AMainPawn::StartMovementCoolDownElapsed() {
 }
 
 
-void AMainPawn::StartBoost() {
+void AMainPawn::StartBoost()
+{
 	bBoostPressed = true;
 }
 
-void AMainPawn::StopBoost() {
+void AMainPawn::StopBoost()
+{
 	bBoostPressed = false;
 }
-void AMainPawn::SwitchTargetPressed() {
 
-
+void AMainPawn::SwitchTargetPressed()
+{
 	if (bSwitchTargetPressed) return;
 
 	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Green, "Switch Target PRESSED");
 
-	if (Role < ROLE_Authority && IsLocallyControlled()) {
+	if (Role < ROLE_Authority && IsLocallyControlled())
+	{
 		InputPackage.setSwitchTarget(true);
 		return;
 	}
@@ -1121,77 +1297,91 @@ void AMainPawn::SwitchTargetPressed() {
 	GetWorldTimerManager().ClearTimer(ContinuousLockOnDelay);
 }
 
-void AMainPawn::SwitchTargetReleased() {
-	if (Role < ROLE_Authority && IsLocallyControlled()) {
+void AMainPawn::SwitchTargetReleased()
+{
+	if (Role < ROLE_Authority && IsLocallyControlled())
+	{
 		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Green, "Switch Target RELEASED");
 		InputPackage.setSwitchTarget(false);
 		return;
 	}
 	bSwitchTargetPressed = false;
-
 }
-
 
 
 // sends Playerinput to server
-void AMainPawn::GetPlayerInput(FPlayerInputPackage inputData) {
-
+void AMainPawn::GetPlayerInput(FPlayerInputPackage inputData)
+{
 	Server_GetPlayerInput(inputData);
-
 }
 
-bool AMainPawn::Server_GetPlayerInput_Validate(FPlayerInputPackage inputData) {
+bool AMainPawn::Server_GetPlayerInput_Validate(FPlayerInputPackage inputData)
+{
 	return true;
 }
 
 //Server receives Input
-void AMainPawn::Server_GetPlayerInput_Implementation(FPlayerInputPackage inputData) {
-	if (GetWorld()) {
+void AMainPawn::Server_GetPlayerInput_Implementation(FPlayerInputPackage inputData)
+{
+	if (GetWorld())
+	{
 		NetDelta = GetWorld()->RealTimeSeconds - lastUpdate;
 		lastUpdate = GetWorld()->RealTimeSeconds;
 		if (GEngine && DEBUG)
 			GEngine->AddOnScreenDebugMessage(-1, 0/*seconds*/, FColor::Green,
-				FString::SanitizeFloat(NetDelta) + "    " +
-				FString::FromInt(GetVelocity().Size() * 0.036f) + " km/h");
+			                                 FString::SanitizeFloat(NetDelta) + "    " +
+			                                 FString::FromInt(GetVelocity().Size() * 0.036f) + " km/h");
 	}
 
-	if (inputData.getPacketNumber() > Ack) {
+	if (inputData.getPacketNumber() > Ack)
+	{
 		Ack = inputData.getPacketNumber();
 		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "accepting Packet = " + FString::FromInt(inputData.getPacketNumber()));
 		InputPackage = inputData;
 	}
-	else {
+	else
+	{
 		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Red, "Packet not Accepted = " + FString::FromInt(inputData.getPacketNumber()));
 		return;
 	}
 
 
-	if (InputPackage.getGunFire()) {
-		if (!bGunFire) {
+	if (InputPackage.getGunFire())
+	{
+		if (!bGunFire)
+		{
 			StartGunFire();
 		}
 	}
-	else {
-		if (bGunFire) {
+	else
+	{
+		if (bGunFire)
+		{
 			StopGunFire();
 		}
 	}
 
-	if (InputPackage.getMissileFire()) {
-		if (!bMissileFire) {
+	if (InputPackage.getMissileFire())
+	{
+		if (!bMissileFire)
+		{
 			StartMissileFire();
 		}
 	}
-	else {
-		if (bMissileFire) {
+	else
+	{
+		if (bMissileFire)
+		{
 			StopMissileFire();
 		}
 	}
 
-	if (InputPackage.getSwitchTarget()) {
+	if (InputPackage.getSwitchTarget())
+	{
 		SwitchTargetPressed();
 	}
-	else {
+	else
+	{
 		SwitchTargetReleased();
 	}
 
@@ -1205,27 +1395,34 @@ void AMainPawn::Server_GetPlayerInput_Implementation(FPlayerInputPackage inputDa
 	AuthorityAck = Ack;
 }
 
-void AMainPawn::OnRep_AuthorityAck() {
+void AMainPawn::OnRep_AuthorityAck()
+{
 	int DeletionCnt = 0;
 	PastClientTransform = FTransform();
-	while (true) {
-		if (MovementHistory.Num() > 0) {
-			if (MovementHistory[0].PacketNo < AuthorityAck) {
+	while (true)
+	{
+		if (MovementHistory.Num() > 0)
+		{
+			if (MovementHistory[0].PacketNo < AuthorityAck)
+			{
 				MovementHistory.RemoveAt(0);
 				++DeletionCnt;
 				continue;
 			}
-			if (MovementHistory[0].PacketNo == AuthorityAck) {
+			if (MovementHistory[0].PacketNo == AuthorityAck)
+			{
 				PastClientTransform = MovementHistory[0].Transform;
 				MovementHistory.RemoveAt(0);
 				++DeletionCnt;
 				break;
 			}
-			else {
+			else
+			{
 				break;
 			}
 		}
-		else {
+		else
+		{
 			break;
 		}
 	}
@@ -1236,29 +1433,36 @@ void AMainPawn::OnRep_AuthorityAck() {
 	this->Ack = AuthorityAck;
 }
 
-inline void AMainPawn::GetCursorLocation(FVector2D &CursorLoc) {
-	if (GetController()) {
-		APlayerController *controller = Cast<APlayerController>(GetController());
-		if (controller) {
+inline void AMainPawn::GetCursorLocation(FVector2D& CursorLoc)
+{
+	if (GetController())
+	{
+		APlayerController* controller = Cast<APlayerController>(GetController());
+		if (controller)
+		{
 			controller->GetMousePosition(CursorLoc.X, CursorLoc.Y);
 			if (GEngine && DEBUG)
 				GEngine->AddOnScreenDebugMessage(-1, 0/*seconds*/, FColor::Red,
-					FString::SanitizeFloat(CursorLoc.X) + " " +
-					FString::SanitizeFloat(CursorLoc.Y));
+				                                 FString::SanitizeFloat(CursorLoc.X) + " " +
+				                                 FString::SanitizeFloat(CursorLoc.Y));
 		}
 	}
 }
 
-inline void AMainPawn::GetViewportSizeCenter(FVector2D &ViewPortSize, FVector2D &ViewPortCenter) {
-	if (GetWorld()) {
-		if (GetWorld()->GetGameViewport()) {
+inline void AMainPawn::GetViewportSizeCenter(FVector2D& ViewPortSize, FVector2D& ViewPortCenter)
+{
+	if (GetWorld())
+	{
+		if (GetWorld()->GetGameViewport())
+		{
 			GetWorld()->GetGameViewport()->GetViewportSize(ViewPortSize);
 			ViewPortCenter = ViewPortSize * 0.5f;
 		}
 	}
 }
 
-inline void AMainPawn::GetMouseInput(FVector2D &MouseInput, FVector2D &CursorLoc, FVector2D &ViewPortCenter) {
+inline void AMainPawn::GetMouseInput(FVector2D& MouseInput, FVector2D& CursorLoc, FVector2D& ViewPortCenter)
+{
 	{
 		MouseInput = (CursorLoc - ViewPortCenter) / ViewPortCenter;
 		MouseInput *= MouseInput.GetSafeNormal().GetAbsMax();
@@ -1268,13 +1472,16 @@ inline void AMainPawn::GetMouseInput(FVector2D &MouseInput, FVector2D &CursorLoc
 }
 
 
-void AMainPawn::WeaponLock() {
-	if (MainLockOnTarget) {
+void AMainPawn::WeaponLock()
+{
+	if (MainLockOnTarget)
+	{
 		// normalized Forward-Vector from the Armor or the Camera, depending on where the player is looking, to prevent locking onto Targets that are not in front of the Player
-		const FVector &ForwardVector = bFreeCameraActive ? ArmorMesh->GetForwardVector() : Camera->GetForwardVector();
+		const FVector& ForwardVector = bFreeCameraActive ? ArmorMesh->GetForwardVector() : Camera->GetForwardVector();
+		const FVector DirToTarget = bFreeCameraActive ? (MainLockOnTarget->GetActorLocation() - GetActorLocation()).GetUnsafeNormal() : (MainLockOnTarget->GetActorLocation() - Camera->GetComponentLocation()).GetUnsafeNormal();
 
 		// angle between Forward-Vector and Vector to current Target
-		const float DeltaAngleRad = FVector::DotProduct(ForwardVector, (MainLockOnTarget->GetActorLocation() - GetActorLocation()).GetSafeNormal());
+		const float DeltaAngleRad = FVector::DotProduct(ForwardVector, DirToTarget);
 
 		// set the booleans to enable Weapon-Lock-Ons
 		bHasMissileLock = (DeltaAngleRad > MissileLockOnAngleRad) ? true : false;
@@ -1286,18 +1493,21 @@ void AMainPawn::WeaponLock() {
 }
 
 
-void AMainPawn::TargetLock() {
+void AMainPawn::TargetLock()
+{
 	// execute on locally controlled instance of pawn	
-	if (bSwitchTargetPressed && !GetWorldTimerManager().IsTimerActive(ContinuousLockOnDelay)) {
+	if (bSwitchTargetPressed && !GetWorldTimerManager().IsTimerActive(ContinuousLockOnDelay))
+	{
 		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, "-----------------------------------------------------------------------");
 		MainLockOnTarget = nullptr;
 	}
 
 	// normalized Forward-Vector from the Armor or the Camera, depending on where the player is looking, to prevent locking onto Targets that are not in front of the Player
-	const FVector &ForwardVector = bFreeCameraActive ? ArmorMesh->GetForwardVector() : Camera->GetForwardVector();
+	const FVector& ForwardVector = bFreeCameraActive ? ArmorMesh->GetForwardVector() : Camera->GetForwardVector();
 
 	// skip Target-Selection when the delay is active or there has already been Locked-on to are Target and Multi-Target is not enabled
-	if (bLockOnDelayActiv || (MainLockOnTarget && !bMultiTarget)) {
+	if (bLockOnDelayActiv || (MainLockOnTarget && !bMultiTarget))
+	{
 		return;
 	}
 
@@ -1306,10 +1516,10 @@ void AMainPawn::TargetLock() {
 	TMap<float, AActor*> TargetableTargets;
 
 	// get all target-able Actors
-	for (TActorIterator<AActor> currActor(GetWorld()); currActor /* while is valid */; ++currActor) {
-
-		if (*currActor != this && currActor->Implements<UTarget_Interface>()) {
-
+	for (TActorIterator<AActor> currActor(GetWorld()); currActor /* while is valid */; ++currActor)
+	{
+		if (*currActor != this && currActor->Implements<UTarget_Interface>())
+		{
 			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, currActor->GetName() + " has the Interface");
 
 			// Vector to the current target-able Target
@@ -1319,84 +1529,99 @@ void AMainPawn::TargetLock() {
 			const float DeltaAngleRad = FVector::DotProduct(ForwardVector, VecToTarget.GetUnsafeNormal());
 
 			// check whether the Actor is in Radar-Range
-			if (VecToTarget.SizeSquared() > RadarMaxLockOnRangeSquarred) {
+			if (VecToTarget.SizeSquared() > RadarMaxLockOnRangeSquarred)
+			{
 				continue;
 			}
 
 			// add to list of TargetableTargets if in Gun-Lock-On-Range or when Multi-Targeting is enabled in Multi-Target-Lock-On-Range
-			if (DeltaAngleRad > GunLockOnAngleRad || (bMultiTarget && DeltaAngleRad > MultiTargetLockOnAngleRad)) {
+			if (DeltaAngleRad > GunLockOnAngleRad || (bMultiTarget && DeltaAngleRad > MultiTargetLockOnAngleRad))
+			{
 				TargetableTargets.Add(DeltaAngleRad, *currActor);
 			}
 		}
 	}
 
 	// sort the Targets
-	TargetableTargets.KeySort([](const float A, const float B) {
-		return (A - B) > 0.0f;
-	});
+	TargetableTargets.KeySort([](const float A, const float B)
+		{
+			return (A - B) > 0.0f;
+		});
 
 
 	TArray<AActor*> ChosenTargets;
 
 	int TargetCount = 0;
 	// copy only MaxNumTargets to the Chosen-Targets-List
-	for (const auto &entry : TargetableTargets) {
-		if (TargetCount < MaxNumTargets) {
+	for (const auto& entry : TargetableTargets)
+	{
+		if (TargetCount < MaxNumTargets)
+		{
 			ChosenTargets.Add(entry.Value);
 			++TargetCount;
 		}
-		else { 
+		else
+		{
 			break;
 		}
 	}
 
 
 	// set the main target
-	if (!MainLockOnTarget) {
+	if (!MainLockOnTarget)
+	{
 		MainLockOnTarget = ChosenTargets.IsValidIndex(0) ? ChosenTargets[0] : nullptr;
 	}
 
-	if (MainLockOnTarget && !bContinuousLockOn) {
-			// activate the delay for continuous LockOn
-			GetWorldTimerManager().SetTimer(ContinuousLockOnDelay, this, &AMainPawn::ActivateContinueousLockOn, 0.5f, false);
+	if (MainLockOnTarget && !bContinuousLockOn)
+	{
+		// activate the delay for continuous LockOn
+		GetWorldTimerManager().SetTimer(ContinuousLockOnDelay, this, &AMainPawn::ActivateContinueousLockOn, 0.5f, false);
 	}
 
 	// remove duplicates
-	if (!bMultiTarget) {
+	if (!bMultiTarget)
+	{
 		MultiTargets.Empty();
 	}
 
 	// check whether the list of targets has to be sent to the server
 	bool bMultiTargetListChanged = false;
-	for (AActor * actor : ChosenTargets) {
-		if (actor && MultiTargets.Contains(actor)) {
+	for (AActor* actor : ChosenTargets)
+	{
+		if (actor && MultiTargets.Contains(actor))
+		{
 			continue;
 		}
 		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Red, "Actor List changed");
 		bMultiTargetListChanged = true;
 		break;
 	}
-	
+
 	// in case the list has changed sent list to server
-	if (bMultiTargetListChanged || MultiTargets.Num() != ChosenTargets.Num()) {
+	if (bMultiTargetListChanged || MultiTargets.Num() != ChosenTargets.Num())
+	{
 		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, "Number of additionally targeted actors: " + FString::FromInt(ChosenTargets.Num()));
 		MultiTargets = TArray<AActor*>(ChosenTargets);
 		SetTargets(MainLockOnTarget, MultiTargets);
 	}
 }
 
-void AMainPawn::ActivateContinueousLockOn() {
+void AMainPawn::ActivateContinueousLockOn()
+{
 	bContinuousLockOn = true;
 }
 
-void AMainPawn::OnRep_MultiTarget() {
+void AMainPawn::OnRep_MultiTarget()
+{
 	// Multitarget activated
 	// TODO: implemenation
 }
 
-void AMainPawn::SetTargets(AActor * MainTarget, const  TArray<AActor*> &OtherTargets) {
-
-	if (Role < ROLE_Authority) {
+void AMainPawn::SetTargets(AActor* MainTarget, const TArray<AActor*>& OtherTargets)
+{
+	if (Role < ROLE_Authority)
+	{
 		Server_SetTargets(MainTarget, OtherTargets);
 		return;
 	}
@@ -1406,76 +1631,95 @@ void AMainPawn::SetTargets(AActor * MainTarget, const  TArray<AActor*> &OtherTar
 	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, "Server received number of Targets by player : " + FString::FromInt(OtherTargets.Num()));
 }
 
-void AMainPawn::Server_SetTargets_Implementation(AActor * MainTarget, const  TArray<AActor*> &OtherTargets) {
+void AMainPawn::Server_SetTargets_Implementation(AActor* MainTarget, const TArray<AActor*>& OtherTargets)
+{
 	SetTargets(MainTarget, OtherTargets);
 }
-bool AMainPawn::Server_SetTargets_Validate(AActor * MainTarget, const TArray<AActor*> &OtherTargets) {
+
+bool AMainPawn::Server_SetTargets_Validate(AActor* MainTarget, const TArray<AActor*>& OtherTargets)
+{
 	return true;
 }
 
-void AMainPawn::Skill_01_Pressed() {
-
-}
-void AMainPawn::Skill_02_Pressed() {
-
-}
-void AMainPawn::Skill_03_Pressed() {
-
-}
-void AMainPawn::Skill_04_Pressed() {
-
-}
-void AMainPawn::Skill_05_Pressed() {
-
-}
-void AMainPawn::Skill_06_Pressed() {
-
-}
-void AMainPawn::Skill_07_Pressed() {
-
-}
-void AMainPawn::Skill_08_Pressed() {
-
-}
-void AMainPawn::Skill_09_Pressed() {
-
-}
-void AMainPawn::Skill_10_Pressed() {
-
+void AMainPawn::Skill_01_Pressed()
+{
 }
 
-void AMainPawn::Skill_01_Released() {
-
-}
-void AMainPawn::Skill_02_Released() {
-
-}
-void AMainPawn::Skill_03_Released() {
-
-}
-void AMainPawn::Skill_04_Released() {
-
-}
-void AMainPawn::Skill_05_Released() {
-
-}
-void AMainPawn::Skill_06_Released() {
-
-}
-void AMainPawn::Skill_07_Released() {
-
-}
-void AMainPawn::Skill_08_Released() {
-
-}
-void AMainPawn::Skill_09_Released() {
-
-}
-void AMainPawn::Skill_10_Released() {
-
+void AMainPawn::Skill_02_Pressed()
+{
 }
 
+void AMainPawn::Skill_03_Pressed()
+{
+}
 
+void AMainPawn::Skill_04_Pressed()
+{
+}
+
+void AMainPawn::Skill_05_Pressed()
+{
+}
+
+void AMainPawn::Skill_06_Pressed()
+{
+}
+
+void AMainPawn::Skill_07_Pressed()
+{
+}
+
+void AMainPawn::Skill_08_Pressed()
+{
+}
+
+void AMainPawn::Skill_09_Pressed()
+{
+}
+
+void AMainPawn::Skill_10_Pressed()
+{
+}
+
+void AMainPawn::Skill_01_Released()
+{
+}
+
+void AMainPawn::Skill_02_Released()
+{
+}
+
+void AMainPawn::Skill_03_Released()
+{
+}
+
+void AMainPawn::Skill_04_Released()
+{
+}
+
+void AMainPawn::Skill_05_Released()
+{
+}
+
+void AMainPawn::Skill_06_Released()
+{
+}
+
+void AMainPawn::Skill_07_Released()
+{
+}
+
+void AMainPawn::Skill_08_Released()
+{
+}
+
+void AMainPawn::Skill_09_Released()
+{
+}
+
+void AMainPawn::Skill_10_Released()
+{
+}
 
 
 /* TESTING
