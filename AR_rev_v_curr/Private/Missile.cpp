@@ -129,7 +129,7 @@ void AMissile::BeginPlay()
 
 		MaxVelocity *= FMath::FRandRange(0.95f, 1.05f);
 
-		// calculate max missile liftime (t = s/v)
+		// calculate max missile Life-Time (t = s/v)
 		MaxFlightTime = Range / MaxVelocity;
 		SetLifeSpan(MaxFlightTime + MissileTrailLifeSpan);              // set missile lifespan
 	}
@@ -290,9 +290,33 @@ void AMissile::Tick(float DeltaTime)
 
 	// clients and server
 	{
+
+		SmokeDrift(DeltaTime);
+
 		// store current location for next Tick
 		LastActorLocation = GetActorLocation();
 		bNotFirstTick = true;
+	}
+}
+
+void AMissile::SmokeDrift(const float DeltaTime) {
+	if (MissileTrail && GetWorld()) {
+
+		if (SmokeInterpAlpha > 1.0f) {
+			SmokeInterpAlpha = 0.0f;
+			SmokeRollAngleTarget += FMath::FRandRange(0.0f, 360.0f);
+			CurrentInitialVelocityDirection = TargetInitialVelocityDirection;
+			TargetInitialVelocityDirection = FRotator(0.0f, 0.0f, SmokeRollAngleTarget).RotateVector(FVector(-1.0f, 0.0f, 1.0f));
+			SmokeRollInterpSpeed = FMath::FRandRange(3.0f, 5.0f);
+		}
+
+		SmokeInterpAlpha += DeltaTime * SmokeRollInterpSpeed;
+
+		const float alpha = UCalcFunctionLibrary::FEaseInOutSin(0.0f,1.0f, SmokeInterpAlpha);
+
+		const FVector Dir = FMath::Lerp(CurrentInitialVelocityDirection, TargetInitialVelocityDirection,alpha);
+
+		MissileTrail->SetVectorParameter(FName("SmokeDrift"), Dir);
 	}
 }
 
@@ -300,7 +324,7 @@ void AMissile::MissileDestruction(AActor * actor) {
 	//
 }
 
-// called on server for multicast of explosion
+// called on server for Multi-Cast of explosion
 void AMissile::MissileHit() {
 	if (Role == ROLE_Authority) {
 		ServerMissileHit();

@@ -7,6 +7,7 @@
 #include "GameFramework/DamageType.h"
 #include "UnrealNetwork.h"
 #include "GameFramework/Actor.h"
+#include "CalcFunctionLibrary.h"
 #include "Missile.generated.h"
 
 
@@ -353,4 +354,19 @@ private:
 			const FVector& LineEndB,
 			FVector& PointA,
 			FVector& PointB);
+
+	// sets the Vector-Parameter "SmokeDrift" of the Missile-Trail to simulate wind/turbulence that effects the smoke
+	UFUNCTION()
+		void SmokeDrift(const float DeltaTime);
+
+
+	// target angle on the roll-axis of the missile in which direction the smoke will drift
+	float SmokeRollAngleTarget = 0.0f;
+	// how fast the roll angle will be interpolated to the target roll angle
+	float SmokeRollInterpSpeed = 1.0f;
+
+	float SmokeInterpAlpha = 1.0f;
+
+	FVector CurrentInitialVelocityDirection;
+	FVector TargetInitialVelocityDirection;
 };
