@@ -262,6 +262,38 @@ struct FPositionHistoryElement {
 		FTransform Transform;
 };
 
+/* helper struct to calculate velocities of objects, needs to be updated every tick */
+struct FVelocity
+{
+	FVector CurrentLocation;
+	FVector PreviousLocation;
+
+	// initializes the values to a location, setting the velocity effectively to zero, prevents large values from occuring on the first read-out
+	void Init(const FVector & Location)
+	{
+		PreviousLocation = Location;
+		CurrentLocation = Location;
+	}
+
+	/**
+	* updates the currentlocation to the new location and stores the current location in the previous location
+	*/
+	void SetCurrentLocation(const FVector &NewCurrentLocation)
+	{
+		PreviousLocation = CurrentLocation;
+		CurrentLocation = NewCurrentLocation;
+	}
+
+	/** calculates the velocity [cm/s] from the current and the previous location and the delta-time 
+	* @param DeltaTime	delta-time between the last two Location updates
+	*/
+	FVector GetVelocityVector(const float DeltaTime)
+	{
+		// prevent division with zero
+		if (DeltaTime == 0.0f) return FVector::ZeroVector;
+		return (CurrentLocation - PreviousLocation) / DeltaTime;
+	}
+};
 
 UCLASS()
 class AR_REV_V_CURR_API AMainPawn : public APawn, public ITarget_Interface
@@ -486,6 +518,9 @@ protected:
 	UPROPERTY(ReplicatedUsing = OnRep_MainLockOnTarget)
 		AActor* MainLockOnTarget;
 
+	// struct object to calculate the velocity of the target
+	FVelocity MainTargetVelocity;
+
 	/* TODO */
 	UFUNCTION()
 		void OnRep_MainLockOnTarget();
@@ -542,7 +577,8 @@ protected:
 	/* TODO */
 	UPROPERTY(Replicated)
 		uint32 bGunReady : 1;
-	/* TODO */
+
+	/* atempts to start the timer that fires the salves if there is ammunition */
 	void GunFire();
 	/* TODO */
 	FTimerHandle GunFireHandle;
@@ -560,7 +596,7 @@ protected:
 	/* TODO */
 	FTimerHandle GunFireCooldown;
 
-	/* TODO */
+	/* fires a salve with 1..n projectiles */
 	void GunFireSalve();
 	/* TODO */
 	FTimerHandle GunSalveTimerHandle;

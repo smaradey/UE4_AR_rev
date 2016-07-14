@@ -954,22 +954,33 @@ void AMainPawn::GunCooldownElapsed()
 
 void AMainPawn::GunFire()
 {
+	// start only fireing if there is ammuntion to do so
 	if (GunAmmunitionAmount > 0)
 	{
 		// reset the salve counter
 		GunCurrentSalve = 0;
-		// the gunfire timer starts a subtimer that fires all the salves
+		// start a subtimer that fires GunNumSalves salves
 		GetWorldTimerManager().SetTimer(GunSalveTimerHandle, this, &AMainPawn::GunFireSalve, GunSalveIntervall, true, 0.0f);
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Orange, FString::SanitizeFloat(GunSalveIntervall) + " SalveDelta; " + FString::SanitizeFloat(FireRateGun) + " FireDelta ");
 	}
 }
 
 void AMainPawn::GunFireSalve()
 {
+	// fire a salve only if not all salves have been fired
 	if (GunCurrentSalve < GunNumSalves)
 	{
+		// loop through the projectiles in each salve to be fired
 		for (uint8 shot = 0; shot < NumProjectiles; ++shot)
 		{
+			// stop fireing if there is no ammunition
+			if (GunAmmunitionAmount < 1)
+			{
+				bGunHasAmmo = false;
+				if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 10.0f, FColor::Red, "Gun OUT OF AMMO!");
+				GetWorldTimerManager().ClearTimer(GunSalveTimerHandle);
+				return;
+			}
+
 			// choose next avaliable gun sockets or start over from the first if last was used
 			CurrGunSocketIndex = (CurrGunSocketIndex + 1) % GunSockets.Num();
 			// get the tranform of the choosen socket
@@ -978,65 +989,66 @@ void AMainPawn::GunFireSalve()
 			const FVector& AdditionalVelocity = ArmorMesh->GetPhysicsLinearVelocityAtPoint(CurrentSocketTransform.GetLocation());
 
 			FVector SpawnDirection;
-			// TODO: aim at target
+
+			// aiming to hit the target
 			if (MainLockOnTarget && bHasGunLock)
 			{
 				// linear targetprediction
 				const FVector& TargetLocation = MainLockOnTarget->GetActorLocation();
 				const FVector& StartLocation = CurrentSocketTransform.GetLocation();
-				const FVector AB = (TargetLocation - StartLocation).GetSafeNormal();
-				const FVector TargetVelocity = MainLockOnTarget->GetVelocity() - AdditionalVelocity;
+				const FVector AB = (TargetLocation - StartLocation).GetUnsafeNormal();
+				const FVector TargetVelocity = MainTargetVelocity.GetVelocityVector(GetWorld()->GetDeltaSeconds()) - AdditionalVelocity;
+				//const FVector TargetVelocity = MainLockOnTarget->GetVelocity() - AdditionalVelocity;
 				const FVector vi = TargetVelocity - (FVector::DotProduct(AB, TargetVelocity) * AB);
 				const FVector AimLocation = StartLocation + vi + AB * FMath::Sqrt(FMath::Square(ProjectileVel) - FMath::Pow((vi.Size()), 2.f));
 
-				SpawnDirection = (AimLocation - StartLocation).GetSafeNormal();
+				// get the rotation of the aim-direction
+				SpawnDirection = (AimLocation - StartLocation).GetUnsafeNormal();
 			}
 			else
 			{
+				// get the rotation of the forward vector of the current gun-socket
 				SpawnDirection = CurrentSocketTransform.GetRotation().GetForwardVector();
 			}
 
-
-			// apply weaponspread
+			// add weaponspread
 			SpawnDirection = FMath::VRandCone(SpawnDirection, WeaponSpreadRadian);
 
-
-			// spawn/fire projectile
-
-
+			// spawn/fire projectile with tracers
 			if (TracerIntervall > 0)
 			{
-				const FVector TracerOffset = CurrentSocketTransform.GetLocation() + SpawnDirection * FMath::FRandRange(0.0f, (ProjectileVel + AdditionalVelocity.Size()) * GetWorld()->DeltaTimeSeconds);
-				// not every projectile has a tracer
+				// random tracer offset to increase realism
+				const float TracerRelativeLocationOffset = FMath::FRandRange(0.0f, (ProjectileVel + AdditionalVelocity.Size())) * GetWorld()->DeltaTimeSeconds;
+
+				// Tracer location combined with Offset for realism
+				const FVector TracerSpawnLocation = CurrentSocketTransform.GetLocation() + SpawnDirection * TracerRelativeLocationOffset;
+
+				// loop Tracer-Counter
 				CurrentTracer = (CurrentTracer + 1) % TracerIntervall;
-				SpawnProjectile(FTransform(SpawnDirection.Rotation(), CurrentSocketTransform.GetLocation()), CurrentTracer == 0, AdditionalVelocity, TracerOffset);
+
+				// Spawn projectile, if Current-Tracer == 0 a tracer will be visible/spawned
+				SpawnProjectile(FTransform(SpawnDirection.Rotation(), CurrentSocketTransform.GetLocation()), CurrentTracer == 0, AdditionalVelocity, TracerSpawnLocation);
 			}
 			else
-			{ // if tracerintervall was set to 0 there will be tracers
+			{
+				// spawn projectiles without tracers
 				SpawnProjectile(FTransform(SpawnDirection.Rotation(), CurrentSocketTransform.GetLocation()), false, AdditionalVelocity);
 			}
-			// decrease ammunition
+
+			// decrease ammunition after each shot
 			--GunAmmunitionAmount;
-			if (GunAmmunitionAmount > 0)
-			{
-				// debug
-				if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::White, "Bang Ammo left: " + FString::FromInt(GunAmmunitionAmount));
-			}
-			else
-			{
-				bGunHasAmmo = false;
-				if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 10.0f, FColor::Red, "Gun OUT OF AMMO!");
-				GetWorldTimerManager().ClearTimer(GunSalveTimerHandle);
-			}
 
 			// add recoil to rootcomponent
 			ArmorMesh->AddImpulseAtLocation(SpawnDirection * GunRecoilForce * FMath::FRandRange(0.5f, 1.5f), CurrentSocketTransform.GetLocation());
 		}
+		// increase salve counter
 		++GunCurrentSalve;
-		return;
 	}
-	// deactivate the salvetimer
-	GetWorldTimerManager().ClearTimer(GunSalveTimerHandle);
+	else
+	{
+		// deactivate the salve-timer if all salves have been fired
+		GetWorldTimerManager().ClearTimer(GunSalveTimerHandle);
+	}
 }
 
 void AMainPawn::SpawnProjectile_Implementation(const FTransform& SocketTransform, const bool bTracer, const FVector& FireBaseVelocity, const FVector& TracerStartLocation)
@@ -1476,6 +1488,9 @@ void AMainPawn::WeaponLock()
 {
 	if (MainLockOnTarget)
 	{
+		// update the helper struct
+		MainTargetVelocity.SetCurrentLocation(MainLockOnTarget->GetActorLocation());
+
 		// normalized Forward-Vector from the Armor or the Camera, depending on where the player is looking, to prevent locking onto Targets that are not in front of the Player
 		const FVector& ForwardVector = bFreeCameraActive ? ArmorMesh->GetForwardVector() : Camera->GetForwardVector();
 		const FVector DirToTarget = bFreeCameraActive ? (MainLockOnTarget->GetActorLocation() - GetActorLocation()).GetUnsafeNormal() : (MainLockOnTarget->GetActorLocation() - Camera->GetComponentLocation()).GetUnsafeNormal();
@@ -1570,39 +1585,50 @@ void AMainPawn::TargetLock()
 	// set the main target
 	if (!MainLockOnTarget)
 	{
+		// set the main target to be the first element of the target-list
 		MainLockOnTarget = ChosenTargets.IsValidIndex(0) ? ChosenTargets[0] : nullptr;
+		// initialize the helper struct for velocity calculation
+		if (MainLockOnTarget)
+		{
+			MainTargetVelocity.Init(MainLockOnTarget->GetActorLocation());
+		}
 	}
 
+	// activate the delay for continuous LockOn
 	if (MainLockOnTarget && !bContinuousLockOn)
 	{
-		// activate the delay for continuous LockOn
 		GetWorldTimerManager().SetTimer(ContinuousLockOnDelay, this, &AMainPawn::ActivateContinueousLockOn, 0.5f, false);
 	}
 
-	// remove duplicates
+	// empty the list if multi-targeting is disabled
 	if (!bMultiTarget)
 	{
 		MultiTargets.Empty();
 	}
 
-	// check whether the list of targets has to be sent to the server
+	// flag to keep track of a change in the list
 	bool bMultiTargetListChanged = false;
+	// check whether the list of targets has to be sent to the server by looking for changes
 	for (AActor* actor : ChosenTargets)
 	{
+		// check if the actor is already being targeted
 		if (actor && MultiTargets.Contains(actor))
 		{
 			continue;
 		}
 		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Red, "Actor List changed");
+		// if not the target list need to be updated: a change has occured
 		bMultiTargetListChanged = true;
 		break;
 	}
 
-	// in case the list has changed sent list to server
+	// in case the list has changed update target-list and send the new list to the server
 	if (bMultiTargetListChanged || MultiTargets.Num() != ChosenTargets.Num())
 	{
 		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, "Number of additionally targeted actors: " + FString::FromInt(ChosenTargets.Num()));
-		MultiTargets = TArray<AActor*>(ChosenTargets);
+		// update the Multi-Targets-Array
+		MultiTargets = ChosenTargets;
+		// send the new Array to the server
 		SetTargets(MainLockOnTarget, MultiTargets);
 	}
 }
