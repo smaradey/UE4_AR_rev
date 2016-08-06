@@ -141,12 +141,11 @@ void AMissile::BeginPlay()
 			MissileLock = true;
 			CurrentTargetLocation = BombingTargetLocation;
 		}
-		{
+		
 			Velocity = InitialVelocity;
 			Acceleration = 1.0f / AccelerationTime;
 			FTimerHandle AccerlerationStarter;
 			GetWorldTimerManager().SetTimer(AccerlerationStarter, this, &AMissile::EnableAcceleration, 0.2f, false);
-		}
 	}
 
 	// clients only
@@ -181,12 +180,14 @@ void AMissile::Tick(float DeltaTime)
 	if (bBombingMode) {
 		DirectionToTarget = CurrentTargetLocation - GetActorLocation();
 		DistanceToTarget = DirectionToTarget.Size();
+		DirectionToTarget.Normalize();
 	}
 	else {
 		if (CurrentTarget) {
 			CurrentTargetLocation = CurrentTarget->GetComponentLocation();
 			DirectionToTarget = CurrentTargetLocation - GetActorLocation();
 			DistanceToTarget = DirectionToTarget.Size();
+			DirectionToTarget.Normalize();
 		}
 	}
 
@@ -431,9 +432,9 @@ void AMissile::Homing(float DeltaTime) {
 	if (!CurrentTarget && !bBombingMode) return;                                           // no homing when there is no valid target
 
 	// is target prediction active?
-	if (AdvancedHoming) {
-		TargetVelocity = CurrentTarget->ComponentVelocity;
-		//TargetVelocity = (CurrentTargetLocation - LastTargetLocation) / DeltaTime;  // A vector with v(x,y,z) = [cm/s]
+	if (AdvancedHoming && !LastTargetLocation.IsZero()) {
+		//TargetVelocity = CurrentTarget->ComponentVelocity;
+		TargetVelocity = (CurrentTargetLocation - LastTargetLocation) / DeltaTime;  // A vector with v(x,y,z) = [cm/s]
 		LastTargetLocation = CurrentTargetLocation;                                 // store current targetlocation for next recalculation of target velocity
 
 		// calculate the location where missile and target will hit each other
@@ -444,34 +445,33 @@ void AMissile::Homing(float DeltaTime) {
 			FVector2D(AdvancedMissileMaxRange, AdvancedMissileMinRange),
 			FVector2D(0.0f, 1.0f),
 			DistanceToTarget);
-		//debug
-		//if (GEngine) GEngine->AddOnScreenDebugMessage(4, DeltaTime/*seconds*/, FColor::White, FString::SanitizeFloat(AdvancedHomingStrength));
 
 		// calculate the new forward vector of the missile by taking the distance to the target into consideration 
-		PredictedTargetLocation = FMath::Lerp(CurrentTargetLocation, PredictedTargetLocation, FMath::Sqrt(AdvancedHomingStrength));
-		// (sqrt of homing strength so that the transition is not linear)
-		//DirectionToTarget = (CurrentTargetLocation + ((PredictedTargetLocation - CurrentTargetLocation) * FMath::Sqrt(AdvancedHomingStrength))) - GetActorLocation();
-		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, DeltaTime/*seconds*/, FColor::Green, "advanced Homing");
+		PredictedTargetLocation = FMath::Lerp(CurrentTargetLocation, PredictedTargetLocation, AdvancedHomingStrength);
 
-		DirectionToTarget = PredictedTargetLocation - GetActorLocation();
+		const FVector DirToPredictedTargetLocation = (PredictedTargetLocation - GetActorLocation()).GetSafeNormal();
 
 		if (SpiralHoming && DistanceToTarget > SpiralDeactivationDistance) {
 			float Amplitude = DistanceToTarget * SpiralStrength;
 
-			HomingLocation = PredictedTargetLocation + (Amplitude * FRotationMatrix(DirectionToTarget.Rotation()).GetScaledAxis(EAxis::Y)).RotateAngleAxis((int(SpiralVelocity * LifeTime) % int(360)) * SpiralDirection + CustomSpiralOffset, DirectionToTarget.GetSafeNormal());
-			DirectionToTarget = HomingLocation - GetActorLocation();
+			const FVector NormalVec_To_DirToPredictedTargetLocationVector = FRotationMatrix(DirToPredictedTargetLocation.Rotation()).GetScaledAxis(EAxis::Y);
+			// TODO: combine SpiralVelocity and SpiralDirection
+			const float SpiralRotation = SpiralVelocity * LifeTime * SpiralDirection + CustomSpiralOffset;
 
+			const FVector SpiralOffsetVector = (Amplitude * NormalVec_To_DirToPredictedTargetLocationVector).RotateAngleAxis(SpiralRotation, DirToPredictedTargetLocation);
+
+			HomingLocation = PredictedTargetLocation + SpiralOffsetVector;
+			DirectionToTarget = (HomingLocation - GetActorLocation()).GetSafeNormal();
 		}
 	}
 	else {
+		LastTargetLocation = CurrentTargetLocation;
 		if (SpiralHoming && DistanceToTarget > SpiralDeactivationDistance) {
 			float Amplitude = DistanceToTarget * SpiralStrength;
-			HomingLocation = CurrentTargetLocation + (Amplitude * FRotationMatrix(DirectionToTarget.Rotation()).GetScaledAxis(EAxis::Y)).RotateAngleAxis((int(SpiralVelocity * LifeTime) % int(360)) * SpiralDirection + CustomSpiralOffset, DirectionToTarget.GetSafeNormal());
-			DirectionToTarget = HomingLocation - GetActorLocation();
+			HomingLocation = CurrentTargetLocation + (Amplitude * FRotationMatrix(DirectionToTarget.Rotation()).GetScaledAxis(EAxis::Y)).RotateAngleAxis((int(SpiralVelocity * LifeTime) % int(360)) * SpiralDirection + CustomSpiralOffset, DirectionToTarget);
+			DirectionToTarget = (HomingLocation - GetActorLocation()).GetSafeNormal();			
 		}
 	}
-
-	DirectionToTarget.Normalize();                            // normalize the direction vector
 
 	// calculate the angle the missile will turn (limited by the max turnspeed [deg/s] )
 	AngleToTarget = FMath::Clamp(FMath::RadiansToDegrees(FMath::Acos(DirectionToTarget | GetActorForwardVector())), 0.0f, Turnrate * DeltaTime);
