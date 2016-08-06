@@ -1175,24 +1175,25 @@ void AMainPawn::MissileFireSalve()
 			// choose next avaliable Missile sockets or start over from the first if last was used
 			CurrMissileSocketIndex = (CurrMissileSocketIndex + 1) % MissileSockets.Num();
 			// get the tranform of the choosen socket
-			const FTransform& CurrentSocketTransform = ArmorMesh->GetSocketTransform(MissileSockets[CurrMissileSocketIndex]);
+			const FTransform& CurrentSocketTransform = ArmorMesh->GetSocketTransform(MissileSockets[CurrMissileSocketIndex], ERelativeTransformSpace::RTS_World);
 
 			// calculate a direction
 			FVector SpawnDirection = CurrentSocketTransform.GetRotation().GetForwardVector();
 
-
 			const FVector& AdditionalVelocity = ArmorMesh->GetPhysicsLinearVelocityAtPoint(CurrentSocketTransform.GetLocation());
 
 			USceneComponent* HomingTarget = nullptr;
+
 			if (bMultiTarget && MultiTargets.Num() > 0)
 			{
 				CurrTargetIndex = (CurrTargetIndex + 1) % MultiTargets.Num();
 			}
+
 			if (bMultiTarget && MultiTargets.Num() > 0 && MultiTargets.IsValidIndex(CurrTargetIndex) && MultiTargets[CurrTargetIndex])
 			{
 				HomingTarget = MultiTargets[CurrTargetIndex]->GetRootComponent();
 				// calculate a direction and apply weaponspread
-				SpawnDirection = FMath::VRandCone(CurrentSocketTransform.GetRotation().GetForwardVector(), MissileSpreadRadian);
+				SpawnDirection = FMath::VRandCone(SpawnDirection, MissileSpreadRadian);
 			}
 			else
 			{
@@ -1201,13 +1202,14 @@ void AMainPawn::MissileFireSalve()
 				{
 					HomingTarget = MainLockOnTarget->GetRootComponent();
 					// calculate a direction and apply weaponspread
-					SpawnDirection = FMath::VRandCone(CurrentSocketTransform.GetRotation().GetForwardVector(), MissileSpreadRadian);
+					SpawnDirection = FMath::VRandCone(SpawnDirection, MissileSpreadRadian);
 				}
 			}
 			SpawnMissile(FTransform(SpawnDirection.Rotation(), CurrentSocketTransform.GetLocation()), HomingTarget, AdditionalVelocity);
 
 			// decrease ammunition
 			--MissileAmmunitionAmount;
+
 			if (MissileAmmunitionAmount > 0)
 			{
 				// debug
@@ -1538,10 +1540,20 @@ void AMainPawn::TargetLock()
 			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, currActor->GetName() + " has the Interface");
 
 			// Vector to the current target-able Target
-			const FVector VecToTarget = currActor->GetActorLocation() - GetActorLocation();
-
+			FVector VecToTarget;			
+			if (currActor && Camera) {
+				if(bFreeCameraActive)
+				{
+					VecToTarget = currActor->GetActorLocation() - GetActorLocation();
+				}
+				else
+				{
+					VecToTarget = currActor->GetActorLocation() - Camera->GetComponentLocation();
+				}				
+			}
+			
 			// angle between Forward-Vector and Vector to current Target
-			const float DeltaAngleRad = FVector::DotProduct(ForwardVector, VecToTarget.GetUnsafeNormal());
+			const float DeltaAngleRad = FVector::DotProduct(ForwardVector, VecToTarget.GetSafeNormal());
 
 			// check whether the Actor is in Radar-Range
 			if (VecToTarget.SizeSquared() > RadarMaxLockOnRangeSquarred)
