@@ -515,7 +515,7 @@ protected:
 
 
 	/* TODO */
-	UPROPERTY(ReplicatedUsing = OnRep_MainLockOnTarget)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, ReplicatedUsing = OnRep_MainLockOnTarget)
 		AActor* MainLockOnTarget;
 
 	// struct object to calculate the velocity of the target
@@ -525,8 +525,16 @@ protected:
 	UFUNCTION()
 		void OnRep_MainLockOnTarget();
 
+	/* TODO */
+	UFUNCTION()
+		void OnRep_MultiTargets();
+
+	UFUNCTION(BlueprintNativeEvent, Category = "Targets")
+		void TargetListChanged();
+
 
 	/* TODO */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, ReplicatedUsing = OnRep_MultiTargets)
 	TArray<AActor*> MultiTargets;
 
 	/* TODO */

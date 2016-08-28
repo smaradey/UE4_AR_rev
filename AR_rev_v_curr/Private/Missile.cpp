@@ -14,13 +14,13 @@ AMissile::AMissile(const FObjectInitializer& ObjectInitializer) : Super(ObjectIn
 	NetUpdateFrequency = 5.0f;
 
 	// Create static mesh component
-	MissileMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("MissileMesh"));
+	MissileMesh = ObjectInitializer.CreateDefaultSubobject<UStaticMeshComponent>(this,TEXT("MissileMesh"));
 	MissileMesh->SetCollisionProfileName(TEXT("OverlapAll"));
 	RootComponent = MissileMesh;
 	if (Role == ROLE_Authority) MissileMesh->OnComponentBeginOverlap.AddDynamic(this, &AMissile::MissileMeshOverlap);
 
 	// A sphere that acts as explosionradius/targetdetection
-	ActorDetectionSphere = CreateDefaultSubobject<USphereComponent>(TEXT("ActorDetection"));
+	ActorDetectionSphere = ObjectInitializer.CreateDefaultSubobject<USphereComponent>(this, TEXT("ActorDetection"));
 	ActorDetectionSphere->bAutoActivate = false;
 	ActorDetectionSphere->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepRelativeTransform, NAME_None);
 	ActorDetectionSphere->InitSphereRadius(TargetDetectionRadius);
@@ -29,15 +29,15 @@ AMissile::AMissile(const FObjectInitializer& ObjectInitializer) : Super(ObjectIn
 	//ActorDetectionSphere->OnComponentBeginOverlap.AddDynamic(this, &AMissile::OverlappingATarget);
 
 	// Explosionsoundeffect
-	ExplosionSound = CreateDefaultSubobject<UAudioComponent>(TEXT("ExplosionSound"));
+	ExplosionSound = ObjectInitializer.CreateDefaultSubobject<UAudioComponent>(this, TEXT("ExplosionSound"));
 	ExplosionSound->bAutoActivate = false;
 
 	// Missileboostersoundeffect
-	MissileEngineSound = CreateDefaultSubobject<UAudioComponent>(TEXT("EngineSound"));
+	MissileEngineSound = ObjectInitializer.CreateDefaultSubobject<UAudioComponent>(this, TEXT("EngineSound"));
 	MissileEngineSound->bAutoActivate = true;
 
 	// Missiletrailparticlesystem
-	MissileTrail = CreateDefaultSubobject<UParticleSystemComponent>(TEXT("MissileTrail"));
+	MissileTrail = ObjectInitializer.CreateDefaultSubobject<UParticleSystemComponent>(this, TEXT("MissileTrail"));
 	MissileTrail->bAutoActivate = false;
 
 

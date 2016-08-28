@@ -16,10 +16,10 @@ AMainPawn::AMainPawn(const FObjectInitializer& ObjectInitializer) : Super(Object
 	//SetActorEnableCollision(true);
 
 	//Create components
-	RootComponent = CreateDefaultSubobject<USceneComponent>(TEXT("RootComponent"));
+	RootComponent = ObjectInitializer.CreateDefaultSubobject<USceneComponent>(this,TEXT("RootComponent"));
 
 	// the aircraft frame
-	ArmorMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ArmorMesh"));
+	ArmorMesh = ObjectInitializer.CreateDefaultSubobject<UStaticMeshComponent>(this, TEXT("ArmorMesh"));
 	ArmorMesh->OnComponentHit.AddDynamic(this, &AMainPawn::ArmorHit);
 	RootComponent = ArmorMesh;
 
@@ -31,7 +31,7 @@ AMainPawn::AMainPawn(const FObjectInitializer& ObjectInitializer) : Super(Object
 	ArmorMesh->SetEnableGravity(false);
 
 	// the springarm for the camera
-	SpringArm = CreateDefaultSubobject<USpringArmComponent>(TEXT("CameraSpringArm"));
+	SpringArm = ObjectInitializer.CreateDefaultSubobject<USpringArmComponent>(this, TEXT("CameraSpringArm"));
 	SpringArm->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepRelativeTransform, NAME_None);
 	//SpringArm->SetRelativeLocationAndRotation(FVector(-300.0f, 0.0f, 50.0f), FRotator(0.0f, 0.0f, 0.0f));
 	SpringArm->TargetArmLength = 0.0f;
@@ -42,7 +42,7 @@ AMainPawn::AMainPawn(const FObjectInitializer& ObjectInitializer) : Super(Object
 	SpringArm->CameraLagMaxDistance = 2500.0f;
 
 	// the camera
-	Camera = CreateDefaultSubobject<UCameraComponent>(TEXT("GameCamera"));
+	Camera = ObjectInitializer.CreateDefaultSubobject<UCameraComponent>(this, TEXT("GameCamera"));
 	Camera->AttachToComponent(SpringArm, FAttachmentTransformRules::KeepRelativeTransform, USpringArmComponent::SocketName);
 
 	// PostProcessSettings
@@ -376,12 +376,23 @@ void AMainPawn::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetim
 	DOREPLIFETIME_CONDITION(AMainPawn, bGunFire, COND_SkipOwner);
 	DOREPLIFETIME_CONDITION(AMainPawn, bMissileFire, COND_SkipOwner);
 	DOREPLIFETIME(AMainPawn, MainLockOnTarget);
+	DOREPLIFETIME(AMainPawn, MultiTargets);
 	DOREPLIFETIME(AMainPawn, bHasGunLock);
 }
 
 void AMainPawn::OnRep_MainLockOnTarget()
 {
+	TargetListChanged();
 }
+
+void AMainPawn::OnRep_MultiTargets()
+{
+	TargetListChanged();
+}
+
+void AMainPawn::TargetListChanged_Implementation()
+{
+};
 
 void AMainPawn::MainPlayerMovement(const float DeltaTime, const FVector& CorrectionVelocity, const FVector& CorrectionAngularVelocity)
 {
@@ -1017,22 +1028,16 @@ void AMainPawn::GunFireSalve()
 			// spawn/fire projectile with tracers
 			if (TracerIntervall > 0)
 			{
-				// random tracer offset to increase realism
-				const float TracerRelativeLocationOffset = FMath::FRandRange(0.0f, (ProjectileVel + AdditionalVelocity.Size())) * GetWorld()->DeltaTimeSeconds;
-
-				// Tracer location combined with Offset for realism
-				const FVector TracerSpawnLocation = CurrentSocketTransform.GetLocation() + SpawnDirection * TracerRelativeLocationOffset;
-
 				// loop Tracer-Counter
 				CurrentTracer = (CurrentTracer + 1) % TracerIntervall;
 
 				// Spawn projectile, if Current-Tracer == 0 a tracer will be visible/spawned
-				SpawnProjectile(FTransform(SpawnDirection.Rotation(), CurrentSocketTransform.GetLocation()), CurrentTracer == 0, AdditionalVelocity, TracerSpawnLocation);
+				SpawnProjectile(FTransform(SpawnDirection.Rotation(), CurrentSocketTransform.GetLocation()), CurrentTracer == 0, AdditionalVelocity, CurrentSocketTransform.GetLocation());
 			}
 			else
 			{
 				// spawn projectiles without tracers
-				SpawnProjectile(FTransform(SpawnDirection.Rotation(), CurrentSocketTransform.GetLocation()), false, AdditionalVelocity);
+				SpawnProjectile(FTransform(SpawnDirection.Rotation(), CurrentSocketTransform.GetLocation()), false, AdditionalVelocity, CurrentSocketTransform.GetLocation());
 			}
 
 			// decrease ammunition after each shot
