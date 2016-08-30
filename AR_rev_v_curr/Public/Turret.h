@@ -40,6 +40,9 @@ public:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
+	// get all sockets of the pitch-part starting with "muzzle"
+	void GetProjectileSpawnPointSockets();
+
 	// Called every frame
 	virtual void Tick(float DeltaSeconds) override;
 
@@ -47,13 +50,13 @@ public:
 	inline void CalcActorVelocityVector(const float& DeltaTime);
 
 	UFUNCTION(BlueprintCallable, Category = "Turret")
-		void UpdateTurret(const FVector& TargetedLocation,const ETurretOperationMode& NewOperationMode);
+		void UpdateTurret(const FVector& TargetedLocation, const ETurretOperationMode& NewOperationMode);
 
 	// fire the turrets Weapon
 	// @Param bAcceptInaccuracy true: always fire, false: fire only if the turret has finished aiming and is not resting.
 	// @Param Accuracy Deltaangle to use when bAcceptInaccuracy is false
 	UFUNCTION(BlueprintCallable, Category = "Turret")
-		bool Fire(const bool bAcceptInaccuracy, const float Accuracy = 0.01f) const;
+		bool Fire(const bool bAcceptInaccuracy, const float Accuracy = 0.01f);
 
 	/* Set the AimLocation to be default Forward */
 	void SetRestingAimLocation();
@@ -65,11 +68,12 @@ public:
 	void CalculateCurrentRelativeAimRotation();
 
 	// Helper function that combines 3 function calls
-	inline void CalculateAndChooseRotation();
+	inline void CalculateAndChooseRotation(const float& DeltaTime);
 
-	void CalculateConstantYawRotation();
-	void CalculateConstantPitchRotation();
-	void ChooseRotations();
+	void CalculateConstantYawRotation(const float& DeltaTime);
+	void CalculateConstantPitchRotation(const float& DeltaTime);	
+	void ChooseRotations(const float& DeltaTime);
+	inline FRotator CalcFinalRotation(const float& DeltaTime);
 
 	/* Rotates the turret using the choosen Rotation */
 	void RotateTurret();
@@ -86,20 +90,27 @@ public:
 
 	// Socketname of the Rootcomponent where the yaw Rotation component will be attached to
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings|Construction")
-	FName RootConnectionSocket = "None";
+		FName RootConnectionSocket = "None";
 
 	// Socketname of the yaw Rotation component where the pitch Rotation component will be attached to
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings|Construction")
-	FName YawPartConnectionSocket = "pitch";
+		FName YawPartConnectionSocket = "pitch";
+
+	// Prefix of the socketnames (e.g. muzzle -> muzzle_01, muzzle_02,...)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings|Construction")
+		FString ProjectileSpawnSocketName = "muzzle";
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings|Construction")
+		TArray<FName> ProjectileSpawnSocketNames;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
-	ETurretOperationMode CurrentMode = ETurretOperationMode::Rest;
+		ETurretOperationMode CurrentMode = ETurretOperationMode::Rest;
 
 	// sets the order in which the turret rotates towards the target rotation
 	// - set this to Simultaneously when using Track-Operationmode
 	// - increase FinalAdjustmentSpeed when using a non-simultaneous order to increase visual feedback of the separation of the rotations
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
-	ETurretRotationOrder RotationOrder = ETurretRotationOrder::Simultaneously;
+		ETurretRotationOrder RotationOrder = ETurretRotationOrder::Simultaneously;
 
 	// Rotationspeed in [deg/s]
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta = (ClampMin = "0.01", ClampMax = "360000.0", UIMin = "0.01", UIMax = "360.0"))
@@ -109,15 +120,31 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta = (ClampMin = "0.01", ClampMax = "360000.0", UIMin = "0.01", UIMax = "360.0"))
 		float TurretPitchRotationSpeed = 45.0f;
 
+	// enable switching from a constant rotation to a slower and smoother rotation for final aim adjustment
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings")
+		bool bUseSmoothFinalAdjustment = true;
+
 	// InterpSpeed for smooth rotating before reaching target rotation
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings", meta = (ClampMin = "0.01", ClampMax = "360000.0", UIMin = "0.01", UIMax = "360.0"))
-	float FinalAdjustmentSpeed = 10.0f;
+		float FinalAdjustmentSpeed = 10.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings|Limits", meta = (ClampMin = "-180.0", ClampMax = "180.0", UIMin = "-180.0", UIMax = "0.0"))
+		float TurretYawLimitLeft = -180.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings|Limits", meta = (ClampMin = "-180.0", ClampMax = "180.0", UIMin = "0.0", UIMax = "180.0"))
+		float TurretYawLimitRight = 180.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings|Limits", meta = (ClampMin = "-90.0", ClampMax = "90.0", UIMin = "0.0", UIMax = "90.0"))
+		float TurretPitchLimitUp = 90.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings|Limits", meta = (ClampMin = "-90.0", ClampMax = "90.0", UIMin = "-90.0", UIMax = "0.0"))
+		float TurretPitchLimitDown = -90.0f;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings|Target")
-	FVector TargetLocation;
+		FVector TargetLocation;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings|Target")
-	FRotator TargetRelativeAimRotation;
+		FRotator TargetRelativeAimRotation;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings|Target")
 		FRotator CurrentRelativeAimRotation;

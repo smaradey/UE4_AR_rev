@@ -20,6 +20,8 @@ ATurret::ATurret(const FObjectInitializer& ObjectInitializer) : Super(ObjectInit
 	TurretPitchPart->AttachToComponent(TurretYawPart, FAttachmentTransformRules::KeepRelativeTransform, YawPartConnectionSocket);
 
 	PreviousLocation = GetActorLocation();
+
+
 }
 
 //allows calculation of missing values that have dependencies
@@ -44,7 +46,19 @@ void ATurret::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent
 void ATurret::BeginPlay()
 {
 	Super::BeginPlay();
+	GetProjectileSpawnPointSockets();
+}
 
+void ATurret::GetProjectileSpawnPointSockets()
+{
+	if (!TurretPitchPart) return;
+	for (FName Name : TurretPitchPart->GetAllSocketNames())
+	{
+		if (Name.ToString().StartsWith(ProjectileSpawnSocketName))
+		{
+			ProjectileSpawnSocketNames.Add(Name);
+		}
+	}
 }
 
 // Called every frame
@@ -62,7 +76,7 @@ void ATurret::Tick(float DeltaTime)
 		SetRestingAimLocation();
 		GetAimDirection(TargetLocation);
 		CalculateCurrentRelativeAimRotation();
-		CalculateAndChooseRotation();
+		CalculateAndChooseRotation(DeltaTime);
 		RotateTurret();
 		if (CheckAimFinished())
 		{
@@ -73,14 +87,14 @@ void ATurret::Tick(float DeltaTime)
 	case ETurretOperationMode::Track: {
 		GetAimDirection(TargetLocation);
 		CalculateCurrentRelativeAimRotation();
-		CalculateAndChooseRotation();
+		CalculateAndChooseRotation(DeltaTime);
 		RotateTurret();
 	}
 									  break;
 	case ETurretOperationMode::AimOnce: {
 		GetAimDirection(TargetLocation);
 		CalculateCurrentRelativeAimRotation();
-		CalculateAndChooseRotation();
+		CalculateAndChooseRotation(DeltaTime);
 		RotateTurret();
 		if (CheckAimFinished())
 		{
@@ -116,7 +130,7 @@ void ATurret::UpdateTurret(const FVector& TargetedLocation, const ETurretOperati
 	SetActorTickEnabled(NewOperationMode != ETurretOperationMode::Freeze);
 }
 
-bool ATurret::Fire(const bool bAcceptInaccuracy, const float Accuracy) const
+bool ATurret::Fire(const bool bAcceptInaccuracy, const float Accuracy)
 {
 	if (bAcceptInaccuracy)
 	{
@@ -156,81 +170,87 @@ void ATurret::CalculateCurrentRelativeAimRotation()
 	}
 }
 
-void ATurret::CalculateAndChooseRotation()
+void ATurret::CalculateAndChooseRotation(const float& DeltaTime)
 {
-	CalculateConstantYawRotation();
-	CalculateConstantPitchRotation();
-	ChooseRotations();
+	CalculateConstantYawRotation(DeltaTime);
+	CalculateConstantPitchRotation(DeltaTime);
+	ChooseRotations(DeltaTime);
 }
 
-void ATurret::CalculateConstantYawRotation()
+void ATurret::CalculateConstantYawRotation(const float& DeltaTime)
 {
-	if (TurretYawPart && GetWorld())
+	if (TurretYawPart)
 	{
 		const FVector& RotationAxis = TurretYawPart->GetRelativeTransform().GetRotation().GetUpVector();
 		const FRotator Delta = (CurrentRelativeAimRotation - TargetRelativeAimRotation).GetNormalized();
 		const float YawRotationDirection = -FMath::Sign(Delta.Yaw);
 
-		const FVector NewDirection = CurrentRelativeAimRotation.Vector().RotateAngleAxis(TurretYawRotationSpeed * GetWorld()->DeltaTimeSeconds, YawRotationDirection * RotationAxis);
+		const FVector NewDirection = CurrentRelativeAimRotation.Vector().RotateAngleAxis(TurretYawRotationSpeed * DeltaTime, YawRotationDirection * RotationAxis);
 		ResultYaw = NewDirection.GetUnsafeNormal().Rotation();
 	}
 }
 
-void ATurret::CalculateConstantPitchRotation()
+void ATurret::CalculateConstantPitchRotation(const float& DeltaTime)
 {
-	if (TurretPitchPart && GetWorld())
+	if (TurretPitchPart)
 	{
 		const FVector& RotationAxis = CurrentRelativeAimRotation.Quaternion().GetRightVector();
 		const FRotator Delta = (CurrentRelativeAimRotation - TargetRelativeAimRotation).GetNormalized();
 		const float PitchRotationDirection = FMath::Sign(Delta.Pitch);
 
-		const FVector NewDirection = CurrentRelativeAimRotation.Vector().RotateAngleAxis(TurretPitchRotationSpeed * GetWorld()->DeltaTimeSeconds, PitchRotationDirection * RotationAxis);
+		const FVector NewDirection = CurrentRelativeAimRotation.Vector().RotateAngleAxis(TurretPitchRotationSpeed * DeltaTime, PitchRotationDirection * RotationAxis);
 		ResultPitch = NewDirection.GetSafeNormal().Rotation();
 	}
 }
 
-void ATurret::ChooseRotations()
+void ATurret::ChooseRotations(const float& DeltaTime)
 {
-	if (GetWorld()) {
-		const FRotator SmoothedNewRotation = FMath::RInterpTo(CurrentRelativeAimRotation, TargetRelativeAimRotation, GetWorld()->DeltaTimeSeconds, FinalAdjustmentSpeed);
+	const FRotator SmoothedNewRotation = CalcFinalRotation(DeltaTime);
 
-		const FRotator Delta_Smooth_Current = (SmoothedNewRotation - CurrentRelativeAimRotation).GetNormalized();
-		const FRotator Delta_ResultPitch_Current = (ResultPitch - CurrentRelativeAimRotation).GetNormalized();
-		const FRotator Delta_ResultYaw_Current = (ResultYaw - CurrentRelativeAimRotation).GetNormalized();
+	const FRotator Delta_Smooth_Current = (SmoothedNewRotation - CurrentRelativeAimRotation).GetNormalized();
+	const FRotator Delta_ResultPitch_Current = (ResultPitch - CurrentRelativeAimRotation).GetNormalized();
+	const FRotator Delta_ResultYaw_Current = (ResultYaw - CurrentRelativeAimRotation).GetNormalized();
 
-		if (FMath::Abs(Delta_Smooth_Current.Pitch) <= FMath::Abs(Delta_ResultPitch_Current.Pitch)) {
-			ResultPitch = SmoothedNewRotation;
-			if (RotationOrder == ETurretRotationOrder::PitchYaw)
-			{
-				bCanPitch = true;
-				bCanYaw = true;
-			}
-		}
-		else
+	if (FMath::Abs(Delta_Smooth_Current.Pitch) <= FMath::Abs(Delta_ResultPitch_Current.Pitch)) {
+		ResultPitch = SmoothedNewRotation;
+		if (RotationOrder == ETurretRotationOrder::PitchYaw)
 		{
-			if (RotationOrder == ETurretRotationOrder::PitchYaw)
-			{
-				bCanPitch = true;
-				bCanYaw = false;
-			}
-		}
-		if (FMath::Abs(Delta_Smooth_Current.Yaw) <= FMath::Abs(Delta_ResultYaw_Current.Yaw)) {
-			ResultYaw = SmoothedNewRotation;
-			if (RotationOrder == ETurretRotationOrder::YawPitch)
-			{
-				bCanYaw = true;
-				bCanPitch = true;
-			}
-		}
-		else
-		{
-			if (RotationOrder == ETurretRotationOrder::YawPitch)
-			{
-				bCanYaw = true;
-				bCanPitch = false;
-			}
+			bCanPitch = true;
+			bCanYaw = true;
 		}
 	}
+	else
+	{
+		if (RotationOrder == ETurretRotationOrder::PitchYaw)
+		{
+			bCanPitch = true;
+			bCanYaw = false;
+		}
+	}
+	if (FMath::Abs(Delta_Smooth_Current.Yaw) <= FMath::Abs(Delta_ResultYaw_Current.Yaw)) {
+		ResultYaw = SmoothedNewRotation;
+		if (RotationOrder == ETurretRotationOrder::YawPitch)
+		{
+			bCanYaw = true;
+			bCanPitch = true;
+		}
+	}
+	else
+	{
+		if (RotationOrder == ETurretRotationOrder::YawPitch)
+		{
+			bCanYaw = true;
+			bCanPitch = false;
+		}
+	}
+}
+
+FRotator ATurret::CalcFinalRotation(const float& DeltaTime)
+{
+	if (bUseSmoothFinalAdjustment) {
+		return FMath::RInterpTo(CurrentRelativeAimRotation, TargetRelativeAimRotation, DeltaTime, FinalAdjustmentSpeed);
+	}
+	return TargetRelativeAimRotation;
 }
 
 void ATurret::RotateTurret()
@@ -242,11 +262,17 @@ void ATurret::RotateTurret()
 	}
 	if (TurretYawPart && bCanYaw)
 	{
-		TurretYawPart->SetRelativeRotation(FRotator(0.0f, ResultYaw.Yaw, 0.0f));
+		TurretYawPart->SetRelativeRotation(FRotator(
+			0.0f,
+			FMath::Clamp(ResultYaw.Yaw, TurretYawLimitLeft, TurretYawLimitRight),
+			0.0f));
 	}
 	if (TurretPitchPart && bCanPitch)
 	{
-		TurretPitchPart->SetRelativeRotation(FRotator(ResultPitch.Pitch, 0.0f, 0.0f));
+		TurretPitchPart->SetRelativeRotation(FRotator(
+			FMath::Clamp(ResultPitch.Pitch, TurretPitchLimitDown, TurretPitchLimitUp),
+			0.0f,
+			0.0f));
 	}
 }
 
@@ -255,4 +281,4 @@ bool ATurret::CheckAimFinished(const float& Precision) const
 	const FRotator Delta = (TargetRelativeAimRotation - CurrentRelativeAimRotation).GetNormalized();
 	const float PrecSquared = Precision*Precision;
 	return Delta.Pitch * Delta.Pitch < PrecSquared && Delta.Yaw * Delta.Yaw < PrecSquared;
-} 
+}
