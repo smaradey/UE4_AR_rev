@@ -68,6 +68,8 @@ void AMissile::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEven
 // replication of variables
 void AMissile::GetLifetimeReplicatedProps(TArray< FLifetimeProperty > & OutLifetimeProps) const
 {
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
 	DOREPLIFETIME_CONDITION(AMissile, MaxTurnrate, COND_InitialOnly);
 	DOREPLIFETIME(AMissile, MaxVelocity);
 	DOREPLIFETIME_CONDITION(AMissile, InitialVelocity, COND_InitialOnly);

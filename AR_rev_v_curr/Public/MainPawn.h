@@ -263,10 +263,15 @@ struct FPositionHistoryElement {
 };
 
 /* helper struct to calculate velocities of objects, needs to be updated every tick */
+USTRUCT(BlueprintType)
 struct FVelocity
 {
-	FVector CurrentLocation;
-	FVector PreviousLocation;
+	GENERATED_USTRUCT_BODY()
+		UPROPERTY(BlueprintReadWrite)
+		FVector CurrentLocation;
+
+	UPROPERTY(BlueprintReadWrite)
+		FVector PreviousLocation;
 
 	// initializes the values to a location, setting the velocity effectively to zero, prevents large values from occuring on the first read-out
 	void Init(const FVector & Location)
@@ -284,7 +289,7 @@ struct FVelocity
 		CurrentLocation = NewCurrentLocation;
 	}
 
-	/** calculates the velocity [cm/s] from the current and the previous location and the delta-time 
+	/** calculates the velocity [cm/s] from the current and the previous location and the delta-time
 	* @param DeltaTime	delta-time between the last two Location updates
 	*/
 	FVector GetVelocityVector(const float DeltaTime)
@@ -324,7 +329,7 @@ public:
 
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* InputComponent) override;
-	
+
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
@@ -386,7 +391,7 @@ public:
 
 	// maximum Distance at which the player is able to Lock on to target-able Targets
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Radar", meta = (ClampMin = "10000.0", ClampMax = "1000000.0", UIMin = "10000.0", UIMax = "1000000.0"))
-	float RadarMaxLockOnRange = 165000.0f;
+		float RadarMaxLockOnRange = 165000.0f;
 	// squared maximum Distance at which the player is able to Lock on to target-able Targets
 	float RadarMaxLockOnRangeSquarred = 0.0f;
 
@@ -535,7 +540,7 @@ protected:
 
 	/* TODO */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, ReplicatedUsing = OnRep_MultiTargets)
-	TArray<AActor*> MultiTargets;
+		TArray<AActor*> MultiTargets;
 
 	/* TODO */
 	UFUNCTION(Server, reliable, WithValidation)
@@ -655,6 +660,9 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Guns")
 		float ProjectileVel = 100000.0f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lockon")
+		FVector GunAimLocation;
+
 	// Radar  ------------------------------------------------------------------------
 
 
@@ -678,6 +686,17 @@ protected:
 
 	/* TODO */
 	float GunLockOnAngleRad;
+
+	UFUNCTION(BlueprintCallable, Category = "Target Prediction")
+	static void LinearTargetPredction(const FVector& TargetLocation, const FVector& StartLocation, FVelocity MainTargetVelocity, const float DeltaTime, const FVector& AdditionalVelocity, const float ProjectileVelocity, FVector& AimLocation)
+	{
+		// linear targetprediction
+		const FVector AB = (TargetLocation - StartLocation).GetSafeNormal();
+		const FVector TargetVelocity = MainTargetVelocity.GetVelocityVector(DeltaTime) - AdditionalVelocity;
+		//const FVector TargetVelocity = MainLockOnTarget->GetVelocity() - AdditionalVelocity;
+		const FVector vi = TargetVelocity - (FVector::DotProduct(AB, TargetVelocity) * AB);
+		AimLocation = StartLocation + vi + AB * FMath::Sqrt(FMath::Square(ProjectileVelocity) - FMath::Pow((vi.Size()), 2.f));
+	}
 
 	// Missiles -----------------------------------------------------------------------
 
@@ -706,7 +725,7 @@ protected:
 		uint32 bHasMissileLock;
 
 	/* TODO */
-	UPROPERTY(Replicated)
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Lockon")
 		bool bHasGunLock;
 
 

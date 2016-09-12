@@ -359,6 +359,8 @@ void AMainPawn::Tick(float DeltaTime)
 // replication of variables
 void AMainPawn::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+
 	DOREPLIFETIME_CONDITION(AMainPawn, bGunHasAmmo, COND_OwnerOnly);
 	DOREPLIFETIME_CONDITION(AMainPawn, bGunReady, COND_OwnerOnly);
 	DOREPLIFETIME_CONDITION(AMainPawn, bMissileHasAmmo, COND_OwnerOnly);
@@ -1011,10 +1013,10 @@ void AMainPawn::GunFireSalve()
 				const FVector TargetVelocity = MainTargetVelocity.GetVelocityVector(GetWorld()->GetDeltaSeconds()) - AdditionalVelocity;
 				//const FVector TargetVelocity = MainLockOnTarget->GetVelocity() - AdditionalVelocity;
 				const FVector vi = TargetVelocity - (FVector::DotProduct(AB, TargetVelocity) * AB);
-				const FVector AimLocation = StartLocation + vi + AB * FMath::Sqrt(FMath::Square(ProjectileVel) - FMath::Pow((vi.Size()), 2.f));
+				GunAimLocation = StartLocation + vi + AB * FMath::Sqrt(FMath::Square(ProjectileVel) - FMath::Pow((vi.Size()), 2.f));
 
 				// get the rotation of the aim-direction
-				SpawnDirection = (AimLocation - StartLocation).GetUnsafeNormal();
+				SpawnDirection = (GunAimLocation - StartLocation).GetUnsafeNormal();
 			}
 			else
 			{
