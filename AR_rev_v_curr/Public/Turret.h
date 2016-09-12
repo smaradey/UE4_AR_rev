@@ -153,6 +153,13 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings|Target")
 		FRotator CurrentRelativeAimRotation;
 
+	// enable smoothing of current rotation speed output (has no effect on turret movement, useful to smoothly drive audio components)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings|Audio")
+		bool bUseAudioSmooting = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings|Audio", meta = (ClampMin = "0.1", ClampMax = "1.0", UIMin = "0.1", UIMax = "1.0"))
+	float AudioSmoothAlpha = 0.5f;
+
 	// returns the current yaw rotation speed mapped to 0.0-1.0; 1.0 indicates speed is at max
 	UFUNCTION(BlueprintCallable, Category = "Turret|Rotation")
 		float GetCurrentYawRotationSpeed()
@@ -178,5 +185,6 @@ private:
 	FVector Velocity;
 	float CurrentPitchRotationSpeed;
 	float CurrentYawRotationSpeed;
-
+	float PrevPitchRotationSpeed;
+	float PrevYawRotationSpeed;
 };

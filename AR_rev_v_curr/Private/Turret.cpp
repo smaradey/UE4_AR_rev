@@ -66,6 +66,7 @@ void ATurret::GetProjectileSpawnPointSockets()
 void ATurret::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
+	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, "Turret is Ticking...");
 
 	CalcTurretWorldVelocityVector(DeltaTime);
 
@@ -126,6 +127,8 @@ void ATurret::CalcTurretWorldVelocityVector(const float& DeltaTime)
 
 void ATurret::UpdateTurret(const FVector& TargetedLocation, const ETurretOperationMode& NewOperationMode)
 {
+	// TODO: potential bug (turret not moving)?
+	//if (TargetLocation.Equals(TargetedLocation, 1.0f)) return;
 	TargetLocation = TargetedLocation;
 	CurrentMode = NewOperationMode;
 	SetActorTickEnabled(NewOperationMode != ETurretOperationMode::Freeze);
@@ -154,10 +157,12 @@ void ATurret::StartFireing_Implementation()
 
 void ATurret::SetRestingAimLocation()
 {
-	if (TurretPitchPart) {
+	if (TurretYawPart && TurretYawPart->DoesSocketExist(YawPartConnectionSocket)) {
 		// TODO: make resting direction editable
-		TargetLocation = GetActorForwardVector() + TurretPitchPart->GetComponentLocation();
+		TargetLocation = TurretYawPart->GetSocketLocation(YawPartConnectionSocket) + GetActorForwardVector();
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, TargetLocation.ToString());
 	}
+	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Red, TargetLocation.ToString());
 }
 
 void ATurret::GetAimDirection(const FVector& TargetLocation)
@@ -226,7 +231,7 @@ void ATurret::ChooseRotations(const float& DeltaTime)
 			bCanPitch = true;
 			bCanYaw = true;
 		}
-	}	
+	}
 	else
 	{
 		CurrentPitchRotationSpeed = Delta_ResultPitch_Current.Pitch / DeltaTime;
@@ -253,7 +258,12 @@ void ATurret::ChooseRotations(const float& DeltaTime)
 			bCanYaw = true;
 			bCanPitch = false;
 		}
-	}	
+	}
+	if (RotationOrder == ETurretRotationOrder::Simultaneously)
+	{
+		bCanYaw = true;
+		bCanPitch = true;
+	}
 }
 
 FRotator ATurret::CalcFinalRotation(const float& DeltaTime)
@@ -266,24 +276,35 @@ FRotator ATurret::CalcFinalRotation(const float& DeltaTime)
 
 void ATurret::RotateTurret()
 {
-	if (RotationOrder == ETurretRotationOrder::Simultaneously)
-	{
-		bCanYaw = true;
-		bCanPitch = true;
-	}
+	const float Yaw = FMath::Clamp(ResultYaw.Yaw, TurretYawLimitLeft, TurretYawLimitRight);
 	if (TurretYawPart && bCanYaw)
 	{
-		TurretYawPart->SetRelativeRotation(FRotator(
-			0.0f,
-			FMath::Clamp(ResultYaw.Yaw, TurretYawLimitLeft, TurretYawLimitRight),
-			0.0f));
+		TurretYawPart->SetRelativeRotation(FRotator(0.0f, Yaw, 0.0f));
 	}
+	// Set Rotation Speed to zero when Limits are reached
+	if (!bCanYaw || Yaw == TurretYawLimitLeft || Yaw == TurretYawLimitRight)
+	{
+		CurrentYawRotationSpeed = 0.0f;
+	}
+
+	const float Pitch = FMath::Clamp(ResultPitch.Pitch, TurretPitchLimitDown, TurretPitchLimitUp);
 	if (TurretPitchPart && bCanPitch)
 	{
-		TurretPitchPart->SetRelativeRotation(FRotator(
-			FMath::Clamp(ResultPitch.Pitch, TurretPitchLimitDown, TurretPitchLimitUp),
-			0.0f,
-			0.0f));
+		TurretPitchPart->SetRelativeRotation(FRotator(Pitch, 0.0f, 0.0f));
+	}
+	// Set Rotation Speed to zero when Limits are reached
+	if (!bCanPitch || Pitch == TurretPitchLimitDown || Pitch == TurretPitchLimitUp)
+	{
+		CurrentPitchRotationSpeed = 0.0f;
+	}
+
+	// Audio Smoothing
+	if (bUseAudioSmooting)
+	{
+		CurrentYawRotationSpeed = FMath::Lerp(PrevYawRotationSpeed, CurrentYawRotationSpeed, AudioSmoothAlpha);
+		PrevYawRotationSpeed = CurrentYawRotationSpeed;
+		CurrentPitchRotationSpeed = FMath::Lerp(PrevPitchRotationSpeed, CurrentPitchRotationSpeed, AudioSmoothAlpha);
+		PrevPitchRotationSpeed = CurrentPitchRotationSpeed;
 	}
 }
 
