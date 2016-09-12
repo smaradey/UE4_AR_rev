@@ -51,6 +51,7 @@ void ATurret::BeginPlay()
 
 void ATurret::GetProjectileSpawnPointSockets()
 {
+	ProjectileSpawnSocketNames.Empty();
 	if (!TurretPitchPart) return;
 	for (FName Name : TurretPitchPart->GetAllSocketNames())
 	{
@@ -66,7 +67,7 @@ void ATurret::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
-	CalcActorVelocityVector(DeltaTime);
+	CalcTurretWorldVelocityVector(DeltaTime);
 
 	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, Velocity.ToString());
 
@@ -111,7 +112,7 @@ void ATurret::Tick(float DeltaTime)
 	}
 }
 
-void ATurret::CalcActorVelocityVector(const float& DeltaTime)
+void ATurret::CalcTurretWorldVelocityVector(const float& DeltaTime)
 {
 	if (DeltaTime != 0.0f) {
 		Velocity = (GetActorLocation() - PreviousLocation) / DeltaTime;
@@ -135,14 +136,20 @@ bool ATurret::Fire(const bool bAcceptInaccuracy, const float Accuracy)
 	if (bAcceptInaccuracy)
 	{
 		// Fire instantly
+		StartFireing();
 		return true;
 	}
 	if (CheckAimFinished(Accuracy) && CurrentMode != ETurretOperationMode::Rest)
 	{
 		// Fire
+		StartFireing();
 		return true;
 	}
 	return false;
+}
+
+void ATurret::StartFireing_Implementation()
+{
 }
 
 void ATurret::SetRestingAimLocation()
@@ -212,15 +219,17 @@ void ATurret::ChooseRotations(const float& DeltaTime)
 	const FRotator Delta_ResultYaw_Current = (ResultYaw - CurrentRelativeAimRotation).GetNormalized();
 
 	if (FMath::Abs(Delta_Smooth_Current.Pitch) <= FMath::Abs(Delta_ResultPitch_Current.Pitch)) {
+		CurrentPitchRotationSpeed = Delta_Smooth_Current.Pitch / DeltaTime;
 		ResultPitch = SmoothedNewRotation;
 		if (RotationOrder == ETurretRotationOrder::PitchYaw)
 		{
 			bCanPitch = true;
 			bCanYaw = true;
 		}
-	}
+	}	
 	else
 	{
+		CurrentPitchRotationSpeed = Delta_ResultPitch_Current.Pitch / DeltaTime;
 		if (RotationOrder == ETurretRotationOrder::PitchYaw)
 		{
 			bCanPitch = true;
@@ -228,6 +237,7 @@ void ATurret::ChooseRotations(const float& DeltaTime)
 		}
 	}
 	if (FMath::Abs(Delta_Smooth_Current.Yaw) <= FMath::Abs(Delta_ResultYaw_Current.Yaw)) {
+		CurrentYawRotationSpeed = Delta_Smooth_Current.Yaw / DeltaTime;
 		ResultYaw = SmoothedNewRotation;
 		if (RotationOrder == ETurretRotationOrder::YawPitch)
 		{
@@ -237,12 +247,13 @@ void ATurret::ChooseRotations(const float& DeltaTime)
 	}
 	else
 	{
+		CurrentYawRotationSpeed = Delta_ResultYaw_Current.Yaw / DeltaTime;
 		if (RotationOrder == ETurretRotationOrder::YawPitch)
 		{
 			bCanYaw = true;
 			bCanPitch = false;
 		}
-	}
+	}	
 }
 
 FRotator ATurret::CalcFinalRotation(const float& DeltaTime)

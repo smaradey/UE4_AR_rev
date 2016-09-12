@@ -41,13 +41,14 @@ public:
 	virtual void BeginPlay() override;
 
 	// get all sockets of the pitch-part starting with "muzzle"
+	UFUNCTION(BlueprintCallable, Category = "Turret")
 	void GetProjectileSpawnPointSockets();
 
 	// Called every frame
 	virtual void Tick(float DeltaSeconds) override;
 
 	// manually Calculate this Actors Velocity in Worldspace, call once every Tick.
-	inline void CalcActorVelocityVector(const float& DeltaTime);
+	inline void CalcTurretWorldVelocityVector(const float& DeltaTime);
 
 	UFUNCTION(BlueprintCallable, Category = "Turret")
 		void UpdateTurret(const FVector& TargetedLocation, const ETurretOperationMode& NewOperationMode);
@@ -57,6 +58,9 @@ public:
 	// @Param Accuracy Deltaangle to use when bAcceptInaccuracy is false
 	UFUNCTION(BlueprintCallable, Category = "Turret")
 		bool Fire(const bool bAcceptInaccuracy, const float Accuracy = 0.01f);
+
+	UFUNCTION(BlueprintNativeEvent, Category = "Turret|Fire")
+		void StartFireing();
 
 	/* Set the AimLocation to be default Forward */
 	void SetRestingAimLocation();
@@ -149,6 +153,20 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings|Target")
 		FRotator CurrentRelativeAimRotation;
 
+	// returns the current yaw rotation speed mapped to 0.0-1.0; 1.0 indicates speed is at max
+	UFUNCTION(BlueprintCallable, Category = "Turret|Rotation")
+		float GetCurrentYawRotationSpeed()
+	{
+		return FMath::Abs(CurrentYawRotationSpeed / TurretYawRotationSpeed);
+	}
+
+	// returns the current picth rotation speed mapped to 0.0-1.0; 1.0 indicates speed is at max
+	UFUNCTION(BlueprintCallable, Category = "Turret|Rotation")
+		float GetCurrentPitchRotationSpeed()
+	{
+		return FMath::Abs(CurrentPitchRotationSpeed / TurretPitchRotationSpeed);
+	}
+
 private:
 	FRotator ResultYaw;
 	FRotator ResultPitch;
@@ -158,5 +176,7 @@ private:
 	bool bCanPitch;
 	FVector PreviousLocation;
 	FVector Velocity;
+	float CurrentPitchRotationSpeed;
+	float CurrentYawRotationSpeed;
 
 };
