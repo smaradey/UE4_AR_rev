@@ -957,7 +957,7 @@ void AMainPawn::GunCooldownElapsed()
 	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Blue, "Gun COOLED");
 	// gun has cooled down and is again ready to fire
 	bGunReady = true;
-	// has the user requested fireing reactivate gunfire
+	// has the user requested Firing reactivate gunfire
 	if (bGunFire)
 	{
 		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Green, "Gun CONTINUE");
@@ -967,7 +967,7 @@ void AMainPawn::GunCooldownElapsed()
 
 void AMainPawn::GunFire()
 {
-	// start only fireing if there is ammuntion to do so
+	// start only Firing if there is ammuntion to do so
 	if (GunAmmunitionAmount > 0)
 	{
 		// reset the salve counter
@@ -985,7 +985,7 @@ void AMainPawn::GunFireSalve()
 		// loop through the projectiles in each salve to be fired
 		for (uint8 shot = 0; shot < NumProjectiles; ++shot)
 		{
-			// stop fireing if there is no ammunition
+			// stop Firing if there is no ammunition
 			if (GunAmmunitionAmount < 1)
 			{
 				bGunHasAmmo = false;
@@ -1153,7 +1153,7 @@ void AMainPawn::MissileCooldownElapsed()
 	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Blue, "Missile COOLED");
 	// Missile has cooled down and is again ready to fire
 	bMissileReady = true;
-	// has the user requested fireing reactivate Missilefire
+	// has the user requested Firing reactivate Missilefire
 	if (bMissileFire)
 	{
 		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Green, "Missile CONTINUE");
