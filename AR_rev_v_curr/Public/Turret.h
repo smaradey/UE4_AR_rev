@@ -60,7 +60,7 @@ public:
 		bool Fire(const bool bAcceptInaccuracy, const float Accuracy = 0.01f);
 
 	UFUNCTION(BlueprintNativeEvent, Category = "Turret|Fire")
-		void StartFireing();
+		void StartFiring();
 
 	/* Set the AimLocation to be default Forward */
 	void SetRestingAimLocation();

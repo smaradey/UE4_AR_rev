@@ -139,19 +139,19 @@ bool ATurret::Fire(const bool bAcceptInaccuracy, const float Accuracy)
 	if (bAcceptInaccuracy)
 	{
 		// Fire instantly
-		StartFireing();
+		StartFiring();
 		return true;
 	}
 	if (CheckAimFinished(Accuracy) && CurrentMode != ETurretOperationMode::Rest)
 	{
 		// Fire
-		StartFireing();
+		StartFiring();
 		return true;
 	}
 	return false;
 }
 
-void ATurret::StartFireing_Implementation()
+void ATurret::StartFiring_Implementation()
 {
 }
 
