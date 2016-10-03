@@ -3,8 +3,199 @@
 #pragma once
 
 #include "Components/ActorComponent.h"
+#include "Projectile.h"
+#include "Gun_Interface.h"
 #include "GunFireComponent.generated.h"
 
+// Enum to define a Guns Type: Automatic/Triggered
+UENUM(BlueprintType)
+enum class EGunActionType : uint8
+{
+	// Fires continuously while the Gun is triggered
+	Automatic 	        UMETA(DisplayName = "Automatic-Type"),
+
+	// Fires once every time the Gun is triggered
+	Triggered			UMETA(DisplayName = "Triggered-Type")
+};
+
+UENUM(BlueprintType)
+enum class EGunStatus : uint8
+{
+	// ready to Fire
+	Idle  UMETA(DisplayName = "Idle"),
+
+	// deactivated, can not Fire and not relaod but cool down
+	Deactivated UMETA(DisplayName = "Deactivated"),
+
+	// fires until magazine is empty or overheats
+	Firing UMETA(DisplayName = "Firing"),
+
+	// can not reload and not fire but cool down
+	Empty UMETA(DisplayName = "Empty"),
+
+	// can not fire but cool down
+	Reloading UMETA(DisplayName = "Reloading"),
+
+	// can reload and cool down but not fire
+	Overheated UMETA(DisplayName = "Overheated"),
+	
+	// can reload and cool down but not fire
+	FinishingCycle UMETA(DisplayName = "FinishingCycle"),
+
+	// In case Something went wrong
+	Error UMETA(DisplayName = "Error")
+};
+
+USTRUCT(BlueprintType)
+struct FSpreadProperties {
+	GENERATED_USTRUCT_BODY()
+		// initial Random Spread in Degree
+		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings|Spread")
+		float InitialSpread;
+
+	// multiplier for the next random spread
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings|Spread")
+		float SpreadIncreaseFactor;
+
+	// max spread used for random generation of spread in Degree
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings|Spread")
+		float MaxSpread;
+
+	// initial fixed amount of change in direction in Degree
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings|Spread")
+		float InitialRecoil;
+
+	// multiplier to decrease next change in direction
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings|Spread")
+		float RecoilDecreaseFactor;
+
+	// values that define the direction of the recoil in range of +180 to -180 Degree
+	// examples:
+	// 0 -> recoil right
+	// +180 or -180 -> recoil left
+	// +90 -> recoil up
+	// -90 -> recoil down
+	//(all in local Space)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings|Spread")
+		TArray<float> RecoilOffsetDirections;
+
+	// Time it takes to go back to the initial Recoil, changing Firerates or Cooldowntime can change the Overall recoil
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings|Spread")
+		float RecoveryTime;
+};
+
+UENUM(BlueprintType)
+enum class EReloadType : uint8
+{
+	// reload Multiple Rounds at once, if aborted no Rounds are loaded
+	Magazine  UMETA(DisplayName = "Magazine"),
+	// reload one round after another, if aborted all completely loaded rounds stay loaded
+	Single  UMETA(DisplayName = "Single"),
+	// reload one round and reloading is finished, if aborted no Rounds are loaded
+	BoltAction  UMETA(DisplayName = "BoltAction")
+};
+
+// Struct that defines a Guns Characteristics
+USTRUCT(BlueprintType)
+struct FGunProperties {
+	GENERATED_USTRUCT_BODY()
+
+		// Number of Projectiles available for firing
+		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
+		int32 TotalAmmunitionCount = 600;
+
+	// Number of Projectiles that can be fired before a reload is needed
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
+		int32 MagazineSize = 30;
+
+	// Number of Projectiles that can be fired before a reload is needed
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
+		int32 CurrentMagazineLoad = 30;
+
+	// Number of Projectiles that can loaded into the magazine at once
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
+		int32 MaxMagazineReloadAmount = 30;
+
+	// Reload Type: Magazine, Single or BoltAction
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
+	EReloadType ReloadType;
+
+	// after reloading one additional round can be loaded; Max Projectiles to Fire = MagazineSize + 1
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
+	bool bAdditionalChamberRound = true;
+
+	// Time until a new full Magazine is available
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
+		float ReloadTimeWholeMagazine;
+
+	// Time to load a single Projectile
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
+		float ReloadTimeSingleProjectile;
+
+	// Time for one Firingcyle in seconds
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
+		float FireCycleInterval = 1.0f;
+
+	// Number of Salves in one Firingcycle (at least one)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
+		int32 NumSalvesInCycle = 1;
+
+	// Number of Projectiles in one Salve (at least one, more and the gun behaves like a shotgun for example)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
+		int32 NumProjectilesInSalve = 1;
+
+	// value that defines how the salves are distributed in one firingcycle
+	// Example 1:
+	// NumSalvesInCycle = 2
+	// FireCycleInterval = 1.0 seconds
+	// SalveDistributionInCycle = 0.5
+	// Result when Gun fires:
+	// | Shot -> 0.25s -> Shot -> 0.75s | Shot -> 0.25s -> Shot -> 0.75s
+	//
+	// Example 2:
+	// NumSalvesInCycle = 3
+	// FireCycleInterval = 1.0 seconds
+	// SalveDistributionInCycle = 1.0
+	// Result when Gun fires:
+	// | Shot -> 0.33s -> Shot -> 0.33s -> Shot -> 0.33s | Shot -> 0.33s -> Shot -> 0.33s -> Shot -> 0.33s
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
+		float SalveDistributionInCycle = 1.0f;
+
+	// Array of Boolean that allows creating a custom Tracer order
+	// set to true for Tracers
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
+		TArray<bool> TracerOrder;
+
+
+
+	// Number of Projectiles that can be fired continuously to get from cold to overheated Status
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
+		int32 MaxContinuousFire;
+
+	// Total Time it takes to cool an Overheated Gun down so that it can Fire again
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
+		float CoolDownTime;
+
+	// automatic or triggeraction
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
+		EGunActionType ActionType;
+
+	// Array of structs that holds all the different Projectile-Types this gun can Fire
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
+		TArray<FProjectileProperties> ProjectileProperties;
+
+	// recoil of the gun generates impulses to the guns owner
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
+		bool bPhysicalRecoil;
+
+	// activate spread and recoil
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
+		bool bSpreadAndRecoilProjectileDynamics;
+
+	// Properties of the spreads behaviour
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
+		FSpreadProperties SpreadProperties;
+};
 
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class AR_REV_V_CURR_API UGunFireComponent : public UActorComponent
@@ -21,201 +212,127 @@ public:
 	// Called every frame
 	virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
 
-	UFUNCTION(BlueprintCallable, Category = "GunFireComponent")
-		void StartGunFire(const int32 AmmoAmount,
-			const float BaseFireInterval,
-			class UPrimitiveComponent* GunBarrel,
-			const TArray<FName> & GunSockets,
-			const int32 GunNumSalves,
-			const int32 NumProjectiles,
-			const float GunSalveDensity = 1.0f,
-			const float WeaponSpreadHalfAngle = 0.5f,
-			const float GunRecoilForce = 0.0f,
-			const int32 TracerIntervall = 1)
+	// struct that holds all important properties that defines the Guns Characteristics
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Gun|Settings")
+		FGunProperties GunProperties;
+
+	// Current Operational Status of the Gun
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Gun|Settings")
+		EGunStatus CurrentStatus = EGunStatus::Idle;
+
+
+	void Initialize(const FGunProperties& GunProperties)
 	{
-		StopGunFire();
-		bGunFire = true;
-		this->AmmoAmount = AmmoAmount;
-		this->BaseFireInterval = BaseFireInterval;
-		this->GunBarrel = GunBarrel;
-		this->GunNumSalves = GunNumSalves;
-		this->NumProjectiles = NumProjectiles;
+		this->GunProperties = GunProperties;
 
-		WeaponSpreadRadian = WeaponSpreadHalfAngle * PI / 180.0f;
-		GunSalveIntervall = (GunSalveDensity * BaseFireInterval) / GunNumSalves;
+		GunSalveIntervall = (GunProperties.SalveDistributionInCycle * GunProperties.FireCycleInterval) / GunProperties.NumSalvesInCycle;
 
-		this->GunRecoilForce = GunRecoilForce;
-		this->TracerIntervall = TracerIntervall;
-		this->GunSockets = GunSockets;
+		// WeaponSpreadRadian = WeaponSpreadHalfAngle * PI / 180.0f;
+		GunSalveIntervall = (GunProperties.SalveDistributionInCycle * GunProperties.FireCycleInterval) / GunProperties.NumSalvesInCycle;
 
-		StartGunFire();
-	}
-
-	void StartGunFire() {
-
-		if (bGunReady && AmmoAmount > 0)
-		{
-			// gun is ready to fire
-			// make sure no other gunfire timer is activ by clearing it
-			if (GetOwner()) {
-				GetOwner()->GetWorldTimerManager().ClearTimer(GunFireHandle);
-				// activate a new gunfire timer
-				GetOwner()->GetWorldTimerManager().SetTimer(GunFireHandle, this, &UGunFireComponent::GunFire, BaseFireInterval, true, 0.0f);
-				if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Green, "Gun ON");
-			}
-		}
-		else if (GetOwner() && !GetOwner()->GetWorldTimerManager().IsTimerActive(GunFireCooldown))
-		{ // gun is not cooling down but could not be fired
-		  // enable gun
-			bGunReady = true;
-			// debug
-			if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Gun COOLDOWN NOT ACTIVATED");
-			// try again to fire gun
-			StartGunFire();
-		}
-		else
-		{
-			// gun is cooling down or out of ammo
-			if (AmmoAmount < 1) {
-				if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Gun OUT OF AMMO");
-				StopGunFire();
-			}
-			else if (GetOwner() && GetOwner()->GetWorldTimerManager().IsTimerActive(GunFireCooldown))
-			{
-				if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Gun STILL COOLING DOWN");
-			}
-		}
-	}
-
-	void GunFire()
-	{
-		// start only fireing if there is ammuntion to do so
-		if (AmmoAmount > 0)
-		{
-			// reset the salve counter
-			GunCurrentSalve = 0;
-			// start a subtimer that fires GunNumSalves salves
-			if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Green, "Gun SALVE");
-			if (GetOwner()) GetOwner()->GetWorldTimerManager().SetTimer(GunSalveTimerHandle, this, &UGunFireComponent::GunFireSalve, GunSalveIntervall, true, 0.0f);
-		}
-	}
-
-	void GunFireSalve()
-	{
-		// fire a salve only if not all salves have been fired
-		if (GunBarrel && GunCurrentSalve < GunNumSalves)
-		{
-
-			// loop through the projectiles in each salve to be fired
-			for (uint8 shot = 0; shot < NumProjectiles; ++shot)
-			{
-				// stop fireing if there is no ammunition
-				if (AmmoAmount < 1)
-				{
-					if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 10.0f, FColor::Red, "Gun OUT OF AMMO!");
-					if (GetOwner()) GetOwner()->GetWorldTimerManager().ClearTimer(GunSalveTimerHandle);
-					return;
-				}
-
-				// choose next avaliable gun sockets or start over from the first if last was used
-				CurrGunSocketIndex = (CurrGunSocketIndex + 1) % GunSockets.Num();
-				// get the tranform of the choosen socket
-
-				const FTransform& CurrentSocketTransform = GunBarrel->GetSocketTransform(GunSockets[CurrGunSocketIndex]);
-
-				FVector SpawnDirection = CurrentSocketTransform.GetRotation().GetForwardVector();
-
-				// add weaponspread
-				SpawnDirection = FMath::VRandCone(SpawnDirection, WeaponSpreadRadian);
-
-				UWorld* const World = GetWorld();
-				AActor* const Owner = GetOwner();
-
-				// spawn/fire projectile with tracers
-				if (TracerIntervall > 0)
-				{
-					// loop Tracer-Counter
-					CurrentTracer = (CurrentTracer + 1) % TracerIntervall;
-
-					// Spawn projectile, if Current-Tracer == 0 a tracer will be visible/spawned
-					SpawnProjectile(FTransform(SpawnDirection.Rotation(), CurrentSocketTransform.GetLocation()), CurrentTracer == 0, CurrentSocketTransform.GetLocation());
-					
-					if (World && ProjectileClass) {
-						FActorSpawnParameters SpawnParams;
-						SpawnParams.Owner = Owner;
-						SpawnParams.Instigator = Owner ? Owner->GetInstigator() : nullptr;
-						// spawn the projectile at the muzzle
-						AActor* const Projectile = World->SpawnActor<AActor>(ProjectileClass, CurrentSocketTransform.GetLocation(), SpawnDirection.Rotation(), SpawnParams);
-						//if (Projectile)
-//						{
-							// find launch direction
-//							FVector const LaunchDir = MuzzleRotation.Vector();
-//							Projectile->InitVelocity(LaunchDir);
-//						}
-					}
-				}
-				else
-				{
-					// spawn projectiles without tracers
-					SpawnProjectile(FTransform(SpawnDirection.Rotation(), CurrentSocketTransform.GetLocation()), false, CurrentSocketTransform.GetLocation());
-				}
-				if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Gun BANG");
-				// decrease ammunition after each shot
-				--AmmoAmount;
-
-				// add recoil to rootcomponent
-				if (GetOwner() && GetOwner()->GetRootComponent() && GetOwner()->GetRootComponent()->IsSimulatingPhysics()) {
-					class UPrimitiveComponent* Root = Cast<UPrimitiveComponent>(GetOwner()->GetRootComponent());
-					if (Root) Root->AddImpulseAtLocation(SpawnDirection * GunRecoilForce * FMath::FRandRange(0.5f, 1.5f), CurrentSocketTransform.GetLocation());
-				}
-			}
-			// increase salve counter
-			++GunCurrentSalve;
-		}
-		else
-		{
-			// deactivate the salve-timer if all salves have been fired
-			if (GetOwner()) GetOwner()->GetWorldTimerManager().ClearTimer(GunSalveTimerHandle);
-		}
 	}
 
 	UFUNCTION(BlueprintCallable, Category = "GunFireComponent")
-		void StopGunFire()
-	{
-		// player has gunfire button released
-		bGunFire = false;
-		// is a gunfire timer active
-		if (GetOwner() && GetOwner()->GetWorldTimerManager().IsTimerActive(GunFireHandle))
+		void StartFiring(class UPrimitiveComponent* GunBarrel,
+			const TArray<FName>& GunSockets);
+
+	void StartGunFire();
+
+	void StartFiringCycle();
+
+	void GunFireSalve();
+
+	UFUNCTION(BlueprintCallable, Category = "GunFireComponent")
+		void StopGunFire();
+
+	UFUNCTION(BlueprintCallable, Category = "GunFireComponent")
+		void ReloadMagazine() {
+
+		if (GetOwner()) GetOwner()->GetWorldTimerManager().ClearTimer(GunSalveTimerHandle);
+
+		if (IsOutOfAmmo())
 		{
-			// stop the timer
-			GetOwner()->GetWorldTimerManager().PauseTimer(GunFireHandle);
-			// make sure gun is disabled
-			bGunReady = false;
-			// store the remaining time
-			const float CoolDownTime = GetOwner()->GetWorldTimerManager().GetTimerRemaining(GunFireHandle);
-			// remove old gunfire timer
+			if (MagHasAmmo()) return;
+			CurrentStatus = EGunStatus::Empty;
+			return;
+		}
+
+		if (GetOwner())
+		{
+			
+			// get the remaining Cycle Time
+			const float CycleCoolDown = GetOwner()->GetWorldTimerManager().GetTimerRemaining(GunFireHandle);
+			// stop the Cycle Timer
 			GetOwner()->GetWorldTimerManager().ClearTimer(GunFireHandle);
-			// create a new timer to reactivate gun after a cooldownperiod		
-			GetOwner()->GetWorldTimerManager().SetTimer(GunFireCooldown, this, &UGunFireComponent::GunCooldownElapsed, CoolDownTime, false);
-		}
-		// debug
-		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Gun OFF");
-	}
+			// change the status
+			CurrentStatus = EGunStatus::Reloading;
+			// Start a timer for the Cylce cooldown
+			GetOwner()->GetWorldTimerManager().SetTimer(GunFireCycleCooldown, this, &UGunFireComponent::GunCooldownElapsed, CycleCoolDown, false);
 
-	void GunCooldownElapsed()
-	{
-		// debug
-		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Blue, "Gun COOLED");
-		// gun has cooled down and is again ready to fire
-		bGunReady = true;
-		// has the user requested fireing reactivate gunfire
-		if (bGunFire)
+			// the reloading:
+			const int32 MagRemaining = GunProperties.CurrentMagazineLoad;
+			int32 NumProjectilesToAdd = GunProperties.MagazineSize - MagRemaining;
+
+			// check if Mag is 100% empty
+			if (MagRemaining == 0)
+			{
+				// decrease Number of Projectiles to add to Mag by One
+				NumProjectilesToAdd--;
+			}
+			// take Projectiles from available
+			int32 ResultTotalAmmo = GunProperties.TotalAmmunitionCount - NumProjectilesToAdd;
+
+			// check if there were more taken than available
+			if (ResultTotalAmmo < 0)
+			{
+				// reduce the number of projectiles that can be added to the Magazine
+				NumProjectilesToAdd += ResultTotalAmmo;
+				GunProperties.TotalAmmunitionCount = 0;
+			}
+			else
+			{
+				GunProperties.TotalAmmunitionCount = ResultTotalAmmo;
+			}
+
+			// Fill the Mag
+			GunProperties.CurrentMagazineLoad += NumProjectilesToAdd;
+
+			GetOwner()->GetWorldTimerManager().SetTimer(GunReloadCooldown, this, &UGunFireComponent::ReloadingFinished, GunProperties.ReloadTimeWholeMagazine, false);
+		}
+		else
 		{
-			if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Green, "Gun CONTINUE");
-			StartGunFire();
+			// TODO: Error handling
+			CurrentStatus = EGunStatus::Error;
+			if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, "Error: Reloading: No Owner");
 		}
 	}
 
+	void GunCooldownElapsed();
+	void ReloadingFinished() {
+
+		if (GetOwner()) {
+			// if the gun cycle is not over or the gun is overheated set the status to "Overheated"
+			if (GetOwner()->GetWorldTimerManager().IsTimerActive(GunFireCycleCooldown) || GetOwner()->GetWorldTimerManager().IsTimerActive(GunFireOverheatingCooldown)) {
+				CurrentStatus = EGunStatus::Overheated;
+				return;
+			}
+		}
+		else
+		{
+			// TODO: Error handling
+			CurrentStatus = EGunStatus::Error;
+			if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, "Error: ReloadingFinished: No Owner");
+		}
+
+
+		if (bGunFireRequested)
+		{
+			StartGunFire();
+			return;
+		}
+		// TODO: potential bug when gun is being deactivated while it is reloading
+		CurrentStatus = EGunStatus::Idle;
+	};
 
 
 	UFUNCTION(BlueprintNativeEvent, Category = "GunFireComponent")
@@ -224,19 +341,19 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GunFireComponent")
 		TArray<FName> GunSockets;
 
-	/** TODO: create CPP Projectile
-	Projectile class to spawn */
+	//Projectile class to spawn
 	UPROPERTY(EditDefaultsOnly, Category = Projectile)
-		TSubclassOf<class AActor> ProjectileClass;
+		TSubclassOf<class AProjectile> ProjectileClass;
 
 
 
 private:
 	class UPrimitiveComponent* GunBarrel;
-	bool bGunFire;
+	bool bGunFireRequested;
 	bool bGunReady;
 	int32 AmmoAmount;
 	float BaseFireInterval;
+	// Time between Salves
 	float GunSalveIntervall;
 	int32 GunCurrentSalve;
 	int32 GunNumSalves;
@@ -245,8 +362,24 @@ private:
 	float WeaponSpreadRadian;
 	float GunRecoilForce;
 	FTimerHandle GunFireHandle;
-	FTimerHandle GunFireCooldown;
+	FTimerHandle GunFireCycleCooldown;
+	FTimerHandle GunFireOverheatingCooldown;
+	FTimerHandle GunReloadCooldown;
 	FTimerHandle GunSalveTimerHandle;
 	int32 TracerIntervall = 1;
 	int32 CurrentTracer;
+
+	// checks the Magazine for Ammo
+	inline bool MagHasAmmo()
+	{
+		return GunProperties.CurrentMagazineLoad > 0;
+	}
+
+	// returns true if there is no Ammunition left to refill a Magazine
+	inline bool IsOutOfAmmo()
+	{
+		return GunProperties.TotalAmmunitionCount < 1;
+	}
+
+
 };
