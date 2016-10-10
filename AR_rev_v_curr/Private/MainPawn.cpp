@@ -505,13 +505,13 @@ void AMainPawn::MainPlayerMovement(const float DeltaTime, const FVector& Correct
 		if (RotControlStrength > TimeOfNoControl && RotControlStrength < TimeOfNoControl + 1.0f)
 		{
 			ArmorMesh->SetAngularDamping(0.0f);
-			const float Alpha = FMath::Square(RotControlStrength - TimeOfNoControl);
-			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Orange, "ROTATION control CHARGING " + FString::SanitizeFloat(Alpha));
+			const float ControlAlpha = FMath::Square(RotControlStrength - TimeOfNoControl);
+			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Orange, "ROTATION control CHARGING " + FString::SanitizeFloat(ControlAlpha));
 
 			const FVector AngVelStrafeCompensation = GetActorRotation().RotateVector(FVector(DeltaRot / DeltaTime, 0.0f, 0.0f));
 
 			// blend between pure physics velocities and player caused velocity				
-			const FVector NewAngVel = FMath::Lerp(ArmorMesh->GetPhysicsAngularVelocity(), WorldAngVel - AngVelStrafeCompensation, Alpha);
+			const FVector NewAngVel = FMath::Lerp(ArmorMesh->GetPhysicsAngularVelocity(), WorldAngVel - AngVelStrafeCompensation, ControlAlpha);
 			ArmorMesh->SetPhysicsAngularVelocity(NewAngVel + CorrectionAngularVelocity);
 
 			// rotate springarm/camera in local space to compensate for straferotation 
@@ -701,56 +701,56 @@ void AMainPawn::GetPing()
 }
 
 // Called to bind functionality to input
-void AMainPawn::SetupPlayerInputComponent(class UInputComponent* InputComponent)
+void AMainPawn::SetupPlayerInputComponent(class UInputComponent* _InputComponent)
 {
-	Super::SetupPlayerInputComponent(InputComponent);
+	Super::SetupPlayerInputComponent(_InputComponent);
 
 	// action events
-	InputComponent->BindAction("ZoomIn", IE_Pressed, this, &AMainPawn::ZoomIn);
-	InputComponent->BindAction("ZoomIn", IE_Released, this, &AMainPawn::ZoomOut);
-	InputComponent->BindAction("FreeCamera", IE_Pressed, this, &AMainPawn::ActivateFreeCamera);
-	InputComponent->BindAction("FreeCamera", IE_Released, this, &AMainPawn::DeactivateFreeCamera);
-	InputComponent->BindAction("Fire Gun Action", IE_Pressed, this, &AMainPawn::StartGunFire);
-	InputComponent->BindAction("Fire Gun Action", IE_Released, this, &AMainPawn::StopGunFire);
-	InputComponent->BindAction("Fire Missile Action", IE_Pressed, this, &AMainPawn::StartMissileFire);
-	InputComponent->BindAction("Fire Missile Action", IE_Released, this, &AMainPawn::StopMissileFire);
-	InputComponent->BindAction("StopMovement", IE_Pressed, this, &AMainPawn::StopMovement);
-	InputComponent->BindAction("Boost", IE_Pressed, this, &AMainPawn::StartBoost);
-	InputComponent->BindAction("Boost", IE_Released, this, &AMainPawn::StopBoost);
-	InputComponent->BindAction("SwitchTarget", IE_Pressed, this, &AMainPawn::SwitchTargetPressed);
-	InputComponent->BindAction("SwitchTarget", IE_Released, this, &AMainPawn::SwitchTargetReleased);
+	_InputComponent->BindAction("ZoomIn", IE_Pressed, this, &AMainPawn::ZoomIn);
+	_InputComponent->BindAction("ZoomIn", IE_Released, this, &AMainPawn::ZoomOut);
+	_InputComponent->BindAction("FreeCamera", IE_Pressed, this, &AMainPawn::ActivateFreeCamera);
+	_InputComponent->BindAction("FreeCamera", IE_Released, this, &AMainPawn::DeactivateFreeCamera);
+	_InputComponent->BindAction("Fire Gun Action", IE_Pressed, this, &AMainPawn::StartGunFire);
+	_InputComponent->BindAction("Fire Gun Action", IE_Released, this, &AMainPawn::StopGunFire);
+	_InputComponent->BindAction("Fire Missile Action", IE_Pressed, this, &AMainPawn::StartMissileFire);
+	_InputComponent->BindAction("Fire Missile Action", IE_Released, this, &AMainPawn::StopMissileFire);
+	_InputComponent->BindAction("StopMovement", IE_Pressed, this, &AMainPawn::StopMovement);
+	_InputComponent->BindAction("Boost", IE_Pressed, this, &AMainPawn::StartBoost);
+	_InputComponent->BindAction("Boost", IE_Released, this, &AMainPawn::StopBoost);
+	_InputComponent->BindAction("SwitchTarget", IE_Pressed, this, &AMainPawn::SwitchTargetPressed);
+	_InputComponent->BindAction("SwitchTarget", IE_Released, this, &AMainPawn::SwitchTargetReleased);
 
 	// axis events
-	InputComponent->BindAxis("MoveForward", this, &AMainPawn::MoveForward);
-	InputComponent->BindAxis("MoveRight", this, &AMainPawn::MoveRight);
-	InputComponent->BindAction("StrafeLeft", IE_DoubleClick, this, &AMainPawn::MissileEvasionLeft);
-	InputComponent->BindAction("StrafeRight", IE_DoubleClick, this, &AMainPawn::MissileEvasionRight);
+	_InputComponent->BindAxis("MoveForward", this, &AMainPawn::MoveForward);
+	_InputComponent->BindAxis("MoveRight", this, &AMainPawn::MoveRight);
+	_InputComponent->BindAction("StrafeLeft", IE_DoubleClick, this, &AMainPawn::MissileEvasionLeft);
+	_InputComponent->BindAction("StrafeRight", IE_DoubleClick, this, &AMainPawn::MissileEvasionRight);
 
-	InputComponent->BindAxis("LookUp", this, &AMainPawn::PitchCamera);
-	InputComponent->BindAxis("LookRight", this, &AMainPawn::YawCamera);
+	_InputComponent->BindAxis("LookUp", this, &AMainPawn::PitchCamera);
+	_InputComponent->BindAxis("LookRight", this, &AMainPawn::YawCamera);
 
 
-	InputComponent->BindAction("SkillSlot1", IE_Pressed, this, &AMainPawn::Skill_01_Pressed);
-	InputComponent->BindAction("SkillSlot2", IE_Pressed, this, &AMainPawn::Skill_02_Pressed);
-	InputComponent->BindAction("SkillSlot3", IE_Pressed, this, &AMainPawn::Skill_03_Pressed);
-	InputComponent->BindAction("SkillSlot4", IE_Pressed, this, &AMainPawn::Skill_04_Pressed);
-	InputComponent->BindAction("SkillSlot5", IE_Pressed, this, &AMainPawn::Skill_05_Pressed);
-	InputComponent->BindAction("SkillSlot6", IE_Pressed, this, &AMainPawn::Skill_06_Pressed);
-	InputComponent->BindAction("SkillSlot7", IE_Pressed, this, &AMainPawn::Skill_07_Pressed);
-	InputComponent->BindAction("SkillSlot8", IE_Pressed, this, &AMainPawn::Skill_08_Pressed);
-	InputComponent->BindAction("SkillSlot9", IE_Pressed, this, &AMainPawn::Skill_09_Pressed);
-	InputComponent->BindAction("SkillSlot10", IE_Pressed, this, &AMainPawn::Skill_10_Pressed);
+	_InputComponent->BindAction("SkillSlot1", IE_Pressed, this, &AMainPawn::Skill_01_Pressed);
+	_InputComponent->BindAction("SkillSlot2", IE_Pressed, this, &AMainPawn::Skill_02_Pressed);
+	_InputComponent->BindAction("SkillSlot3", IE_Pressed, this, &AMainPawn::Skill_03_Pressed);
+	_InputComponent->BindAction("SkillSlot4", IE_Pressed, this, &AMainPawn::Skill_04_Pressed);
+	_InputComponent->BindAction("SkillSlot5", IE_Pressed, this, &AMainPawn::Skill_05_Pressed);
+	_InputComponent->BindAction("SkillSlot6", IE_Pressed, this, &AMainPawn::Skill_06_Pressed);
+	_InputComponent->BindAction("SkillSlot7", IE_Pressed, this, &AMainPawn::Skill_07_Pressed);
+	_InputComponent->BindAction("SkillSlot8", IE_Pressed, this, &AMainPawn::Skill_08_Pressed);
+	_InputComponent->BindAction("SkillSlot9", IE_Pressed, this, &AMainPawn::Skill_09_Pressed);
+	_InputComponent->BindAction("SkillSlot10", IE_Pressed, this, &AMainPawn::Skill_10_Pressed);
 
-	InputComponent->BindAction("SkillSlot1", IE_Released, this, &AMainPawn::Skill_01_Released);
-	InputComponent->BindAction("SkillSlot2", IE_Released, this, &AMainPawn::Skill_02_Released);
-	InputComponent->BindAction("SkillSlot3", IE_Released, this, &AMainPawn::Skill_03_Released);
-	InputComponent->BindAction("SkillSlot4", IE_Released, this, &AMainPawn::Skill_04_Released);
-	InputComponent->BindAction("SkillSlot5", IE_Released, this, &AMainPawn::Skill_05_Released);
-	InputComponent->BindAction("SkillSlot6", IE_Released, this, &AMainPawn::Skill_06_Released);
-	InputComponent->BindAction("SkillSlot7", IE_Released, this, &AMainPawn::Skill_07_Released);
-	InputComponent->BindAction("SkillSlot8", IE_Released, this, &AMainPawn::Skill_08_Released);
-	InputComponent->BindAction("SkillSlot9", IE_Released, this, &AMainPawn::Skill_09_Released);
-	InputComponent->BindAction("SkillSlot10", IE_Released, this, &AMainPawn::Skill_10_Released);
+	_InputComponent->BindAction("SkillSlot1", IE_Released, this, &AMainPawn::Skill_01_Released);
+	_InputComponent->BindAction("SkillSlot2", IE_Released, this, &AMainPawn::Skill_02_Released);
+	_InputComponent->BindAction("SkillSlot3", IE_Released, this, &AMainPawn::Skill_03_Released);
+	_InputComponent->BindAction("SkillSlot4", IE_Released, this, &AMainPawn::Skill_04_Released);
+	_InputComponent->BindAction("SkillSlot5", IE_Released, this, &AMainPawn::Skill_05_Released);
+	_InputComponent->BindAction("SkillSlot6", IE_Released, this, &AMainPawn::Skill_06_Released);
+	_InputComponent->BindAction("SkillSlot7", IE_Released, this, &AMainPawn::Skill_07_Released);
+	_InputComponent->BindAction("SkillSlot8", IE_Released, this, &AMainPawn::Skill_08_Released);
+	_InputComponent->BindAction("SkillSlot9", IE_Released, this, &AMainPawn::Skill_09_Released);
+	_InputComponent->BindAction("SkillSlot10", IE_Released, this, &AMainPawn::Skill_10_Released);
 }
 
 void AMainPawn::MissileEvasionRight()
@@ -1454,41 +1454,41 @@ void AMainPawn::OnRep_AuthorityAck()
 	this->Ack = AuthorityAck;
 }
 
-inline void AMainPawn::GetCursorLocation(FVector2D& CursorLoc)
+inline void AMainPawn::GetCursorLocation(FVector2D& _CursorLoc)
 {
 	if (GetController())
 	{
 		APlayerController* controller = Cast<APlayerController>(GetController());
 		if (controller)
 		{
-			controller->GetMousePosition(CursorLoc.X, CursorLoc.Y);
+			controller->GetMousePosition(_CursorLoc.X, _CursorLoc.Y);
 			if (GEngine && DEBUG)
 				GEngine->AddOnScreenDebugMessage(-1, 0/*seconds*/, FColor::Red,
-				                                 FString::SanitizeFloat(CursorLoc.X) + " " +
-				                                 FString::SanitizeFloat(CursorLoc.Y));
+				                                 FString::SanitizeFloat(_CursorLoc.X) + " " +
+				                                 FString::SanitizeFloat(_CursorLoc.Y));
 		}
 	}
 }
 
-inline void AMainPawn::GetViewportSizeCenter(FVector2D& ViewPortSize, FVector2D& ViewPortCenter)
+inline void AMainPawn::GetViewportSizeCenter(FVector2D& _ViewPortSize, FVector2D& _ViewPortCenter)
 {
 	if (GetWorld())
 	{
 		if (GetWorld()->GetGameViewport())
 		{
-			GetWorld()->GetGameViewport()->GetViewportSize(ViewPortSize);
-			ViewPortCenter = ViewPortSize * 0.5f;
+			GetWorld()->GetGameViewport()->GetViewportSize(_ViewPortSize);
+			_ViewPortCenter = _ViewPortSize * 0.5f;
 		}
 	}
 }
 
-inline void AMainPawn::GetMouseInput(FVector2D& MouseInput, FVector2D& CursorLoc, FVector2D& ViewPortCenter)
+inline void AMainPawn::GetMouseInput(FVector2D& _MouseInput, FVector2D& _CursorLoc, FVector2D& _ViewPortCenter)
 {
 	{
-		MouseInput = (CursorLoc - ViewPortCenter) / ViewPortCenter;
-		MouseInput *= MouseInput.GetSafeNormal().GetAbsMax();
+		_MouseInput = (_CursorLoc - _ViewPortCenter) / _ViewPortCenter;
+		_MouseInput *= _MouseInput.GetSafeNormal().GetAbsMax();
 		// deadzone (5 pixel)
-		if (MouseInput.Size() < (5.0f / ViewPortSize.X)) MouseInput = FVector2D::ZeroVector;
+		if (_MouseInput.Size() < (5.0f / ViewPortSize.X)) _MouseInput = FVector2D::ZeroVector;
 	}
 }
 

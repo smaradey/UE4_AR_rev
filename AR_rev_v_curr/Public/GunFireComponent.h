@@ -221,16 +221,7 @@ public:
 		EGunStatus CurrentStatus = EGunStatus::Idle;
 
 
-	void Initialize(const FGunProperties& GunProperties)
-	{
-		this->GunProperties = GunProperties;
-
-		GunSalveIntervall = (GunProperties.SalveDistributionInCycle * GunProperties.FireCycleInterval) / GunProperties.NumSalvesInCycle;
-
-		// WeaponSpreadRadian = WeaponSpreadHalfAngle * PI / 180.0f;
-		GunSalveIntervall = (GunProperties.SalveDistributionInCycle * GunProperties.FireCycleInterval) / GunProperties.NumSalvesInCycle;
-
-	}
+	void Initialize(const FGunProperties& GunProperties);
 
 	UFUNCTION(BlueprintCallable, Category = "GunFireComponent")
 		void StartFiring(class UPrimitiveComponent* GunBarrel,
@@ -246,93 +237,10 @@ public:
 		void StopGunFire();
 
 	UFUNCTION(BlueprintCallable, Category = "GunFireComponent")
-		void ReloadMagazine() {
-
-		if (GetOwner()) GetOwner()->GetWorldTimerManager().ClearTimer(GunSalveTimerHandle);
-
-		if (IsOutOfAmmo())
-		{
-			if (MagHasAmmo()) return;
-			CurrentStatus = EGunStatus::Empty;
-			return;
-		}
-
-		if (GetOwner())
-		{
-			
-			// get the remaining Cycle Time
-			const float CycleCoolDown = GetOwner()->GetWorldTimerManager().GetTimerRemaining(GunFireHandle);
-			// stop the Cycle Timer
-			GetOwner()->GetWorldTimerManager().ClearTimer(GunFireHandle);
-			// change the status
-			CurrentStatus = EGunStatus::Reloading;
-			// Start a timer for the Cylce cooldown
-			GetOwner()->GetWorldTimerManager().SetTimer(GunFireCycleCooldown, this, &UGunFireComponent::GunCooldownElapsed, CycleCoolDown, false);
-
-			// the reloading:
-			const int32 MagRemaining = GunProperties.CurrentMagazineLoad;
-			int32 NumProjectilesToAdd = GunProperties.MagazineSize - MagRemaining;
-
-			// check if Mag is 100% empty
-			if (MagRemaining == 0)
-			{
-				// decrease Number of Projectiles to add to Mag by One
-				NumProjectilesToAdd--;
-			}
-			// take Projectiles from available
-			int32 ResultTotalAmmo = GunProperties.TotalAmmunitionCount - NumProjectilesToAdd;
-
-			// check if there were more taken than available
-			if (ResultTotalAmmo < 0)
-			{
-				// reduce the number of projectiles that can be added to the Magazine
-				NumProjectilesToAdd += ResultTotalAmmo;
-				GunProperties.TotalAmmunitionCount = 0;
-			}
-			else
-			{
-				GunProperties.TotalAmmunitionCount = ResultTotalAmmo;
-			}
-
-			// Fill the Mag
-			GunProperties.CurrentMagazineLoad += NumProjectilesToAdd;
-
-			GetOwner()->GetWorldTimerManager().SetTimer(GunReloadCooldown, this, &UGunFireComponent::ReloadingFinished, GunProperties.ReloadTimeWholeMagazine, false);
-		}
-		else
-		{
-			// TODO: Error handling
-			CurrentStatus = EGunStatus::Error;
-			if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, "Error: Reloading: No Owner");
-		}
-	}
+	void ReloadMagazine();
 
 	void GunCooldownElapsed();
-	void ReloadingFinished() {
-
-		if (GetOwner()) {
-			// if the gun cycle is not over or the gun is overheated set the status to "Overheated"
-			if (GetOwner()->GetWorldTimerManager().IsTimerActive(GunFireCycleCooldown) || GetOwner()->GetWorldTimerManager().IsTimerActive(GunFireOverheatingCooldown)) {
-				CurrentStatus = EGunStatus::Overheated;
-				return;
-			}
-		}
-		else
-		{
-			// TODO: Error handling
-			CurrentStatus = EGunStatus::Error;
-			if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, "Error: ReloadingFinished: No Owner");
-		}
-
-
-		if (bGunFireRequested)
-		{
-			StartGunFire();
-			return;
-		}
-		// TODO: potential bug when gun is being deactivated while it is reloading
-		CurrentStatus = EGunStatus::Idle;
-	};
+	void ReloadingFinished();;
 
 
 	UFUNCTION(BlueprintNativeEvent, Category = "GunFireComponent")
@@ -370,16 +278,8 @@ private:
 	int32 CurrentTracer;
 
 	// checks the Magazine for Ammo
-	inline bool MagHasAmmo()
-	{
-		return GunProperties.CurrentMagazineLoad > 0;
-	}
+	inline bool MagHasAmmo() const;
 
 	// returns true if there is no Ammunition left to refill a Magazine
-	inline bool IsOutOfAmmo()
-	{
-		return GunProperties.TotalAmmunitionCount < 1;
-	}
-
-
+	inline bool IsOutOfAmmo() const;
 };

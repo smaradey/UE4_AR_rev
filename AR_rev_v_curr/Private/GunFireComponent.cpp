@@ -35,13 +35,23 @@ void UGunFireComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAct
 	// ...
 }
 
-void UGunFireComponent::StartFiring(class UPrimitiveComponent* GunBarrel, const TArray<FName>& GunSockets) {
+void UGunFireComponent::Initialize(const FGunProperties& Gun)
+{
+	this->GunProperties = Gun;
+
+	GunSalveIntervall = (Gun.SalveDistributionInCycle * Gun.FireCycleInterval) / Gun.NumSalvesInCycle;
+
+	// WeaponSpreadRadian = WeaponSpreadHalfAngle * PI / 180.0f;
+	GunSalveIntervall = (Gun.SalveDistributionInCycle * Gun.FireCycleInterval) / Gun.NumSalvesInCycle;
+}
+
+void UGunFireComponent::StartFiring(class UPrimitiveComponent* Barrel, const TArray<FName>& MuzzleSockets) {
 
 	bGunFireRequested = true;
 
 	// update GunBarrel and Sockets
-	this->GunBarrel = GunBarrel;
-	this->GunSockets = GunSockets;
+	this->GunBarrel = Barrel;
+	this->GunSockets = MuzzleSockets;
 
 	if (CurrentStatus == EGunStatus::Idle) {
 		StartGunFire();
@@ -225,6 +235,66 @@ void UGunFireComponent::StopGunFire()
 	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Gun OFF");
 }
 
+void UGunFireComponent::ReloadMagazine()
+{
+	if (GetOwner()) GetOwner()->GetWorldTimerManager().ClearTimer(GunSalveTimerHandle);
+
+	if (IsOutOfAmmo())
+	{
+		if (MagHasAmmo()) return;
+		CurrentStatus = EGunStatus::Empty;
+		return;
+	}
+
+	if (GetOwner())
+	{
+		// get the remaining Cycle Time
+		const float CycleCoolDown = GetOwner()->GetWorldTimerManager().GetTimerRemaining(GunFireHandle);
+		// stop the Cycle Timer
+		GetOwner()->GetWorldTimerManager().ClearTimer(GunFireHandle);
+		// change the status
+		CurrentStatus = EGunStatus::Reloading;
+		// Start a timer for the Cylce cooldown
+		GetOwner()->GetWorldTimerManager().SetTimer(GunFireCycleCooldown, this, &UGunFireComponent::GunCooldownElapsed, CycleCoolDown, false);
+
+		// the reloading:
+		const int32 MagRemaining = GunProperties.CurrentMagazineLoad;
+		int32 NumProjectilesToAdd = GunProperties.MagazineSize - MagRemaining;
+
+		// check if Mag is 100% empty
+		if (MagRemaining == 0)
+		{
+			// decrease Number of Projectiles to add to Mag by One
+			NumProjectilesToAdd--;
+		}
+		// take Projectiles from available
+		int32 ResultTotalAmmo = GunProperties.TotalAmmunitionCount - NumProjectilesToAdd;
+
+		// check if there were more taken than available
+		if (ResultTotalAmmo < 0)
+		{
+			// reduce the number of projectiles that can be added to the Magazine
+			NumProjectilesToAdd += ResultTotalAmmo;
+			GunProperties.TotalAmmunitionCount = 0;
+		}
+		else
+		{
+			GunProperties.TotalAmmunitionCount = ResultTotalAmmo;
+		}
+
+		// Fill the Mag
+		GunProperties.CurrentMagazineLoad += NumProjectilesToAdd;
+
+		GetOwner()->GetWorldTimerManager().SetTimer(GunReloadCooldown, this, &UGunFireComponent::ReloadingFinished, GunProperties.ReloadTimeWholeMagazine, false);
+	}
+	else
+	{
+		// TODO: Error handling
+		CurrentStatus = EGunStatus::Error;
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, "Error: Reloading: No Owner");
+	}
+}
+
 void UGunFireComponent::GunCooldownElapsed()
 {
 	bool bIsFiring = false;
@@ -256,6 +326,44 @@ void UGunFireComponent::GunCooldownElapsed()
 
 	// TODO: potential bug when gun is being deactivated while it is reloading
 	CurrentStatus = EGunStatus::Idle;
+}
+
+void UGunFireComponent::ReloadingFinished()
+{
+	if (GetOwner())
+	{
+		// if the gun cycle is not over or the gun is overheated set the status to "Overheated"
+		if (GetOwner()->GetWorldTimerManager().IsTimerActive(GunFireCycleCooldown) || GetOwner()->GetWorldTimerManager().IsTimerActive(GunFireOverheatingCooldown))
+		{
+			CurrentStatus = EGunStatus::Overheated;
+			return;
+		}
+	}
+	else
+	{
+		// TODO: Error handling
+		CurrentStatus = EGunStatus::Error;
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, "Error: ReloadingFinished: No Owner");
+	}
+
+
+	if (bGunFireRequested)
+	{
+		StartGunFire();
+		return;
+	}
+	// TODO: potential bug when gun is being deactivated while it is reloading
+	CurrentStatus = EGunStatus::Idle;
+}
+
+bool UGunFireComponent::MagHasAmmo() const
+{
+	return GunProperties.CurrentMagazineLoad > 0;
+}
+
+bool UGunFireComponent::IsOutOfAmmo() const
+{
+	return GunProperties.TotalAmmunitionCount < 1;
 }
 
 void UGunFireComponent::SpawnProjectile_Implementation(const FTransform& SocketTransform, const bool bTracer, const FVector& FireBaseVelocity, const FVector& TracerStartLocation)

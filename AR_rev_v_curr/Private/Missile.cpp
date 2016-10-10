@@ -494,12 +494,12 @@ void AMissile::Homing(float DeltaTime) {
 FVector AMissile::LinearTargetPrediction(
 	const FVector &TargetLocation,
 	const FVector &StartLocation,
-	const FVector &TargetVelocity, // cm/s
+	const FVector &_TargetVelocity, // cm/s
 	const float ProjectileVelocity) // cm/s	
 {
 	FVector AB = TargetLocation - StartLocation;
 	AB.Normalize();
-	FVector vi = TargetVelocity - (FVector::DotProduct(AB, TargetVelocity) * AB);
+	FVector vi = _TargetVelocity - (FVector::DotProduct(AB, _TargetVelocity) * AB);
 	return StartLocation + vi + AB * FMath::Sqrt(ProjectileVelocity * ProjectileVelocity - FMath::Pow((vi.Size()), 2.f));
 }
 

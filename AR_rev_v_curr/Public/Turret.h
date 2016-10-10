@@ -162,17 +162,11 @@ public:
 
 	// returns the current yaw rotation speed mapped to 0.0-1.0; 1.0 indicates speed is at max
 	UFUNCTION(BlueprintCallable, Category = "Turret|Rotation")
-		float GetCurrentYawRotationSpeed()
-	{
-		return FMath::Abs(CurrentYawRotationSpeed / TurretYawRotationSpeed);
-	}
+	float GetCurrentYawRotationSpeed() const;
 
 	// returns the current picth rotation speed mapped to 0.0-1.0; 1.0 indicates speed is at max
 	UFUNCTION(BlueprintCallable, Category = "Turret|Rotation")
-		float GetCurrentPitchRotationSpeed()
-	{
-		return FMath::Abs(CurrentPitchRotationSpeed / TurretPitchRotationSpeed);
-	}
+	float GetCurrentPitchRotationSpeed() const;
 
 private:
 	FRotator ResultYaw;

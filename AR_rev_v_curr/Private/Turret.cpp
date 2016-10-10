@@ -165,10 +165,10 @@ void ATurret::SetRestingAimLocation()
 	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Red, TargetLocation.ToString());
 }
 
-void ATurret::GetAimDirection(const FVector& TargetLocation)
+void ATurret::GetAimDirection(const FVector& TargetLoc)
 {
 	if (TurretPitchPart) {
-		const FVector DirVec = (TargetLocation - TurretPitchPart->GetComponentLocation()).GetSafeNormal();
+		const FVector DirVec = (TargetLoc - TurretPitchPart->GetComponentLocation()).GetSafeNormal();
 		FRotator Rotation = DirVec.Rotation();
 		FTransform RelativeAimTransform = FTransform(Rotation).GetRelativeTransform(GetActorTransform());
 		TargetRelativeAimRotation = RelativeAimTransform.Rotator();
@@ -313,4 +313,14 @@ bool ATurret::CheckAimFinished(const float& Precision) const
 	const FRotator Delta = (TargetRelativeAimRotation - CurrentRelativeAimRotation).GetNormalized();
 	const float PrecSquared = Precision*Precision;
 	return Delta.Pitch * Delta.Pitch < PrecSquared && Delta.Yaw * Delta.Yaw < PrecSquared;
+}
+
+float ATurret::GetCurrentYawRotationSpeed() const
+{
+	return FMath::Abs(CurrentYawRotationSpeed / TurretYawRotationSpeed);
+}
+
+float ATurret::GetCurrentPitchRotationSpeed() const
+{
+	return FMath::Abs(CurrentPitchRotationSpeed / TurretPitchRotationSpeed);
 }
