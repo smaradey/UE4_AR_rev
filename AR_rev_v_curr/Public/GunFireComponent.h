@@ -51,23 +51,19 @@ struct FSpreadProperties {
 	GENERATED_USTRUCT_BODY()
 		// initial Random Spread in Degree
 		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings|Spread")
-		float InitialSpread;
-
-	// multiplier for the next random spread
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings|Spread")
-		float SpreadIncreaseFactor;
+		float InitialSpread = 0.02f;
 
 	// max spread used for random generation of spread in Degree
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings|Spread")
-		float MaxSpread;
+		float MaxSpread = 3.0f;
 
-	// initial fixed amount of change in direction in Degree
+	// initial fixed amount of change of direction in Degree
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings|Spread")
-		float InitialRecoil;
+		float InitialRecoil = 1.0f;
 
 	// multiplier to decrease next change in direction
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings|Spread")
-		float RecoilDecreaseFactor;
+		float RecoilDecreaseSpeed = 2.0f;
 
 	// values that define the direction of the recoil in range of +180 to -180 Degree
 	// examples:
@@ -77,11 +73,11 @@ struct FSpreadProperties {
 	// -90 -> recoil down
 	//(all in local Space)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings|Spread")
-		TArray<float> RecoilOffsetDirections;
+		TArray<float> RecoilOffsetDirections = {90.0f};
 
-	// Time it takes to go back to the initial Recoil, changing Firerates or Cooldowntime can change the Overall recoil
+	// Time it takes to return to the initial aim direction after the gun stops firing
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings|Spread")
-		float RecoveryTime;
+		float RecoilReturnTime = 0.2f;
 };
 
 UENUM(BlueprintType)
@@ -95,6 +91,15 @@ enum class EReloadType : uint8
 	BoltAction  UMETA(DisplayName = "BoltAction")
 };
 
+UENUM(BlueprintType)
+enum class ECooldownType : uint8
+{
+	// use constant CooldownSpeed, cool down by a constant amount regardless of Temperature-Level (use FinterpToConstant)
+	ConstantSpeed  UMETA(DisplayName = "ConstantSpeed"),
+	// use relative CooldownSpeed, cool down using the given CooldownSpeed (use FInterp)
+	RelativeSpeed  UMETA(DisplayName = "RelativeSpeed"),
+};
+
 // Struct that defines a Guns Characteristics
 USTRUCT(BlueprintType)
 struct FGunProperties {
@@ -102,7 +107,7 @@ struct FGunProperties {
 
 		// Number of Projectiles available for firing
 		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
-		int32 TotalAmmunitionCount = 600;
+		int32 TotalAmmunitionCount = 120;
 
 	// Number of Projectiles that can be fired before a reload is needed
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
@@ -118,7 +123,7 @@ struct FGunProperties {
 
 	// Reload Type: Magazine, Single or BoltAction
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
-	EReloadType ReloadType;
+	EReloadType ReloadType = EReloadType::Magazine;
 
 	// after reloading one additional round can be loaded; Max Projectiles to Fire = MagazineSize + 1
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
@@ -126,15 +131,15 @@ struct FGunProperties {
 
 	// Time until a new full Magazine is available
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
-		float ReloadTimeWholeMagazine;
+		float ReloadTimeWholeMagazine = 2.0f;
 
 	// Time to load a single Projectile
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
-		float ReloadTimeSingleProjectile;
+		float ReloadTimeSingleProjectile = 1.0f;
 
 	// Time for one Firingcyle in seconds
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
-		float FireCycleInterval = 1.0f;
+		float FireCycleInterval = 0.1f;
 
 	// Number of Salves in one Firingcycle (at least one)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
@@ -164,21 +169,19 @@ struct FGunProperties {
 	// Array of Boolean that allows creating a custom Tracer order
 	// set to true for Tracers
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
-		TArray<bool> TracerOrder;
-
-
+		TArray<bool> TracerOrder = {true};
 
 	// Number of Projectiles that can be fired continuously to get from cold to overheated Status
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
-		int32 MaxContinuousFire;
+		int32 MaxContinuousFire = 30;
 
 	// Total Time it takes to cool an Overheated Gun down so that it can Fire again
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
-		float CoolDownTime;
+		float CoolDownTime = 5.0f;
 
 	// automatic or triggeraction
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
-		EGunActionType ActionType;
+		EGunActionType ActionType = EGunActionType::Automatic;
 
 	// Array of structs that holds all the different Projectile-Types this gun can Fire
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
@@ -186,11 +189,11 @@ struct FGunProperties {
 
 	// recoil of the gun generates impulses to the guns owner
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
-		bool bPhysicalRecoil;
+		bool bPhysicalRecoil = false;
 
 	// activate spread and recoil
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
-		bool bSpreadAndRecoilProjectileDynamics;
+		bool bSpreadAndRecoilProjectileDynamics = true;
 
 	// Properties of the spreads behaviour
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
