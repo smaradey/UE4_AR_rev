@@ -427,11 +427,6 @@ public:
 	/** Returns Root subobject **/
 	FORCEINLINE class UStaticMeshComponent* GetDummyMesh() const { return Dummy; }
 
-
-	/** toogle on screen debug messages */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Debug")
-		bool DEBUG;
-
 	/** Turnacceleration */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Turning", meta = (ClampMin = "0.01", ClampMax = "10.0", UIMin = "0.01", UIMax = "10.0"))
 		float TurnInterpSpeed = 3.0f;

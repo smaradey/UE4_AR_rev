@@ -3,6 +3,7 @@
 #include "AR_rev_v_curr.h"
 #include "MainPawn.h"
 
+#define DEBUG_MSG 0
 
 // Sets default values
 AMainPawn::AMainPawn(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
@@ -132,13 +133,14 @@ void AMainPawn::InitWeapon()
 void AMainPawn::InitRadar()
 {
 	MultiTargetLockOnAngleRad = FMath::Cos(MultiTargetLockOnAngleDeg / 180.0f * PI);
-	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 10.0f, FColor::Red, " MultiTarget LockOn in radian : " + FString::SanitizeFloat(MultiTargetLockOnAngleRad));
-
 	MissileLockOnAngleRad = FMath::Cos(MissileLockOnAngleDeg / 180.0f * PI);
-	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 10.0f, FColor::Red, " Missile LockOn in radian : " + FString::SanitizeFloat(MissileLockOnAngleRad));
-
 	GunLockOnAngleRad = FMath::Cos(GunLockOnAngleDeg / 180.0f * PI);
-	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 10.0f, FColor::Red, " Gun LockOn in radian : " + FString::SanitizeFloat(GunLockOnAngleRad));
+
+#if DEBUG_MSG == 1
+	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 10.0f, FColor::Red, " MultiTarget LockOn in radian : " + FString::SanitizeFloat(MultiTargetLockOnAngleRad));
+	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 10.0f, FColor::Red, " Missile LockOn in radian : " + FString::SanitizeFloat(MissileLockOnAngleRad));
+	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 10.0f, FColor::Red, " Gun LockOn in radian : " + FString::SanitizeFloat(GunLockOnAngleRad));
+#endif
 
 	RadarMaxLockOnRangeSquarred = RadarMaxLockOnRange * RadarMaxLockOnRange;
 }
@@ -208,18 +210,20 @@ void AMainPawn::Tick(float DeltaTime)
 		MouseInput = InputAxis;
 		//MouseInput = InputAxis * InputAxis.GetSafeNormal().GetAbsMax();
 
+#if DEBUG_MSG == 1
 		// debug
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Black, FString::SanitizeFloat(InputAxis.X) + " x " + FString::SanitizeFloat(InputAxis.Y));
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Black, FString::SanitizeFloat((InputAxis * InputAxis.GetSafeNormal().GetAbsMax()).Size()));
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Black, FString::SanitizeFloat(InputAxis.X) + " x " + FString::SanitizeFloat(InputAxis.Y));
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Black, FString::SanitizeFloat((InputAxis * InputAxis.GetSafeNormal().GetAbsMax()).Size()));
+
 
 		// debugging:
 		FPlayerInputPackage test;
 		test.setPacketNumber(123);
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, FString::FromInt(test.getPacketNumber()));
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, FString::FromInt(test.getPacketNumber()));
 		test.IncrementPacketNumber();
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, FString::FromInt(test.getPacketNumber()));
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, FString::FromInt(test.getPacketNumber()));
-
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, FString::FromInt(test.getPacketNumber()));
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, FString::FromInt(test.getPacketNumber()));
+#endif
 
 		// deadzone with no turning -> mouseinput interpreted as zero
 		if (MouseInput.SizeSquared() < Deadzone * Deadzone)
@@ -279,9 +283,11 @@ void AMainPawn::Tick(float DeltaTime)
 			InputPackage.setMouseInput(MouseInput);
 			//InputPackage.MouseInput = MouseInput;
 			InputPackage.SetMovementInput(MovementInput);
-			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, FString::SanitizeFloat(MouseInput.X) + " x " + FString::SanitizeFloat(MouseInput.Y));
-			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, FString::SanitizeFloat(MouseInput.Size()));
 
+#if DEBUG_MSG == 1
+			if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, FString::SanitizeFloat(MouseInput.X) + " x " + FString::SanitizeFloat(MouseInput.Y));
+			if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, FString::SanitizeFloat(MouseInput.Size()));
+#endif
 
 			// store client movement for later correction when correct server transform is received
 			FPositionHistoryElement CurrentPositionData;
@@ -290,7 +296,9 @@ void AMainPawn::Tick(float DeltaTime)
 			MovementHistory.Add(CurrentPositionData);
 
 			// send the input to server
-			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, "Sending Packet = " + FString::FromInt(InputPackage.getPacketNumber()));
+#if DEBUG_MSG == 1
+			if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::White, "Sending Packet = " + FString::FromInt(InputPackage.getPacketNumber()));
+#endif
 			GetPlayerInput(InputPackage);
 		}
 
@@ -495,8 +503,10 @@ void AMainPawn::MainPlayerMovement(const float DeltaTime, const FVector& Correct
 		// compensate for bankrotation
 		WorldAngVel = WorldAngVel.RotateAngleAxis(-CurrStrafeRot, GetActorForwardVector());
 
+#if DEBUG_MSG == 1
 		// print current absolut turnrate (angular velocity)
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, FString::SanitizeFloat(WorldAngVel.Size()) + " deg/sec");
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, FString::SanitizeFloat(WorldAngVel.Size()) + " deg/sec");
+#endif
 
 		// collisionhandling: is set to zero on "each" collision and recovers in 2 seconds
 		RotControlStrength = FMath::FInterpConstantTo(RotControlStrength, TimeOfNoControl + 1.0f, DeltaTime, 1.0f);
@@ -506,8 +516,9 @@ void AMainPawn::MainPlayerMovement(const float DeltaTime, const FVector& Correct
 		{
 			ArmorMesh->SetAngularDamping(0.0f);
 			const float ControlAlpha = FMath::Square(RotControlStrength - TimeOfNoControl);
-			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Orange, "ROTATION control CHARGING " + FString::SanitizeFloat(ControlAlpha));
-
+#if DEBUG_MSG == 1
+			if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Orange, "ROTATION control CHARGING " + FString::SanitizeFloat(ControlAlpha));
+#endif
 			const FVector AngVelStrafeCompensation = GetActorRotation().RotateVector(FVector(DeltaRot / DeltaTime, 0.0f, 0.0f));
 
 			// blend between pure physics velocities and player caused velocity				
@@ -523,8 +534,9 @@ void AMainPawn::MainPlayerMovement(const float DeltaTime, const FVector& Correct
 		// no collision handling (normal flight)
 		else if (RotControlStrength >= TimeOfNoControl + 1.0f)
 		{
-			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Green, "ROTATION control FULL");
-
+#if DEBUG_MSG == 1
+			if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Green, "ROTATION control FULL");
+#endif
 			// auto level function  
 			if (LevelVel > 0.0f && !bFreeCameraActive)
 			{
@@ -557,7 +569,9 @@ void AMainPawn::MainPlayerMovement(const float DeltaTime, const FVector& Correct
 		{
 			// RotControlStrength is between 0 and TimeOfNoControl -> player has no control: collision or input disabled
 			ArmorMesh->SetAngularDamping(5.0f);
-			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Red, "ROTATION control DEACTIVATED");
+#if DEBUG_MSG == 1
+			if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0, FColor::Red, "ROTATION control DEACTIVATED");
+#endif
 			if (!bFreeCameraActive)
 			{
 				SpringArm->SetRelativeRotation(FRotator(0, 0, CurrStrafeRot), false, nullptr, ETeleportType::None);
@@ -626,17 +640,17 @@ void AMainPawn::OnRep_TransformOnAuthority()
 		// vector between server location and client location
 		// velocity to correct the client
 		LinVelError = (TransformOnAuthority.GetLocation() - PastClientTransform.GetLocation()) /*NetDelta*/;
-
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Orange, "         Location Error  = " + FString::SanitizeFloat(LinVelError.Size() * 0.01f) + " m");
-
+#if DEBUG_MSG == 1
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Orange, "         Location Error  = " + FString::SanitizeFloat(LinVelError.Size() * 0.01f) + " m");
+#endif
 		// the rotation delta between client and server
 		const FQuat RotationError = TransformOnAuthority.GetRotation() * PastClientTransform.GetRotation().Inverse();
 		const FRotator ErrorDelta = RotationError.Rotator();
-
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "Yaw   Error  " + FString::SanitizeFloat(ErrorDelta.Yaw));
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "Pitch Error  " + FString::SanitizeFloat(ErrorDelta.Pitch));
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "Roll  Error  " + FString::SanitizeFloat(ErrorDelta.Roll));
-
+#if DEBUG_MSG == 1
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "Yaw   Error  " + FString::SanitizeFloat(ErrorDelta.Yaw));
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "Pitch Error  " + FString::SanitizeFloat(ErrorDelta.Pitch));
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "Roll  Error  " + FString::SanitizeFloat(ErrorDelta.Roll));
+#endif
 		// angular velocity to correct the client
 		AngVelError = FVector(-ErrorDelta.Roll, -ErrorDelta.Pitch, ErrorDelta.Yaw)/* * NetDelta*/;
 
@@ -846,7 +860,9 @@ void AMainPawn::YawCamera(float AxisValue)
 void AMainPawn::ZoomIn()
 {
 	bZoomingIn = true;
-	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(1, 0.0f/*seconds*/, FColor::Red, "ZoomPressed");
+#if DEBUG_MSG == 1
+	if (GEngine) GEngine->AddOnScreenDebugMessage(1, 0.0f/*seconds*/, FColor::Red, "ZoomPressed");
+#endif
 	Camera->FieldOfView = 30.0f;
 }
 
@@ -901,31 +917,39 @@ void AMainPawn::StartGunFire()
 		GetWorldTimerManager().ClearTimer(GunFireHandle);
 		// activate a new gunfire timer
 		GetWorldTimerManager().SetTimer(GunFireHandle, this, &AMainPawn::GunFire, FireRateGun, true, 0.0f);
+#if DEBUG_MSG == 1
 		// debug
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Green, "Gun ON");
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Green, "Gun ON");
+#endif
 	}
 	else if (!GetWorldTimerManager().IsTimerActive(GunFireCooldown))
 	{ // gun is not cooling down but could not be fired
 		// enable gun
 		bGunReady = true;
+#if DEBUG_MSG == 1
 		// debug
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Gun COOLDOWN NOT ACTIVATED");
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Gun COOLDOWN NOT ACTIVATED");
+#endif
 		// try again to fire gun
 		if (bGunHasAmmo)
 		{
 			StartGunFire();
 		}
+#if DEBUG_MSG == 1
 		else
 		{
-			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Gun OUT OF AMMO");
+			if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Gun OUT OF AMMO");
 		}
+#endif
 	}
+#if DEBUG_MSG == 1
 	else
 	{
 		// gun is cooling down
 		// debug
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Gun STILL COOLING DOWN");
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Gun STILL COOLING DOWN");
 	}
+#endif
 }
 
 void AMainPawn::StopGunFire()
@@ -947,20 +971,26 @@ void AMainPawn::StopGunFire()
 		// create a new timer to reactivate gun after a cooldownperiod		
 		GetWorldTimerManager().SetTimer(GunFireCooldown, this, &AMainPawn::GunCooldownElapsed, CoolDownTime, false);
 	}
+#if DEBUG_MSG == 1
 	// debug
-	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Gun OFF");
+	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Gun OFF");
+#endif
 }
 
 void AMainPawn::GunCooldownElapsed()
 {
+#if DEBUG_MSG == 1
 	// debug
-	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Blue, "Gun COOLED");
+	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Blue, "Gun COOLED");
+#endif
 	// gun has cooled down and is again ready to fire
 	bGunReady = true;
 	// has the user requested Firing reactivate gunfire
 	if (bGunFire)
 	{
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Green, "Gun CONTINUE");
+#if DEBUG_MSG == 1
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Green, "Gun CONTINUE");
+#endif
 		StartGunFire();
 	}
 }
@@ -989,7 +1019,9 @@ void AMainPawn::GunFireSalve()
 			if (GunAmmunitionAmount < 1)
 			{
 				bGunHasAmmo = false;
-				if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 10.0f, FColor::Red, "Gun OUT OF AMMO!");
+#if DEBUG_MSG == 1
+				if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 10.0f, FColor::Red, "Gun OUT OF AMMO!");
+#endif
 				GetWorldTimerManager().ClearTimer(GunSalveTimerHandle);
 				return;
 			}
@@ -1091,31 +1123,39 @@ void AMainPawn::StartMissileFire()
 		GetWorldTimerManager().ClearTimer(MissileFireHandle);
 		// activate a new Missilefire timer
 		GetWorldTimerManager().SetTimer(MissileFireHandle, this, &AMainPawn::MissileFire, FireRateMissile, true, 0.0f);
+#if DEBUG_MSG == 1
 		// debug
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Green, "Missile ON");
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Green, "Missile ON");
+#endif
 	}
 	else if (!GetWorldTimerManager().IsTimerActive(MissileFireCooldown))
 	{ // Missile is not cooling down but could not be fired
 		// enable Missile
 		bMissileReady = true;
+#if DEBUG_MSG == 1
 		// debug
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Missile COOLDOWN NOT ACTIVATED");
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Missile COOLDOWN NOT ACTIVATED");
+#endif
 		// try again to fire Missile
 		if (bMissileHasAmmo)
 		{
 			StartMissileFire();
 		}
+#if DEBUG_MSG == 1
 		else
 		{
-			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Missile OUT OF AMMO");
+			if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Missile OUT OF AMMO");
 		}
+#endif
 	}
+#if DEBUG_MSG == 1
 	else
 	{
 		// Missile is cooling down
 		// debug
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Missile STILL COOLING DOWN");
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Missile STILL COOLING DOWN");
 	}
+#endif
 }
 
 void AMainPawn::StopMissileFire()
@@ -1143,20 +1183,26 @@ void AMainPawn::StopMissileFire()
 		// create a new timer to reactivate Missile after a cooldownperiod		
 		GetWorldTimerManager().SetTimer(MissileFireCooldown, this, &AMainPawn::MissileCooldownElapsed, CoolDownTime, false);
 	}
+#if DEBUG_MSG == 1
 	// debug
-	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Missile OFF");
+	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Missile OFF");
+#endif
 }
 
 void AMainPawn::MissileCooldownElapsed()
 {
+#if DEBUG_MSG == 1
 	// debug
-	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Blue, "Missile COOLED");
+	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Blue, "Missile COOLED");
+#endif
 	// Missile has cooled down and is again ready to fire
 	bMissileReady = true;
 	// has the user requested Firing reactivate Missilefire
 	if (bMissileFire)
 	{
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Green, "Missile CONTINUE");
+#if DEBUG_MSG == 1
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Green, "Missile CONTINUE");
+#endif
 		StartMissileFire();
 	}
 }
@@ -1169,7 +1215,9 @@ void AMainPawn::MissileFire()
 		MissileCurrentSalve = 0;
 		// the Missilefire timer starts a subtimer that fires all the salves
 		GetWorldTimerManager().SetTimer(MissileSalveTimerHandle, this, &AMainPawn::MissileFireSalve, MissileSalveIntervall, true, 0.0f);
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Orange, FString::SanitizeFloat(MissileSalveIntervall) + " SalveDelta; " + FString::SanitizeFloat(FireRateMissile) + " FireDelta ");
+#if DEBUG_MSG == 1
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Orange, FString::SanitizeFloat(MissileSalveIntervall) + " SalveDelta; " + FString::SanitizeFloat(FireRateMissile) + " FireDelta ");
+#endif
 	}
 }
 
@@ -1219,13 +1267,17 @@ void AMainPawn::MissileFireSalve()
 
 			if (MissileAmmunitionAmount > 0)
 			{
+#if DEBUG_MSG == 1
 				// debug
-				if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::White, "Missiles left: " + FString::FromInt(MissileAmmunitionAmount));
+				if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::White, "Missiles left: " + FString::FromInt(MissileAmmunitionAmount));
+#endif
 			}
 			else
 			{
 				bMissileHasAmmo = false;
-				if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 10.0f, FColor::Red, "Missile OUT OF AMMO!");
+#if DEBUG_MSG == 1
+				if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 10.0f, FColor::Red, "Missile OUT OF AMMO!");
+#endif
 				GetWorldTimerManager().ClearTimer(MissileSalveTimerHandle);
 			}
 		}
@@ -1268,7 +1320,9 @@ void AMainPawn::Server_StopPlayerMovement_Implementation()
 		// make sure there is no pending movement activation
 		GetWorldTimerManager().ClearTimer(StartMovementTimerHandle);
 		bCanReceivePlayerInput = false;
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, "Movement STOPPED");
+#if DEBUG_MSG == 1
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Red, "Movement STOPPED");
+#endif
 	}
 	else
 	{
@@ -1283,7 +1337,9 @@ void AMainPawn::StartMovementCoolDownElapsed()
 	bCanReceivePlayerInput = true;
 	RotControlStrength = TimeOfNoControl;
 	MovControlStrength = TimeOfNoControl;
-	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Green, "Movement STARTED");
+#if DEBUG_MSG == 1
+	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 2.0f, FColor::Green, "Movement STARTED");
+#endif
 }
 
 
@@ -1348,21 +1404,27 @@ void AMainPawn::Server_GetPlayerInput_Implementation(FPlayerInputPackage inputDa
 	{
 		NetDelta = GetWorld()->RealTimeSeconds - lastUpdate;
 		lastUpdate = GetWorld()->RealTimeSeconds;
-		if (GEngine && DEBUG)
+#if DEBUG_MSG == 1
+		if (GEngine)
 			GEngine->AddOnScreenDebugMessage(-1, 0/*seconds*/, FColor::Green,
 			                                 FString::SanitizeFloat(NetDelta) + "    " +
 			                                 FString::FromInt(GetVelocity().Size() * 0.036f) + " km/h");
+#endif
 	}
 
 	if (inputData.getPacketNumber() > Ack)
 	{
 		Ack = inputData.getPacketNumber();
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "accepting Packet = " + FString::FromInt(inputData.getPacketNumber()));
+#if DEBUG_MSG == 1
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "accepting Packet = " + FString::FromInt(inputData.getPacketNumber()));
+#endif
 		InputPackage = inputData;
 	}
 	else
 	{
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Red, "Packet not Accepted = " + FString::FromInt(inputData.getPacketNumber()));
+#if DEBUG_MSG == 1
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Red, "Packet not Accepted = " + FString::FromInt(inputData.getPacketNumber()));
+#endif
 		return;
 	}
 
@@ -1447,10 +1509,10 @@ void AMainPawn::OnRep_AuthorityAck()
 			break;
 		}
 	}
-
-	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f / NetUpdateFrequency, FColor::Red, "Deleted " + FString::FromInt(DeletionCnt) + " old Transforms, pending to be approved : " + FString::FromInt(MovementHistory.Num()));
-
-	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 1.0f / NetUpdateFrequency, FColor::Green, "Last acceptet Packet = " + FString::FromInt(AuthorityAck));
+#if DEBUG_MSG == 1
+	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f / NetUpdateFrequency, FColor::Red, "Deleted " + FString::FromInt(DeletionCnt) + " old Transforms, pending to be approved : " + FString::FromInt(MovementHistory.Num()));
+	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f / NetUpdateFrequency, FColor::Green, "Last acceptet Packet = " + FString::FromInt(AuthorityAck));
+#endif
 	this->Ack = AuthorityAck;
 }
 
@@ -1462,10 +1524,12 @@ inline void AMainPawn::GetCursorLocation(FVector2D& _CursorLoc)
 		if (controller)
 		{
 			controller->GetMousePosition(_CursorLoc.X, _CursorLoc.Y);
-			if (GEngine && DEBUG)
+#if DEBUG_MSG == 1
+			if (GEngine)
 				GEngine->AddOnScreenDebugMessage(-1, 0/*seconds*/, FColor::Red,
 				                                 FString::SanitizeFloat(_CursorLoc.X) + " " +
 				                                 FString::SanitizeFloat(_CursorLoc.Y));
+#endif
 		}
 	}
 }
@@ -1534,8 +1598,9 @@ void AMainPawn::TargetLock()
 	{
 		return;
 	}
-
-	if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, "... looking for targets");
+#if DEBUG_MSG == 1
+	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, "... looking for targets");
+#endif
 
 	TMap<float, AActor*> TargetableTargets;
 
@@ -1544,7 +1609,9 @@ void AMainPawn::TargetLock()
 	{
 		if (*currActor != this && currActor->Implements<UTarget_Interface>())
 		{
-			if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, currActor->GetName() + " has the Interface");
+#if DEBUG_MSG == 1
+			if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, currActor->GetName() + " has the Interface");
+#endif
 
 			// Vector to the current target-able Target
 			FVector VecToTarget;			
@@ -1635,7 +1702,9 @@ void AMainPawn::TargetLock()
 		{
 			continue;
 		}
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Red, "Actor List changed");
+#if DEBUG_MSG == 1
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Red, "Actor List changed");
+#endif
 		// if not the target list need to be updated: a change has occured
 		bMultiTargetListChanged = true;
 		break;
@@ -1644,7 +1713,9 @@ void AMainPawn::TargetLock()
 	// in case the list has changed update target-list and send the new list to the server
 	if (bMultiTargetListChanged || MultiTargets.Num() != ChosenTargets.Num())
 	{
-		if (GEngine && DEBUG) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, "Number of additionally targeted actors: " + FString::FromInt(ChosenTargets.Num()));
+#if DEBUG_MSG == 1
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, "Number of additionally targeted actors: " + FString::FromInt(ChosenTargets.Num()));
+#endif
 		// update the Multi-Targets-Array
 		MultiTargets = ChosenTargets;
 		// send the new Array to the server
