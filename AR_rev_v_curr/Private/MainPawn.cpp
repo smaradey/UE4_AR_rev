@@ -5,6 +5,13 @@
 
 #define DEBUG_MSG 0
 
+bool AMainPawn::GetIsTargetable_Implementation()
+{
+	// TODO: when dead -> not target-able
+	// if the timer for an active evasive action is active, the pawn is not target-able
+	return !GetWorldTimerManager().IsTimerActive(EvasiveActionHandle);
+}
+
 // Sets default values
 AMainPawn::AMainPawn(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {

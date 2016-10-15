@@ -311,11 +311,7 @@ public:
 	---------------------------------------------------------------------*/
 
 	/* Implementation of the function to set this pawn to be target-able */
-	virtual bool GetIsTargetable_Implementation() override {
-		// TODO: when dead -> not target-able
-		// if the timer for an active evasive action is active, the pawn is not target-able
-		return !GetWorldTimerManager().IsTimerActive(EvasiveActionHandle);
-	}
+	bool GetIsTargetable_Implementation() override;
 
 	/*-------------------------------------------------------------------
 	 End Interface Implementations--------------------------------------- */
