@@ -17,6 +17,7 @@
 
 #pragma once
 #include "Projectile.h"
+#include "GunFireComponent.h"
 #include "Gun_Interface.generated.h"
 
 /**
@@ -35,12 +36,11 @@ class IGun_Interface
 
 public:
 
-	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Gun")
-		bool GetIsTargetable();
-
-	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Gun")
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GunFireComponent")
 		void ProjectileSpawned(const FProjectileProperties& Properties, const FTransform& SpawnTransform);
 
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GunFireComponent")
+		void WeaponStatusChanged(const FWeaponStatus& WeaponStatus);
 
 
 };

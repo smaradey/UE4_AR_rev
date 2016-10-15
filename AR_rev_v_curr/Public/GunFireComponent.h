@@ -4,7 +4,6 @@
 
 #include "Components/ActorComponent.h"
 #include "Projectile.h"
-#include "Gun_Interface.h"
 #include "GunFireComponent.generated.h"
 
 // Enum to define a Guns Type: Automatic/Triggered
@@ -44,6 +43,13 @@ enum class EGunStatus : uint8
 
 	// In case Something went wrong
 	Error UMETA(DisplayName = "Error")
+};
+
+USTRUCT(BlueprintType)
+struct FWeaponStatus {
+	GENERATED_USTRUCT_BODY()
+		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Status")
+		EGunStatus Status = EGunStatus::Deactivated;
 };
 
 USTRUCT(BlueprintType)
@@ -206,6 +212,7 @@ class AR_REV_V_CURR_API UGunFireComponent : public UActorComponent
 	GENERATED_BODY()
 
 public:
+
 	// Sets default values for this component's properties
 	UGunFireComponent();
 
@@ -221,7 +228,7 @@ public:
 
 	// Current Operational Status of the Gun
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Gun|Settings")
-		EGunStatus CurrentStatus = EGunStatus::Idle;
+		EGunStatus mCurrentStatus = EGunStatus::Idle;
 
 
 	void Initialize(const FGunProperties& GunProperties);
@@ -256,6 +263,8 @@ public:
 	UPROPERTY(EditDefaultsOnly, Category = Projectile)
 		TSubclassOf<class AProjectile> ProjectileClass;
 
+
+	void UpdateOwner() const;
 
 
 private:

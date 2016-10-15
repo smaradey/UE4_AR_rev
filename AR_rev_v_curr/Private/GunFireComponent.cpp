@@ -2,6 +2,7 @@
 
 #include "AR_rev_v_curr.h"
 #include "GunFireComponent.h"
+#include "Gun_Interface.h"
 
 
 // Sets default values for this component's properties
@@ -10,7 +11,7 @@ UGunFireComponent::UGunFireComponent()
 	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
 	// off to improve performance if you don't need them.
 	bWantsBeginPlay = true;
-	PrimaryComponentTick.bCanEverTick = false;
+	PrimaryComponentTick.bCanEverTick = true;
 	bReplicates = true;
 
 	// ...
@@ -32,6 +33,7 @@ void UGunFireComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAct
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
+	UpdateOwner();
 	// ...
 }
 
@@ -45,19 +47,20 @@ void UGunFireComponent::Initialize(const FGunProperties& Gun)
 	GunSalveIntervall = (Gun.SalveDistributionInCycle * Gun.FireCycleInterval) / Gun.NumSalvesInCycle;
 }
 
-void UGunFireComponent::StartFiring(class UPrimitiveComponent* Barrel, const TArray<FName>& MuzzleSockets) {
-
+void UGunFireComponent::StartFiring(class UPrimitiveComponent* Barrel, const TArray<FName>& MuzzleSockets)
+{
 	bGunFireRequested = true;
 
 	// update GunBarrel and Sockets
 	this->GunBarrel = Barrel;
 	this->GunSockets = MuzzleSockets;
 
-	if (CurrentStatus == EGunStatus::Idle) {
+	if (mCurrentStatus == EGunStatus::Idle)
+	{
 		StartGunFire();
 	}
 	//
-	//	switch (CurrentStatus)
+	//	switch (mCurrentStatus)
 	//	{
 	//	case EGunStatus::Deactivated: {}
 	//								  break;
@@ -90,7 +93,7 @@ void UGunFireComponent::StartGunFire()
 		// make sure The GunFire
 		GetOwner()->GetWorldTimerManager().ClearTimer(GunFireHandle);
 		// change the Status to Firing
-		CurrentStatus = EGunStatus::Firing;
+		mCurrentStatus = EGunStatus::Firing;
 		// activate a new gunfire timer
 		GetOwner()->GetWorldTimerManager().SetTimer(GunFireHandle, this, &UGunFireComponent::StartFiringCycle, GunProperties.FireCycleInterval, true, 0.0f);
 		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Green, "Starting FireCycle");
@@ -98,7 +101,7 @@ void UGunFireComponent::StartGunFire()
 	else
 	{
 		// TODO: Error handling
-		CurrentStatus = EGunStatus::Error;
+		mCurrentStatus = EGunStatus::Error;
 		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, "Error: StartGunFire: No Owner");
 	}
 }
@@ -106,7 +109,8 @@ void UGunFireComponent::StartGunFire()
 void UGunFireComponent::StartFiringCycle()
 {
 	// start only Firing if there is ammuntion to do so
-	if (GetOwner()) {
+	if (GetOwner())
+	{
 		if (MagHasAmmo())
 		{
 			// reset the salve counter
@@ -123,7 +127,7 @@ void UGunFireComponent::StartFiringCycle()
 	else
 	{
 		// TODO: Error handling
-		CurrentStatus = EGunStatus::Error;
+		mCurrentStatus = EGunStatus::Error;
 		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, "Error: StartFiringCycle: No Owner");
 	}
 }
@@ -164,12 +168,11 @@ void UGunFireComponent::GunFireSalve()
 			// spawn/fire projectile with tracers
 
 
-				// Spawn projectile, if Current-Tracer == 0 a tracer will be visible/spawned
-				//SpawnProjectile(FTransform(SpawnDirection.Rotation(), CurrentSocketTransform.GetLocation()), CurrentTracer == 0, CurrentSocketTransform.GetLocation());
+			// Spawn projectile, if Current-Tracer == 0 a tracer will be visible/spawned
+			//SpawnProjectile(FTransform(SpawnDirection.Rotation(), CurrentSocketTransform.GetLocation()), CurrentTracer == 0, CurrentSocketTransform.GetLocation());
 
 			if (World && ProjectileClass && GunBarrel)
 			{
-
 				FActorSpawnParameters SpawnParams;
 				SpawnParams.Owner = Owner;
 				SpawnParams.Instigator = Owner ? Owner->GetInstigator() : nullptr;
@@ -242,7 +245,7 @@ void UGunFireComponent::ReloadMagazine()
 	if (IsOutOfAmmo())
 	{
 		if (MagHasAmmo()) return;
-		CurrentStatus = EGunStatus::Empty;
+		mCurrentStatus = EGunStatus::Empty;
 		return;
 	}
 
@@ -253,7 +256,7 @@ void UGunFireComponent::ReloadMagazine()
 		// stop the Cycle Timer
 		GetOwner()->GetWorldTimerManager().ClearTimer(GunFireHandle);
 		// change the status
-		CurrentStatus = EGunStatus::Reloading;
+		mCurrentStatus = EGunStatus::Reloading;
 		// Start a timer for the Cylce cooldown
 		GetOwner()->GetWorldTimerManager().SetTimer(GunFireCycleCooldown, this, &UGunFireComponent::GunCooldownElapsed, CycleCoolDown, false);
 
@@ -290,7 +293,7 @@ void UGunFireComponent::ReloadMagazine()
 	else
 	{
 		// TODO: Error handling
-		CurrentStatus = EGunStatus::Error;
+		mCurrentStatus = EGunStatus::Error;
 		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, "Error: Reloading: No Owner");
 	}
 }
@@ -298,10 +301,12 @@ void UGunFireComponent::ReloadMagazine()
 void UGunFireComponent::GunCooldownElapsed()
 {
 	bool bIsFiring = false;
-	if (GetOwner()) {
+	if (GetOwner())
+	{
 		// if the gun cycle is not over or the gun is overheated set the status to "Overheated"
-		if (GetOwner()->GetWorldTimerManager().IsTimerActive(GunFireOverheatingCooldown)) {
-			CurrentStatus = EGunStatus::Overheated;
+		if (GetOwner()->GetWorldTimerManager().IsTimerActive(GunFireOverheatingCooldown))
+		{
+			mCurrentStatus = EGunStatus::Overheated;
 			return;
 		}
 
@@ -310,7 +315,7 @@ void UGunFireComponent::GunCooldownElapsed()
 	else
 	{
 		// TODO: Error handling
-		CurrentStatus = EGunStatus::Error;
+		mCurrentStatus = EGunStatus::Error;
 		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, "Error: ReloadingFinished: No Owner");
 	}
 
@@ -325,7 +330,7 @@ void UGunFireComponent::GunCooldownElapsed()
 	}
 
 	// TODO: potential bug when gun is being deactivated while it is reloading
-	CurrentStatus = EGunStatus::Idle;
+	mCurrentStatus = EGunStatus::Idle;
 }
 
 void UGunFireComponent::ReloadingFinished()
@@ -335,14 +340,14 @@ void UGunFireComponent::ReloadingFinished()
 		// if the gun cycle is not over or the gun is overheated set the status to "Overheated"
 		if (GetOwner()->GetWorldTimerManager().IsTimerActive(GunFireCycleCooldown) || GetOwner()->GetWorldTimerManager().IsTimerActive(GunFireOverheatingCooldown))
 		{
-			CurrentStatus = EGunStatus::Overheated;
+			mCurrentStatus = EGunStatus::Overheated;
 			return;
 		}
 	}
 	else
 	{
 		// TODO: Error handling
-		CurrentStatus = EGunStatus::Error;
+		mCurrentStatus = EGunStatus::Error;
 		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 5.0f, FColor::Red, "Error: ReloadingFinished: No Owner");
 	}
 
@@ -353,7 +358,18 @@ void UGunFireComponent::ReloadingFinished()
 		return;
 	}
 	// TODO: potential bug when gun is being deactivated while it is reloading
-	CurrentStatus = EGunStatus::Idle;
+	mCurrentStatus = EGunStatus::Idle;
+}
+
+void UGunFireComponent::UpdateOwner() const
+{
+	AActor* Owner = GetOwner();
+	if (Owner && Owner->Implements<UGun_Interface>())
+	{
+		FWeaponStatus Status;
+		Status.Status = mCurrentStatus;
+		IGun_Interface::Execute_WeaponStatusChanged(Owner, Status);
+	}
 }
 
 bool UGunFireComponent::MagHasAmmo() const
@@ -370,4 +386,3 @@ void UGunFireComponent::SpawnProjectile_Implementation(const FTransform& SocketT
 {
 	// method overridden by blueprint to spawn the projectile
 }
-
