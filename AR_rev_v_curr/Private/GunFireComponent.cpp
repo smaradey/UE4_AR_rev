@@ -4,15 +4,20 @@
 #include "GunFireComponent.h"
 #include "Gun_Interface.h"
 
+#define DEBUG_MSG 1
+
 
 // Sets default values for this component's properties
 UGunFireComponent::UGunFireComponent()
 {
 	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
 	// off to improve performance if you don't need them.
-	bWantsBeginPlay = true;
+	bWantsBeginPlay = false;
 	PrimaryComponentTick.bCanEverTick = true;
 	bReplicates = true;
+	bAutoActivate = true;
+
+	bGunChanged = true;
 
 	// ...
 }
@@ -22,9 +27,6 @@ UGunFireComponent::UGunFireComponent()
 void UGunFireComponent::BeginPlay()
 {
 	Super::BeginPlay();
-
-	// ...
-	Initialize(GunProperties);
 }
 
 
@@ -37,14 +39,335 @@ void UGunFireComponent::TickComponent(float DeltaTime, ELevelTick TickType, FAct
 	// ...
 }
 
-void UGunFireComponent::Initialize(const FGunProperties& Gun)
+void UGunFireComponent::Call_StartFiring(const FRandomStream& Stream)
 {
-	this->GunProperties = Gun;
+	mRandomStream = Stream;
+	if (bGunChanged)
+	{
+		Initialize();
+	}
+	bFiringRequested = bUseCycleCooldown = true;
 
-	GunSalveIntervall = (Gun.SalveDistributionInCycle * Gun.FireCycleInterval) / Gun.NumSalvesInCycle;
+	switch (mCurrentStatus)
+	{
+	case EGunStatus::Idle:
+		{
+			StartGunFire();
+		}
+		break;
+	case EGunStatus::Deactivated: break;
+	case EGunStatus::Firing: break;
+	case EGunStatus::Empty: break;
+	case EGunStatus::Reloading:
+		{
+			CancelReload();
+		}
+		break;
+	case EGunStatus::Overheated: break;
+	case EGunStatus::FinishingCycle: break;
+	case EGunStatus::Error: break;
+	default: break;
+	}
+}
 
-	// WeaponSpreadRadian = WeaponSpreadHalfAngle * PI / 180.0f;
-	GunSalveIntervall = (Gun.SalveDistributionInCycle * Gun.FireCycleInterval) / Gun.NumSalvesInCycle;
+void UGunFireComponent::Initialize()
+{
+	const FSpreadProperties& Spread = mGunProperties.SpreadProperties;
+
+	// init Recoil ResetFactor
+	const float& RecoilReturnTime = Spread.RecoilReturnTime;
+	mRecoilResetFactor = 1.0f / FMath::Max(RecoilReturnTime, 0.001f);
+
+	// precalculate Recoil
+	mLocalRecoilDirections.Empty();
+	mFPS_RecoilDeltaRotations.Empty();
+
+	for (int i = 0; i < Spread.RecoilOffsetDirections.Num(); ++i)
+	{
+		if(Spread.InitialRecoil == 0.0f)
+		{
+			mLocalRecoilDirections.Add(FVector(1.0f, 0.0f, 0.0f));
+			mFPS_RecoilDeltaRotations.Add(FVector2D::ZeroVector);
+		}else
+		{
+
+			FVector SpreadStrength = FVector(1.0f, 0, 0).RotateAngleAxis(Spread.InitialRecoil, FVector(0, 0, 1.0f));
+			FVector  SpreadDirection = SpreadStrength.RotateAngleAxis(-Spread.RecoilOffsetDirections[i], FVector(1.0f, 0, 0));
+			mLocalRecoilDirections.Add(SpreadDirection.GetSafeNormal());
+
+			FVector2D FPS_Recoil = FVector2D(SpreadDirection.Y, SpreadDirection.Z).GetSafeNormal();
+			mFPS_RecoilDeltaRotations.Add(FPS_Recoil);
+		}
+	}
+
+	// calculate Salveinterval
+	mSalveInterval = mGunProperties.FireCycleInterval / FMath::FloorToInt(mGunProperties.NumSalvesInCycle) * mGunProperties.SalveDistributionInCycle;
+
+	// precalculate Temperature Increase per shot
+	if (mGunProperties.MaxContinuousFire > 0) {
+		mTempIncreasePercentagePerShot = 1.0f / mGunProperties.MaxContinuousFire;
+	} else
+	{
+		mTempIncreasePercentagePerShot = 0.0f;
+	}
+
+	mTracerIndex = 0;
+	mProjectileIndex = 0;
+
+	bGunChanged = false;
+#if DEBUG_MSG == 1
+	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f, FColor::Green, "GunComponent: Initialized Gun.");
+#endif
+}
+
+void UGunFireComponent::StartGunFire()
+{
+	if (mCurrentStatus == EGunStatus::Idle)
+	{
+		mCurrentStatus == EGunStatus::Firing;
+		switch (mGunProperties.ActionType)
+		{
+		case EGunActionType::Automatic:
+			{
+				AActor* Owner = GetOwner();
+				if (Owner)
+				{
+					Owner->GetWorldTimerManager().SetTimer(mGunFireTimer, this, &UGunFireComponent::GunFireCycle, mGunProperties.FireCycleInterval, true);
+					GunFireCycle();
+				}
+			}
+			break;
+		case EGunActionType::Triggered:
+			{
+				GunFireCycle();
+			}
+			break;
+		default: break;
+		}
+	}
+}
+
+void UGunFireComponent::GunFireCycle()
+{
+	UWorld* World = GetWorld();
+	if (World)
+	{
+		mLastCycleStartTime = World->TimeSeconds;
+	}
+	AActor* Owner = GetOwner();
+	if (Owner)
+	{
+		mSalveIndex = 0;
+		Owner->GetWorldTimerManager().SetTimer(mSalveTimer, this, &UGunFireComponent::Salve, mSalveInterval, true);
+		Salve();
+	}
+}
+
+void UGunFireComponent::Salve()
+{
+	switch (mCurrentStatus)
+	{
+	case EGunStatus::Idle:
+		{
+			mCurrentStatus = EGunStatus::Firing;
+			PrepareReloading(true);
+		}
+		break;
+	case EGunStatus::Deactivated: break;
+	case EGunStatus::Firing:
+		{
+			FireSalve();
+		}
+		break;
+	case EGunStatus::Empty: break;
+	case EGunStatus::Reloading: break;
+	case EGunStatus::Overheated: break;
+	case EGunStatus::FinishingCycle:
+		{
+			FireSalve();
+		}
+		break;
+	case EGunStatus::Error: break;
+	default: break;
+	}
+}
+
+void UGunFireComponent::FireSalve()
+{
+	if (CheckMagazine())
+	{
+		HandleRecoil();
+		HandleSpread();
+
+		// fire all "Pellets" in case of a shotgun or multiple barrels
+		for (int32 i = 0; i < mGunProperties.NumProjectilesInSalve; ++i)
+		{
+			FireProjectile();
+		}
+
+		// increment Projectile index
+		if (mGunProperties.ProjectileProperties.Num() > 0) {
+			mProjectileIndex = (mProjectileIndex + 1) % mGunProperties.ProjectileProperties.Num();
+		}else
+		{
+			mProjectileIndex = 0;
+		}
+
+		// increment Tracer index
+		if (mGunProperties.TracerOrder.Num() > 0) {
+			mTracerIndex = (mTracerIndex + 1) % mGunProperties.TracerOrder.Num();
+		}
+		else
+		{
+			mTracerIndex = 0;
+		}
+
+		mRecoilResetSpeed = mRecoilSum.Size();
+		UWorld* world = GetWorld();
+		if (world)
+		{
+			mLastTimeFired = world->TimeSeconds;
+		}
+
+		DecreaseAmmoInMagazine(1);
+		IncreaseTemperature();
+
+		++mSalveIndex;
+		// Check salve index
+		if (mSalveIndex >= mGunProperties.NumSalvesInCycle)
+		{
+			AActor* Owner = GetOwner();
+			if (Owner)
+			{
+				// stop the Salve-Timer by setting the rate to zero
+				Owner->GetWorldTimerManager().SetTimer(mSalveTimer, this, 0.0f, false);
+			}
+			CheckMagazine();
+		}
+	}
+}
+
+void UGunFireComponent::HandleRecoil()
+{
+	TArray<float>& RecoilDirs = mGunProperties.SpreadProperties.RecoilOffsetDirections;
+	if (mGunProperties.SpreadProperties.bRecoilIndexFromTemperature)
+	{
+		// Get Recoil Index from Temp
+		if (RecoilDirs.Num() > 0)
+		{
+			mRecoilIndex = FMath::RoundToInt(mGunOverheatingLevel * (RecoilDirs.Num() - 1));
+		}
+		else
+		{
+			mRecoilIndex = 0;
+		}
+	}
+	else
+	{
+		if (mLocalRecoilDirections.Num() > 0)
+		{
+			mRecoilIndex = FMath::Min(mRecoilIndex + 1, mLocalRecoilDirections.Num() - 1);
+		}
+		else
+		{
+			mRecoilIndex = 0;
+		}
+	}
+	// add Recoil to pending
+	if (mFPS_RecoilDeltaRotations.IsValidIndex(mRecoilIndex))
+	{
+		mPendingRecoilSum += mFPS_RecoilDeltaRotations[mRecoilIndex];
+	}
+}
+
+void UGunFireComponent::HandleSpread()
+{
+	mSpread = FMath::GetMappedRangeValueClamped(FVector2D(0.0f, 1.0f),
+	                                            FVector2D(mGunProperties.SpreadProperties.InitialSpread,
+	                                                      mGunProperties.SpreadProperties.MaxSpread),
+	                                            mGunOverheatingLevel);
+}
+
+void UGunFireComponent::FireProjectile()
+{
+	bool bTracer = true;
+	FProjectileProperties Projectile;
+	if (mGunProperties.ProjectileProperties.IsValidIndex(mProjectileIndex))
+	{
+		Projectile = mGunProperties.ProjectileProperties[mProjectileIndex];
+	}
+	if (mGunProperties.TracerOrder.IsValidIndex(mTracerIndex))
+	{
+		bTracer = mGunProperties.TracerOrder[mTracerIndex];
+	}
+	// TODO: recoil/Spread calcs
+	// TODO: change this to an Interface Call; update the Gun_Interface
+	SpawnProjectile(bTracer, Projectile);
+}
+
+void UGunFireComponent::DecreaseAmmoInMagazine(const int32 amount)
+{
+	mGunProperties.CurrentMagazineLoad = FMath::Max(mGunProperties.CurrentMagazineLoad - amount, 0);
+}
+
+void UGunFireComponent::IncreaseTemperature()
+{
+	mGunOverheatingLevel += FMath::Min(1.0f, mTempIncreasePercentagePerShot);
+	CheckOverheated();
+}
+
+bool UGunFireComponent::CanStillFire() const
+{
+	return mGunProperties.CurrentMagazineLoad > 0;
+}
+
+bool UGunFireComponent::CheckMagazine()
+{
+	if (CanStillFire())
+	{
+		return true;
+	}
+	AActor* Owner = GetOwner();
+	if (Owner)
+	{
+		// stop the Salve-Timer by setting the rate to zero
+		Owner->GetWorldTimerManager().SetTimer(mSalveTimer, this, 0.0f, false);
+	}
+	mbReload = mGunProperties.bAutoReload;
+	PrepareReloading(true);
+	return false;
+}
+
+void UGunFireComponent::CheckOverheated()
+{
+	if (mGunOverheatingLevel == 1.0f)
+	{
+		if (mCurrentStatus == EGunStatus::Firing)
+		{
+			if (mGunProperties.bOverheatingDeactivatesGun)
+			{
+				mCurrentStatus = EGunStatus::Deactivated;
+			}
+			else
+			{
+				mCurrentStatus = EGunStatus::Overheated;
+			}
+		}
+	}
+	else
+	{
+		if (mCurrentStatus == EGunStatus::Deactivated)
+		{
+			if (mGunProperties.bOverheatingDeactivatesGun && mGunOverheatingLevel == 0.0f)
+			{
+				mCurrentStatus = EGunStatus::Overheated;
+			}
+		}
+		else if (mCurrentStatus == EGunStatus::Overheated)
+		{
+			mCurrentStatus = EGunStatus::Idle;
+		}
+	}
 }
 
 void UGunFireComponent::StartFiring(class UPrimitiveComponent* Barrel, const TArray<FName>& MuzzleSockets)
