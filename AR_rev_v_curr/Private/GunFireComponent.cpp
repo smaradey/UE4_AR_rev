@@ -437,7 +437,22 @@ void UGunFireComponent::FireProjectile()
 	}
 	// TODO: recoil/Spread calcs
 	// TODO: change this to an Interface Call; update the Gun_Interface
-	OwnerSpawnProjectile(bTracer, Projectile);
+	//OwnerSpawnProjectile(bTracer, Projectile);
+	AActor* Owner = GetOwner();
+	if (Owner && Owner->Implements<UGun_Interface>())
+	{
+		FVector SpreadDirection = FVector(1.0f,0,0);
+		FProjectileProperties Projectile;
+		if(mGunProperties.ProjectileProperties.IsValidIndex(mProjectileIndex)){
+			Projectile = mGunProperties.ProjectileProperties[mProjectileIndex];
+		}
+		//IGun_Interface::Execute_FireProjectile(Owner, Status);
+		bool bTracer = true;
+		if(mGunProperties.TracerOrder.IsValidIndex(mTracerIndex)){
+			bTracer = mGunProperties.TracerOrder[mTracerIndex];
+		}
+		IGun_Interface::Execute_FireProjectile(SpreadDirection, Projectile, bTracer);
+	}
 }
 
 void UGunFireComponent::DecreaseAmmoInMagazine(const int32 amount)
