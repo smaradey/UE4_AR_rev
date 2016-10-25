@@ -36,12 +36,24 @@ class IGun_Interface
 
 public:
 
-	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GunFireComponent")
-		void ProjectileSpawned(const FProjectileProperties& Properties, const FTransform& SpawnTransform);
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GunFireInterface")
+		void RequestFire();
 
-	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GunFireComponent")
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GunFireInterface")
+		void StopFireRequest();
+
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GunFireInterface")
+		void RequestReload();
+
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GunFireInterface")
+		void StopReloadRequest();
+
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GunFireInterface")
+		void AddAmmunition(const int32 Amount);
+
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GunFireInterface")
 		void WeaponStatusChanged(const FWeaponStatus& WeaponStatus);
 
-	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GunFireComponent")
-void FireProjectile(const FVector& SpreadDirection, const FProjectileProperties& Projectile, const bool Tracer);
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GunFireInterface")
+		void FireProjectile(const FVector& SpreadDirection, const FProjectileProperties& Projectile, const bool Tracer);
 };
