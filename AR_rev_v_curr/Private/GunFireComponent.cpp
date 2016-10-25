@@ -42,6 +42,7 @@ UGunFireComponent::UGunFireComponent() {
 void UGunFireComponent::BeginPlay()
 {
 	Super::BeginPlay();
+	UE_LOG(LogTemp, Log, TEXT("GunFireComp: BeginPlay"));
 }
 
 
@@ -49,18 +50,18 @@ void UGunFireComponent::BeginPlay()
 void UGunFireComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-
 	UpdateOwner();
 	if (mGunProperties.bSpreadAndRecoilProjectileDynamics) {
 		AddSmoothRecoil(DeltaTime);
 		ReduceRecoil(DeltaTime);
-		Cooldown(DeltaTime);
 	}
+	Cooldown(DeltaTime);
 
 }
 
 void UGunFireComponent::CallStartFiring(const FRandomStream& Stream)
 {
+	UE_LOG(LogTemp, Log, TEXT("GunFireComp: CallStartFiring"));
 	mRandomStream = Stream;
 	if (mbGunChanged)
 	{
@@ -92,6 +93,8 @@ void UGunFireComponent::CallStartFiring(const FRandomStream& Stream)
 
 void UGunFireComponent::CallUpdate(const FGunProperties& newProperties)
 {
+	UE_LOG(LogTemp, Log, TEXT("GunFireComp: CallUpdate"));
+
 	mGunProperties = newProperties;
 	mbGunChanged = true;
 	PrepareReloading(false);
@@ -99,6 +102,8 @@ void UGunFireComponent::CallUpdate(const FGunProperties& newProperties)
 
 void UGunFireComponent::CallStopFiring()
 {
+	UE_LOG(LogTemp, Log, TEXT("GunFireComp: CallStopFiring"));
+
 	mbFiringRequested = false;
 	UWorld* World = GetWorld();
 	if (World)
@@ -110,6 +115,8 @@ void UGunFireComponent::CallStopFiring()
 
 void UGunFireComponent::CallRequestReload()
 {
+	UE_LOG(LogTemp, Log, TEXT("GunFireComp: CallRequestReload"));
+
 	mbReloadRequested = true;
 	switch (mCurrentStatus)
 	{
@@ -180,11 +187,15 @@ void UGunFireComponent::CallRequestReload()
 
 void UGunFireComponent::CallCancelReloadRequest()
 {
+	UE_LOG(LogTemp, Log, TEXT("GunFireComp: CallCancelReloadRequest"));
+
 	mbReloadRequested = false;
 }
 
 void UGunFireComponent::CallAddAmmunition(const int32 Amount)
 {
+	UE_LOG(LogTemp, Log, TEXT("GunFireComp: CallAddAmmunition"));
+
 	if (Amount > 0)
 	{
 		mGunProperties.TotalAmmunitionCount += Amount;
@@ -197,13 +208,10 @@ void UGunFireComponent::CallAddAmmunition(const int32 Amount)
 	}
 }
 
-void UGunFireComponent::OwnerSpawnProjectile_Implementation(bool bTracer, FProjectileProperties const& Projectile)
-{
-	
-}
-
 void UGunFireComponent::Initialize()
 {
+	UE_LOG(LogTemp, Log, TEXT("GunFireComp: Initialize"));
+
 	const FSpreadProperties& Spread = mGunProperties.SpreadProperties;
 
 	// init Recoil ResetFactor
@@ -256,6 +264,8 @@ void UGunFireComponent::Initialize()
 
 void UGunFireComponent::StartGunFire()
 {
+	UE_LOG(LogTemp, Log, TEXT("GunFireComp: StartGunFire"));
+
 	if (mCurrentStatus == EGunStatus::Idle)
 	{
 		mCurrentStatus = EGunStatus::Firing;
@@ -283,6 +293,8 @@ void UGunFireComponent::StartGunFire()
 
 void UGunFireComponent::GunFireCycle()
 {
+	UE_LOG(LogTemp, Log, TEXT("GunFireComp: GunFireCycle"));
+
 	UWorld* World = GetWorld();
 	if (World)
 	{
@@ -299,6 +311,8 @@ void UGunFireComponent::GunFireCycle()
 
 void UGunFireComponent::Salve()
 {
+	UE_LOG(LogTemp, Log, TEXT("GunFireComp: Salve"));
+
 	switch (mCurrentStatus)
 	{
 	case EGunStatus::Idle:
@@ -328,6 +342,8 @@ void UGunFireComponent::Salve()
 
 void UGunFireComponent::FireSalve()
 {
+	UE_LOG(LogTemp, Log, TEXT("GunFireComp: FireSalve"));
+
 	if (CheckMagazine())
 	{
 		HandleRecoil();
@@ -384,6 +400,8 @@ void UGunFireComponent::FireSalve()
 
 void UGunFireComponent::HandleRecoil()
 {
+	UE_LOG(LogTemp, Log, TEXT("GunFireComp: HandleRecoil"));
+
 	TArray<float>& RecoilDirs = mGunProperties.SpreadProperties.RecoilOffsetDirections;
 	if (mGunProperties.SpreadProperties.bRecoilIndexFromTemperature)
 	{
@@ -417,6 +435,8 @@ void UGunFireComponent::HandleRecoil()
 
 void UGunFireComponent::HandleSpread()
 {
+	UE_LOG(LogTemp, Log, TEXT("GunFireComp: HandleSpread"));
+
 	mSpread = FMath::GetMappedRangeValueClamped(FVector2D(0.0f, 1.0f),
 		FVector2D(mGunProperties.SpreadProperties.InitialSpread,
 			mGunProperties.SpreadProperties.MaxSpread),
@@ -425,54 +445,54 @@ void UGunFireComponent::HandleSpread()
 
 void UGunFireComponent::FireProjectile()
 {
-	bool bTracer = true;
-	FProjectileProperties Projectile;
-	if (mGunProperties.ProjectileProperties.IsValidIndex(mProjectileIndex))
-	{
-		Projectile = mGunProperties.ProjectileProperties[mProjectileIndex];
-	}
-	if (mGunProperties.TracerOrder.IsValidIndex(mTracerIndex))
-	{
-		bTracer = mGunProperties.TracerOrder[mTracerIndex];
-	}
-	// TODO: recoil/Spread calcs
-	// TODO: change this to an Interface Call; update the Gun_Interface
-	//OwnerSpawnProjectile(bTracer, Projectile);
+	UE_LOG(LogTemp, Log, TEXT("GunFireComp: FireProjectile"));
+
 	AActor* Owner = GetOwner();
 	if (Owner && Owner->Implements<UGun_Interface>())
 	{
-		FVector SpreadDirection = FVector(1.0f,0,0);
+		bool bTracer = true;
 		FProjectileProperties Projectile;
-		if(mGunProperties.ProjectileProperties.IsValidIndex(mProjectileIndex)){
+		if (mGunProperties.ProjectileProperties.IsValidIndex(mProjectileIndex))
+		{
 			Projectile = mGunProperties.ProjectileProperties[mProjectileIndex];
 		}
-		//IGun_Interface::Execute_FireProjectile(Owner, Status);
-		bool bTracer = true;
-		if(mGunProperties.TracerOrder.IsValidIndex(mTracerIndex)){
+		if (mGunProperties.TracerOrder.IsValidIndex(mTracerIndex))
+		{
 			bTracer = mGunProperties.TracerOrder[mTracerIndex];
 		}
-		IGun_Interface::Execute_FireProjectile(SpreadDirection, Projectile, bTracer);
+
+		// Spread	
+		const FVector SpreadDirection = VRandConeFromStream(FVector(1.0f, 0, 0), FMath::DegreesToRadians(mSpread), mRandomStream);
+		IGun_Interface::Execute_FireProjectile(Owner, SpreadDirection, Projectile, bTracer);
 	}
 }
 
 void UGunFireComponent::DecreaseAmmoInMagazine(const int32 amount)
 {
+	UE_LOG(LogTemp, Log, TEXT("GunFireComp: DecreaseAmmoInMagazine"));
+
 	mGunProperties.CurrentMagazineLoad = FMath::Max(mGunProperties.CurrentMagazineLoad - amount, 0);
 }
 
 void UGunFireComponent::IncreaseTemperature()
 {
+	UE_LOG(LogTemp, Log, TEXT("GunFireComp: IncreaseTemperature"));
+
 	mGunOverheatingLevel += FMath::Min(1.0f, mTempIncreasePercentagePerShot);
 	CheckOverheated();
 }
 
 bool UGunFireComponent::CanStillFire() const
 {
+	UE_LOG(LogTemp, Log, TEXT("GunFireComp: CanStillFire"));
+
 	return mGunProperties.CurrentMagazineLoad > 0;
 }
 
 bool UGunFireComponent::CheckMagazine()
 {
+	UE_LOG(LogTemp, Log, TEXT("GunFireComp: CheckMagazine"));
+
 	if (CanStillFire())
 	{
 		return true;
@@ -488,8 +508,8 @@ bool UGunFireComponent::CheckMagazine()
 	return false;
 }
 
-void UGunFireComponent::CheckOverheated()
-{
+void UGunFireComponent::CheckOverheated() {
+
 	if (!mGunProperties.bSpreadAndRecoilProjectileDynamics) {
 		mGunOverheatingLevel = 0.0f;
 		return;
@@ -526,10 +546,12 @@ void UGunFireComponent::CheckOverheated()
 
 void UGunFireComponent::StopFiring()
 {
+	UE_LOG(LogTemp, Log, TEXT("GunFireComp: StopFiring"));
+
 	if (mCurrentStatus == EGunStatus::Firing)
 	{
 		CalcCycleRemainingTime();
-		mCurrentStatus = EGunStatus::Firing;
+		mCurrentStatus = EGunStatus::FinishingCycle;
 		if (mCycleRemainingTime > 0.0f)
 		{
 			AActor* Owner = GetOwner();
@@ -547,6 +569,8 @@ void UGunFireComponent::StopFiring()
 
 void UGunFireComponent::CalcCycleRemainingTime()
 {
+	UE_LOG(LogTemp, Log, TEXT("GunFireComp: CalcCycleRemainingTime"));
+
 	if (mbUseCycleCooldown)
 	{
 		if (mGunProperties.ActionType == EGunActionType::Automatic)
@@ -577,6 +601,8 @@ void UGunFireComponent::CalcCycleRemainingTime()
 
 float UGunFireComponent::GetSemiAutoCooldown()
 {
+	UE_LOG(LogTemp, Log, TEXT("GunFireComp: GetSemiAutoCooldown"));
+
 	UWorld* World = GetWorld();
 	if (World)
 	{
@@ -589,6 +615,8 @@ float UGunFireComponent::GetSemiAutoCooldown()
 
 void UGunFireComponent::GunCooled()
 {
+	UE_LOG(LogTemp, Log, TEXT("GunFireComp: GunCooled"));
+
 	AActor* Owner = GetOwner();
 	if (Owner)
 	{
@@ -603,6 +631,8 @@ void UGunFireComponent::GunCooled()
 
 void UGunFireComponent::CheckRequests()
 {
+	UE_LOG(LogTemp, Log, TEXT("GunFireComp: CheckRequests"));
+
 	if (mbGunChanged) Initialize();
 	if (mbDeactivationRequested)
 	{
@@ -629,6 +659,8 @@ void UGunFireComponent::CheckRequests()
 
 bool UGunFireComponent::CanReload()
 {
+	UE_LOG(LogTemp, Log, TEXT("GunFireComp: CanReload"));
+
 	const bool bHasRefill = mGunProperties.TotalAmmunitionCount > 0;
 	const bool MagNotFull = mGunProperties.CurrentMagazineLoad < mGunProperties.MagazineSize;
 	const bool AdditionalRound = (mGunProperties.MagazineSize == mGunProperties.CurrentMagazineLoad) && mGunProperties.bAdditionalChamberRound;
@@ -637,12 +669,16 @@ bool UGunFireComponent::CanReload()
 
 void UGunFireComponent::PrepareReloading(const bool bUseCycleCooldown)
 {
+	UE_LOG(LogTemp, Log, TEXT("GunFireComp: PrepareReloading"));
+
 	mbUseCycleCooldown = bUseCycleCooldown;
 	StopFiring();
 }
 
 void UGunFireComponent::Reloading()
 {
+	UE_LOG(LogTemp, Log, TEXT("GunFireComp: Reloading"));
+
 	if (mCurrentStatus == EGunStatus::FinishingCycle)
 	{
 		mCurrentStatus = EGunStatus::Reloading;
@@ -700,6 +736,8 @@ void UGunFireComponent::Reloading()
 
 void UGunFireComponent::AddChamberRound()
 {
+	UE_LOG(LogTemp, Log, TEXT("GunFireComp: AddChamberRound"));
+
 	mbIsChamberRound = true;
 	mReloadTime = mGunProperties.ReloadTimeSingleProjectile;
 	AActor* Owner = GetOwner();
@@ -711,6 +749,8 @@ void UGunFireComponent::AddChamberRound()
 
 void UGunFireComponent::ReloadingFinished()
 {
+	UE_LOG(LogTemp, Log, TEXT("GunFireComp: ReloadingFinished"));
+
 	if (mbIsChamberRound)
 	{
 		mbIsChamberRound = false;
@@ -780,6 +820,8 @@ void UGunFireComponent::ReloadingFinished()
 
 void UGunFireComponent::FillMagazine(const int32 toAdd)
 {
+	UE_LOG(LogTemp, Log, TEXT("GunFireComp: FillMagazine"));
+
 	int32 Refill = toAdd;
 	int32 newTotal = mGunProperties.TotalAmmunitionCount - Refill;
 	if (newTotal < 0)
@@ -798,6 +840,8 @@ void UGunFireComponent::FillMagazine(const int32 toAdd)
 
 void UGunFireComponent::CancelReload()
 {
+	UE_LOG(LogTemp, Log, TEXT("GunFireComp: CancelReload"));
+
 	if (mCurrentStatus == EGunStatus::Reloading && CanStillFire())
 	{
 		ReloadCancelled();
@@ -806,6 +850,8 @@ void UGunFireComponent::CancelReload()
 
 void UGunFireComponent::ReloadCancelled()
 {
+	UE_LOG(LogTemp, Log, TEXT("GunFireComp: ReloadCancelled"));
+
 	AActor* Owner = GetOwner();
 	if (Owner)
 	{
