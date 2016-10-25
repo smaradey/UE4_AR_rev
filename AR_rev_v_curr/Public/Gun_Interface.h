@@ -42,5 +42,6 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GunFireComponent")
 		void WeaponStatusChanged(const FWeaponStatus& WeaponStatus);
 
-
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GunFireComponent")
+void FireProjectile(const FVector& SpreadDirection, const FProjectileProperties& Projectile, const bool Tracer);
 };
