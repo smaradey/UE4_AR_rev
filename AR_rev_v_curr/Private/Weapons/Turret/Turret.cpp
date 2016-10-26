@@ -161,6 +161,10 @@ void ATurret::SetRestingAimLocation()
 		// TODO: make resting direction editable
 		TargetLocation = TurretYawPart->GetSocketLocation(YawPartConnectionSocket) + GetActorForwardVector();
 		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, TargetLocation.ToString());
+	} else
+	{
+		TargetLocation = GetActorLocation() + GetActorForwardVector();
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Red, "Resting: Else-Case: "+ TargetLocation.ToString());
 	}
 	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Red, TargetLocation.ToString());
 }

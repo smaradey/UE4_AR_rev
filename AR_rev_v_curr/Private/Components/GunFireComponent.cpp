@@ -4,14 +4,10 @@
 #include "GunFireComponent.h"
 #include "Gun_Interface.h"
 
-#define DEBUG_MSG 1
-#define LOG_MSG 1
-#if LOG_MSG == 1
-	#define LOG(message) UE_LOG(LogTemp, Log, TEXT(message));
-#else
-	#define LOG(message)
-#endif
+#define DEBUG_MSG 0
+#define LOG_MSG 0
 
+#include "CustomMacros.h"
 
 // Sets default values for this component's properties
 UGunFireComponent::UGunFireComponent() {
@@ -19,7 +15,7 @@ UGunFireComponent::UGunFireComponent() {
 	// off to improve performance if you don't need them.
 	bWantsBeginPlay = true;
 	PrimaryComponentTick.bCanEverTick = true;
-	PrimaryComponentTick.TickGroup = TG_DuringPhysics;
+	PrimaryComponentTick.TickGroup = TG_PostPhysics;
 	bReplicates = true;
 	bAutoActivate = true;
 
@@ -56,7 +52,7 @@ void UGunFireComponent::BeginPlay()
 void UGunFireComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-	UpdateOwner();
+	//UpdateOwner();
 	if (mGunProperties.bSpreadAndRecoilProjectileDynamics) {
 		AddSmoothRecoil(DeltaTime);
 		ReduceRecoil(DeltaTime);
@@ -352,8 +348,10 @@ void UGunFireComponent::FireSalve()
 
 	if (CheckMagazine())
 	{
-		HandleRecoil();
-		HandleSpread();
+		if (mGunProperties.bSpreadAndRecoilProjectileDynamics) {
+			HandleRecoil();
+			HandleSpread();
+		}
 
 		// fire all "Pellets" in case of a shotgun or multiple barrels
 		for (int32 i = 0; i < mGunProperties.NumProjectilesInSalve; ++i)
@@ -482,7 +480,7 @@ void UGunFireComponent::DecreaseAmmoInMagazine(const int32 amount)
 
 void UGunFireComponent::IncreaseTemperature()
 {
-	LOG("GunFireComp: IncreaseTemperature"));
+	LOG("GunFireComp: IncreaseTemperature");
 
 	mGunOverheatingLevel += FMath::Min(1.0f, mTempIncreasePercentagePerShot);
 	CheckOverheated();
@@ -497,7 +495,7 @@ bool UGunFireComponent::CanStillFire() const
 
 bool UGunFireComponent::CheckMagazine()
 {
-	LOG("GunFireComp: CheckMagazine"));
+	LOG("GunFireComp: CheckMagazine");
 
 	if (CanStillFire())
 	{
