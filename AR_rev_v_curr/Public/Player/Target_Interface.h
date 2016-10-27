@@ -19,7 +19,7 @@ class ITarget_Interface
 
 public:
 
-	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Target")
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Target_Interface")
 		bool GetIsTargetable();
 
 
