@@ -36,19 +36,19 @@ class IGun_Interface
 
 public:
 
-	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GunFireInterface")
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GunFireInterface|Input")
 		void RequestFire();
 
-	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GunFireInterface")
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GunFireInterface|Input")
 		void StopFireRequest();
 
-	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GunFireInterface")
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GunFireInterface|Input")
 		void RequestReload();
 
-	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GunFireInterface")
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GunFireInterface|Input")
 		void StopReloadRequest();
 
-	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GunFireInterface")
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GunFireInterface|Input")
 		void AddAmmunition(const int32 Amount);
 
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GunFireInterface")
@@ -56,4 +56,23 @@ public:
 
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GunFireInterface")
 		void FireProjectile(const FVector& SpreadDirection, const FProjectileProperties& Projectile, const bool Tracer);
+
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GunFireInterface|StatusUpdates")
+		void StartedReloading(const float& ReloadTime);
+
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GunFireInterface|StatusUpdates")
+		void FinishedReloading();
+
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GunFireInterface|StatusUpdates")
+		void AbortedReloading();
+
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GunFireInterface|StatusUpdates")
+		void Overheated();
+
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GunFireInterface|StatusUpdates")
+		void NoLongerOverheated();
+
+
+
+
 };
