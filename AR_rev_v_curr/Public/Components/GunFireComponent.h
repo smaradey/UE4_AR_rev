@@ -4,6 +4,8 @@
 
 #include "Components/ActorComponent.h"
 #include "Projectile.h"
+#define LOG_MSG 0
+#include "CustomMacros.h"
 #include "GunFireComponent.generated.h"
 
 // Enum to define a Guns Type: Automatic/Triggered
@@ -50,7 +52,10 @@ struct FWeaponStatus
 {
 	GENERATED_USTRUCT_BODY()
 		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Status")
-		EGunStatus Status = EGunStatus::Deactivated;
+		EGunStatus Status = EGunStatus::Idle;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Status")
+		float Temperature = 0.0f;
 };
 
 USTRUCT(BlueprintType)
@@ -255,7 +260,7 @@ public:
 		void CallStartFiring(const FRandomStream& Stream);
 
 	UFUNCTION(BlueprintCallable, Category = "GunFireComponent")
-	void CallUpdate(const FGunProperties& newProperties);
+		void CallUpdate(const FGunProperties& newProperties);
 
 	UFUNCTION(BlueprintCallable, Category = "GunFireComponent")
 		void CallStopFiring();
@@ -272,10 +277,10 @@ public:
 	// converts a vectors rotation to Worldspace
 	UFUNCTION(BlueprintCallable, Category = "GunFireComponent")
 		static FTransform ConvertSpreadToWorld(const AActor* Actor, const FTransform& RelativeSpawnTransform, const FVector& RelativeSpreadDirection)
-	{		
+	{
 		// RotationResult = B.Rotation * A.Rotation
 		//OutTransform->Rotation = VectorQuaternionMultiply2(QuatB, QuatA);
-		if(Actor)
+		if (Actor)
 		{
 			const FTransform& ActorTransform = Actor->GetTransform();
 			FTransform Result = RelativeSpawnTransform;
@@ -285,44 +290,12 @@ public:
 		return FTransform();
 	}
 
+	// return the player controller of the owners instigator or null
+	UFUNCTION(BlueprintCallable, Category = "GunFireComponent|Owner")
+		APlayerController* GetOwningPlayerController() const;
+
 	UFUNCTION(BlueprintCallable, Category = "GunFireComponent")
-	static FVector VRandConeFromStream(FVector const& Dir, float ConeHalfAngleRad, const FRandomStream& Stream)
-	{
-		if (ConeHalfAngleRad > 0.f)
-		{
-			
-			float const RandU = Stream.FRand(); //FMath::FRand();
-			float const RandV = Stream.FRand(); //FMath::FRand();
-
-			// Get spherical coords that have an even distribution over the unit sphere
-			// Method described at http://mathworld.wolfram.com/SpherePointPicking.html	
-			float Theta = 2.f * PI * RandU;
-			float Phi = FMath::Acos((2.f * RandV) - 1.f);
-
-			// restrict phi to [0, ConeHalfAngleRad]
-			// this gives an even distribution of points on the surface of the cone
-			// centered at the origin, pointing upward (z), with the desired angle
-			Phi = FMath::Fmod(Phi, ConeHalfAngleRad);
-
-			// get axes we need to rotate around
-			FMatrix const DirMat = FRotationMatrix(Dir.Rotation());
-			// note the axis translation, since we want the variation to be around X
-			FVector const DirZ = DirMat.GetScaledAxis(EAxis::X);
-			FVector const DirY = DirMat.GetScaledAxis(EAxis::Y);
-
-			FVector Result = Dir.RotateAngleAxis(Phi * 180.f / PI, DirY);
-			Result = Result.RotateAngleAxis(Theta * 180.f / PI, DirZ);
-
-			// ensure it's a unit vector (might not have been passed in that way)
-			Result = Result.GetSafeNormal();
-
-			return Result;
-		}
-		else
-		{
-			return Dir.GetSafeNormal();
-		}
-	}
+		static FVector VRandConeFromStream(FVector const& Dir, float ConeHalfAngleRad, const FRandomStream& Stream);
 
 	// the time it takes to add the recoil of one shot to the pawn is 1.0/mRecoilVelocity seconds, eg. 1.0/10 = 0.1 [Seconds]
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GunFireComponent|Recoil", meta = (ClampMin = "0.01", ClampMax = "1000.0", UIMin = "0.01", UIMax = "100.0"))
@@ -337,6 +310,7 @@ public:
 	// use this when using ECooldownType::RelativeSpeed
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GunFireComponent|Cooldown")
 		float mRelativeCoolDownSpeed = 0.25f;
+
 
 private:
 	void Initialize();
@@ -368,6 +342,8 @@ private:
 	void AddSmoothRecoil(const float DeltaTime);
 	void ReduceRecoil(const float DeltaTime);
 	void Cooldown(const float DeltaTime);
+
+
 
 
 public:

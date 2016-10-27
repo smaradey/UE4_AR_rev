@@ -5,9 +5,6 @@
 #include "Gun_Interface.h"
 
 #define DEBUG_MSG 0
-#define LOG_MSG 0
-
-#include "CustomMacros.h"
 
 // Sets default values for this component's properties
 UGunFireComponent::UGunFireComponent() {
@@ -45,6 +42,8 @@ void UGunFireComponent::BeginPlay()
 {
 	Super::BeginPlay();
 	LOG("GunFireComp: BeginPlay");
+
+
 }
 
 
@@ -207,6 +206,58 @@ void UGunFireComponent::CallAddAmmunition(const int32 Amount)
 			mCurrentStatus = EGunStatus::FinishingCycle;
 			Reloading();
 		}
+	}
+}
+
+APlayerController* UGunFireComponent::GetOwningPlayerController() const
+{
+	AActor* Owner = GetOwner();
+	if (Owner)
+	{
+		AController* Controller = Owner->GetInstigatorController();
+		if (Controller)
+		{
+			APlayerController* PlayerCtrl = Cast<APlayerController>(Controller);
+			return PlayerCtrl;
+		}
+	}
+	return nullptr;
+}
+
+FVector UGunFireComponent::VRandConeFromStream(FVector const& Dir, float ConeHalfAngleRad, const FRandomStream& Stream)
+{
+	if (ConeHalfAngleRad > 0.f)
+	{
+		float const RandU = Stream.FRand(); //FMath::FRand();
+		float const RandV = Stream.FRand(); //FMath::FRand();
+
+		// Get spherical coords that have an even distribution over the unit sphere
+		// Method described at http://mathworld.wolfram.com/SpherePointPicking.html	
+		float Theta = 2.f * PI * RandU;
+		float Phi = FMath::Acos((2.f * RandV) - 1.f);
+
+		// restrict phi to [0, ConeHalfAngleRad]
+		// this gives an even distribution of points on the surface of the cone
+		// centered at the origin, pointing upward (z), with the desired angle
+		Phi = FMath::Fmod(Phi, ConeHalfAngleRad);
+
+		// get axes we need to rotate around
+		FMatrix const DirMat = FRotationMatrix(Dir.Rotation());
+		// note the axis translation, since we want the variation to be around X
+		FVector const DirZ = DirMat.GetScaledAxis(EAxis::X);
+		FVector const DirY = DirMat.GetScaledAxis(EAxis::Y);
+
+		FVector Result = Dir.RotateAngleAxis(Phi * 180.f / PI, DirY);
+		Result = Result.RotateAngleAxis(Theta * 180.f / PI, DirZ);
+
+		// ensure it's a unit vector (might not have been passed in that way)
+		Result = Result.GetSafeNormal();
+
+		return Result;
+	}
+	else
+	{
+		return Dir.GetSafeNormal();
 	}
 }
 
