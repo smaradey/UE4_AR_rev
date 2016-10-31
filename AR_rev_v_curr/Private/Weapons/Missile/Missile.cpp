@@ -115,20 +115,24 @@ void AMissile::BeginPlay()
 
 		// create spiraling behaviour
 		{
+			// Rotation offset
 			if (CustomSpiralOffset != 0.0f) {
 				CustomSpiralOffset = FMath::FRandRange(0.0f, 360.f);
 			}
+			// Rotation direction cw/ccw
 			if (SpiralDirection != 0) {
 				SpiralDirection = FMath::Sign(SpiralDirection);
 			}
 			else {
 				SpiralDirection = (FMath::RandBool()) ? -1.0f : 1.0f;
 			}
+			// Rotationrate
 			if (RandomizeSpiralVelocity) {
 				SpiralVelocity *= FMath::FRandRange(0.5f, 1.5f);
 			}
 		}
 
+		// Randomize Missile Velocity
 		MaxVelocity *= FMath::FRandRange(0.95f, 1.05f);
 
 		// calculate max missile Life-Time (t = s/v)
@@ -469,9 +473,25 @@ void AMissile::Homing(float DeltaTime) {
 	else {
 		LastTargetLocation = CurrentTargetLocation;
 		if (SpiralHoming && DistanceToTarget > SpiralDeactivationDistance) {
+			const float BaseRotation = (SpiralVelocity * LifeTime;
+			const float Rotation = int(BaseRotation + CustomSpiralOffset) % 360;
+			const FVector RotatingVector = FRotationMatrix(DirectionToTarget.Rotation()).GetScaledAxis(EAxis::Y));
+			const FVector RotatedVector = RotatingVector.RotateAngleAxis(Rotation * SpiralDirection, DirectionToTarget);
+			
 			float Amplitude = DistanceToTarget * SpiralStrength;
-			HomingLocation = CurrentTargetLocation + (Amplitude * FRotationMatrix(DirectionToTarget.Rotation()).GetScaledAxis(EAxis::Y)).RotateAngleAxis((int(SpiralVelocity * LifeTime) % int(360)) * SpiralDirection + CustomSpiralOffset, DirectionToTarget);
+			HomingLocation = CurrentTargetLocation + Amplitude * RotatedVector;
 			DirectionToTarget = (HomingLocation - GetActorLocation()).GetSafeNormal();			
+
+/*
+			HomingLocation = CurrentTargetLocation 
++ (Amplitude 
+* FRotationMatrix(DirectionToTarget.Rotation()).GetScaledAxis(EAxis::Y)).RotateAngleAxis(
+(int(SpiralVelocity * LifeTime) % int(360)) 
+* SpiralDirection 
++ CustomSpiralOffset
+, DirectionToTarget);
+
+*/
 		}
 	}
 
