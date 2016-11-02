@@ -26,9 +26,7 @@ public:
 
 	// Interface Implementations
 		void Explode_Implementation()override;
-
 		void DeactivateForDuration_Implementation(const float Duration) override;
-
 		FMissileStatus GetCurrentMissileStatus_Implementation() override;
 
 	// Constructor that sets default values for this actor's properties
@@ -45,11 +43,20 @@ public:
 	void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent);
 
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
-		FMissileProperties Properties;
+		FMissileProperties mProperties;
 
 private:
 
-	EHomingType mHomingStatus;	
+	EHomingType mHomingStatus;
+
+	float mRemainingBoostDistance;
+	// Decrease the distance the missile can still travel using boost
+	void DecreaseRemainingDistance(const float DeltaTime, const float BoostIntensity = 1.0f);
+
+	void MaxBoostRangeReached()
+	{
+		
+	}
 
 public:
 	/* TODO */

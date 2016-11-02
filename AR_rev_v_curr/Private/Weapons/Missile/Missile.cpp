@@ -17,6 +17,7 @@ FMissileStatus AMissile::GetCurrentMissileStatus_Implementation()
 {
 	FMissileStatus Status;
 	Status.Target = CurrentTarget ? CurrentTarget->GetOwner() : nullptr;
+	Status.RemainingBoostDistance = mRemainingBoostDistance;
 	Status.bIsHoming = mHomingStatus != EHomingType::None;
 	return Status;
 }
@@ -78,6 +79,7 @@ AMissile::AMissile(const FObjectInitializer& PCIP) : Super(PCIP)
 	mMissileTrail->bAutoActivate = false;
 
 
+	mRemainingBoostDistance = mProperties.MaxRange;
 
 
 	// binding an a function to event OnDestroyed
@@ -106,7 +108,7 @@ void AMissile::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEven
 void AMissile::GetLifetimeReplicatedProps(TArray< FLifetimeProperty > & OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);	
-	DOREPLIFETIME_CONDITION(AMissile, Properties, COND_InitialOnly);
+	DOREPLIFETIME_CONDITION(AMissile, mProperties, COND_InitialOnly);
 
 	DOREPLIFETIME_CONDITION(AMissile, MaxTurnrate, COND_InitialOnly);
 	DOREPLIFETIME(AMissile, MaxVelocity);
@@ -223,6 +225,8 @@ void AMissile::Tick(float DeltaTime)
 
 	// count missile lifetime
 	LifeTime += DeltaTime;
+
+	DecreaseRemainingDistance(DeltaTime);
 
 	// client and server
 	if (bBombingMode) {
@@ -373,7 +377,14 @@ void AMissile::MissileDestruction(AActor * actor) {
 	//
 }
 
-// called on server for Multi-Cast of explosion
+void AMissile::DecreaseRemainingDistance(const float DeltaTime, const float BoostIntensity)
+{
+	mRemainingBoostDistance -= mProperties.MaxVelocity * DeltaTime * BoostIntensity;
+	if (mRemainingBoostDistance < 0.0f)
+	{
+		MaxBoostRangeReached();
+	}
+}// called on server for Multi-Cast of explosion
 void AMissile::MissileHit() {
 	if (Role == ROLE_Authority) {
 		ServerMissileHit();

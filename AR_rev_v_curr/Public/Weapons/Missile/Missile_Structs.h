@@ -10,6 +10,9 @@ struct FMissileStatus {
 		AActor* Target;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile|Status")
+		float RemainingBoostDistance = 0.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile|Status")
 		bool bIsHoming = false;
 };
 
