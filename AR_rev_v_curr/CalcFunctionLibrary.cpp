@@ -115,22 +115,22 @@ FVector UCalcFunctionLibrary::ProjectileScale(
 
 
 //07
-FVector UCalcFunctionLibrary::LinearTargetPrediction(
-	const FVector &TargetLocation,
-	const FVector &StartLocation,
-	const FVector &TargetVelocity,
-	const float ProjectileVelocity)
-	//returns a location at which has to be aimed in order to hit the target
-{
-	FVector ABmag = TargetLocation - StartLocation;
-	ABmag.Normalize();
-	FVector vi = TargetVelocity - (FVector::DotProduct(ABmag, TargetVelocity) * ABmag);
-	//FVector vj = ABmag * FMath::Sqrt(ProjectileVelocity * ProjectileVelocity - FMath::Pow((vi.Size()),2.f));
-	//return StartLocation + vi + vj;
-
-	//in short:
-	return StartLocation + vi + ABmag * FMath::Sqrt(ProjectileVelocity * ProjectileVelocity - FMath::Pow((vi.Size()), 2.f));
-}
+//FVector UCalcFunctionLibrary::LinearTargetPrediction(
+//	const FVector &TargetLocation,
+//	const FVector &StartLocation,
+//	const FVector &TargetVelocity,
+//	const float ProjectileVelocity)
+//	//returns a location at which has to be aimed in order to hit the target
+//{
+//	FVector ABmag = TargetLocation - StartLocation;
+//	ABmag.Normalize();
+//	FVector vi = TargetVelocity - (FVector::DotProduct(ABmag, TargetVelocity) * ABmag);
+//	//FVector vj = ABmag * FMath::Sqrt(ProjectileVelocity * ProjectileVelocity - FMath::Pow((vi.Size()),2.f));
+//	//return StartLocation + vi + vj;
+//
+//	//in short:
+//	return StartLocation + vi + ABmag * FMath::Sqrt(ProjectileVelocity * ProjectileVelocity - FMath::Pow((vi.Size()), 2.f));
+//}
 //08
 FRotator UCalcFunctionLibrary::DetermineTurnDirection(
 	const FVector &TargetLocation,
@@ -300,3 +300,31 @@ float  UCalcFunctionLibrary::FEaseInOutSin(const float A, const float B, const f
 	return A + (B - A) * ResultFactor;
 }
 
+void UCalcFunctionLibrary::LinearTargetPrediction(const FVector& TargetLocation, const FVector& StartLocation, FVelocity MainTargetVelocity, const float DeltaTime, const FVector& AdditionalProjectileVelocity, const float ProjectileVelocity, FVector& AimLocation)
+{
+	const FVector TargetVelocity = MainTargetVelocity.GetVelocityVector(DeltaTime) - AdditionalProjectileVelocity;
+
+	const FVector DirToTarget = (TargetLocation - StartLocation).GetSafeNormal();
+
+	const FVector uj = TargetVelocity.ProjectOnToNormal(DirToTarget);
+	//const float Dot = FVector::DotProduct(DirToTarget, TargetVelocity);
+	//const FVector uj = Dot * DirToTarget;
+
+	const FVector ui = TargetVelocity - uj;
+
+	const FVector& vi = ui;
+
+	const float viMag = vi.Size();
+	if (viMag > ProjectileVelocity)
+	{
+		// it is not possible for the projectile to hit the target (it is too slow).
+		AimLocation = TargetLocation;
+	}
+	else
+	{
+		const float viMagSquare = viMag * viMag;
+		const float vMagSquare = ProjectileVelocity * ProjectileVelocity;
+		const float vj = FMath::Sqrt(vMagSquare - viMagSquare);
+		AimLocation = StartLocation + vi + DirToTarget * vj;
+	}
+}

@@ -113,12 +113,12 @@ public:
 			const float MaxGrowingDistance = 15000.0f,
 			const float ProjectileThickness = 3.0f);
 	//07
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Prediction_C++")
-		static FVector LinearTargetPrediction(
-			const FVector& TargetLocation,
-			const FVector& StartLocation,
-			const FVector& TargetVelocity,
-			const float ProjectileVelocity = 0.f);
+	//UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Prediction_C++")
+	//	static FVector LinearTargetPrediction(
+	//		const FVector& TargetLocation,
+	//		const FVector& StartLocation,
+	//		const FVector& TargetVelocity,
+	//		const float ProjectileVelocity = 0.f);
 	//08
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Movement_C++")
 		static FRotator DetermineTurnDirection(
@@ -183,31 +183,5 @@ public:
 		static float FEaseInOutSin(const float A, const float B, const float Alpha);
 
 	UFUNCTION(BlueprintCallable, Category = "Target Prediction")
-		static void LinearTargetPredction(const FVector& TargetLocation, const FVector& StartLocation, FVelocity MainTargetVelocity, const float DeltaTime, const FVector& AdditionalProjectileVelocity, const float ProjectileVelocity, FVector& AimLocation)
-	{
-		const FVector TargetVelocity = MainTargetVelocity.GetVelocityVector(DeltaTime) - AdditionalProjectileVelocity;
-
-		const FVector DirToTarget = (TargetLocation - StartLocation).GetSafeNormal();
-
-		const FVector uj = TargetVelocity.ProjectOnToNormal(DirToTarget);
-		//const float Dot = FVector::DotProduct(DirToTarget, TargetVelocity);
-		//const FVector uj = Dot * DirToTarget;
-
-		const FVector ui = TargetVelocity - uj;
-
-		const FVector& vi = ui;	
-		
-		const float viMag = vi.Size();
-		if(viMag > ProjectileVelocity)
-		{
-			// it is not possible for the projectile to hit the target (it is too slow).
-			AimLocation = TargetLocation;
-		}
-		else {
-			const float viMagSquare = viMag * viMag;
-			const float vMagSquare = ProjectileVelocity * ProjectileVelocity;
-			const float vj = FMath::Sqrt(vMagSquare - viMagSquare);
-			AimLocation = StartLocation + vi + DirToTarget * vj;
-		}
-	}
+	static void LinearTargetPrediction(const FVector& TargetLocation, const FVector& StartLocation, FVelocity MainTargetVelocity, const float DeltaTime, const FVector& AdditionalProjectileVelocity, const float ProjectileVelocity, FVector& AimLocation);
 };
