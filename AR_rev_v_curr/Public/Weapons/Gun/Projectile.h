@@ -3,6 +3,7 @@
 #pragma once
 
 #include "GameFramework/Actor.h"
+#include "Damage.h"
 #include "Projectile.generated.h"
 
 // Enum to define a Projectiles Type: Kinetic/Energy
@@ -19,6 +20,9 @@ enum class EProjectileType : uint8
 USTRUCT(BlueprintType)
 struct FProjectileProperties {
 	GENERATED_USTRUCT_BODY()
+
+		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Settings")
+		FBaseDamage BaseDamage;
 
 	// v in cm/s
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Settings")
