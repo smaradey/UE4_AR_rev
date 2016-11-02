@@ -1,18 +1,17 @@
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
+#include "Damage.h"
+#include "Missile_Structs.h"
 #include "Missile_Interface.generated.h"
 
-// This class does not need to be modified.
+
 UINTERFACE(Blueprintable, MinimalAPI)
 class UMissile_Interface : public UInterface
 {
 	GENERATED_UINTERFACE_BODY()
 };
 
-/**
- * 
- */
 class AR_REV_V_CURR_API IMissile_Interface
 {
 	GENERATED_IINTERFACE_BODY()
