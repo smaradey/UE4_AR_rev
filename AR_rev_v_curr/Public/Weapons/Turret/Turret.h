@@ -4,24 +4,10 @@
 
 #include "GameFramework/Actor.h"
 #include "Components/ArrowComponent.h"
+#include "Turret_Enums.h"
+#include "Turret_Structs.h"
 #include "Turret.generated.h"
 
-UENUM(BlueprintType)
-enum class ETurretOperationMode : uint8
-{
-	Rest		UMETA(DisplayName = "Rest"),
-	Track 		UMETA(DisplayName = "Track"),
-	AimOnce	    UMETA(DisplayName = "AimOnce"),
-	Freeze		UMETA(DisplayName = "Freeze")
-};
-
-UENUM(BlueprintType)
-enum class ETurretRotationOrder : uint8
-{
-	Simultaneously		UMETA(DisplayName = "Simultaneously"),
-	YawPitch 			UMETA(DisplayName = "YawPitch"),
-	PitchYaw			UMETA(DisplayName = "PitchYaw")
-};
 
 UCLASS()
 class AR_REV_V_CURR_API ATurret : public AActor

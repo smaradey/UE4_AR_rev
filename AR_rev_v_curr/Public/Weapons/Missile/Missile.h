@@ -49,9 +49,7 @@ public:
 
 private:
 
-	EHomingType mHomingStatus;
-
-	
+	EHomingType mHomingStatus;	
 
 public:
 	/* TODO */
@@ -76,11 +74,6 @@ public:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mesh)
 		USkeletalMeshComponent* Mesh;
-
-	/** StaticMesh component that will be the visuals for the missile */
-	//UPROPERTY(VisibleDefaultsOnly, Category = Mesh)
-		//UStaticMeshComponent* MissileMesh;
-
 	/** Returns PlaneMesh subobject **/
 	FORCEINLINE class USkeletalMeshComponent* GetMesh() const { return Mesh; }
 
@@ -88,29 +81,25 @@ public:
 	UPROPERTY(Category = ActorDetection, BlueprintReadWrite, EditAnywhere, meta = (AllowPrivateAccess = "true"))
 		class USphereComponent* ActorDetectionSphere;
 
-	/* TODO */
+	/* particle system that gets attached to the missile mesh using the Socket "booster" if it exists */
 	UPROPERTY(Category = ParticleSystem, BlueprintReadWrite, EditAnywhere, meta = (AllowPrivateAccess = "true"))
-		class UParticleSystem* SmokeTrailTick;
+		UParticleSystemComponent* mMissileTrail;
 
-	/* TODO */
-	UPROPERTY(Category = ParticleSystem, BlueprintReadWrite, EditAnywhere, meta = (AllowPrivateAccess = "true"))
-		UParticleSystemComponent* MissileTrail;
-
-	/* TODO */
+	/* How long the particle system is still visible after it has been deactivated */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile | Trail")
-		float MissileTrailLifeSpan = 3.0f;
+		float mMissileTrailLifeSpan = 10.0f;
 
-	/* TODO */
+	/* particlesystem that is activated when the missile explodes */
 	UPROPERTY(Category = ParticleSystem, BlueprintReadWrite, EditAnywhere, meta = (AllowPrivateAccess = "true"))
-		class UParticleSystem* Explosion;
+		class UParticleSystem* mExplosion;
 
-	/* TODO */
+	/* explosion sound effect */
 	UPROPERTY(Category = Sound, BlueprintReadWrite, EditAnywhere, meta = (AllowPrivateAccess = "true"))
-		class UAudioComponent* ExplosionSound;
+		class UAudioComponent* mExplosionSound;
 
-	/* TODO */
+	/* Sound Cue that loops while the missile is boosting */
 	UPROPERTY(Category = Sound, BlueprintReadWrite, EditAnywhere, meta = (AllowPrivateAccess = "true"))
-		class UAudioComponent* MissileEngineSound;
+		class UAudioComponent* mBoosterSound;
 
 
 

@@ -6,6 +6,45 @@
 #include "Kismet/BlueprintFunctionLibrary.h"
 #include "CalcFunctionLibrary.generated.h"
 
+
+/* helper struct to calculate velocities of objects, needs to be updated every tick */
+USTRUCT(BlueprintType)
+struct FVelocity
+{
+	GENERATED_USTRUCT_BODY()
+		UPROPERTY(BlueprintReadWrite)
+		FVector CurrentLocation;
+
+	UPROPERTY(BlueprintReadWrite)
+		FVector PreviousLocation;
+
+	// initializes the values to a location, setting the velocity effectively to zero, prevents large values from occuring on the first read-out
+	void Init(const FVector & Location)
+	{
+		PreviousLocation = Location;
+		CurrentLocation = Location;
+	}
+
+	/**
+	* updates the currentlocation to the new location and stores the current location in the previous location
+	*/
+	void SetCurrentLocation(const FVector &NewCurrentLocation)
+	{
+		PreviousLocation = CurrentLocation;
+		CurrentLocation = NewCurrentLocation;
+	}
+
+	/** calculates the velocity [cm/s] from the current and the previous location and the delta-time
+	* @param DeltaTime	delta-time between the last two Location updates
+	*/
+	FVector GetVelocityVector(const float DeltaTime)
+	{
+		// prevent division with zero
+		if (DeltaTime == 0.0f) return FVector::ZeroVector;
+		return (CurrentLocation - PreviousLocation) / DeltaTime;
+	}
+};
+
 #define TwoDivPI (2.0f / PI)
 /**
  *
@@ -140,5 +179,16 @@ public:
 	// Alpha will be clamped to 0.0..1.0
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Math_C++ | Ease")
 		static float FEaseInOutSin(const float A, const float B, const float Alpha);
+
+	UFUNCTION(BlueprintCallable, Category = "Target Prediction")
+		static void LinearTargetPredction(const FVector& TargetLocation, const FVector& StartLocation, FVelocity MainTargetVelocity, const float DeltaTime, const FVector& AdditionalVelocity, const float ProjectileVelocity, FVector& AimLocation)
+	{
+		// linear targetprediction
+		const FVector AB = (TargetLocation - StartLocation).GetSafeNormal();
+		const FVector TargetVelocity = MainTargetVelocity.GetVelocityVector(DeltaTime) - AdditionalVelocity;
+		//const FVector TargetVelocity = MainLockOnTarget->GetVelocity() - AdditionalVelocity;
+		const FVector vi = TargetVelocity - (FVector::DotProduct(AB, TargetVelocity) * AB);
+		AimLocation = StartLocation + vi + AB * FMath::Sqrt(FMath::Square(ProjectileVelocity) - FMath::Pow((vi.Size()), 2.f));
+	}
 
 };

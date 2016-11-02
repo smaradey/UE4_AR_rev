@@ -5,7 +5,7 @@
 
 void AMissile::Explode_Implementation()
 {
-	LOG("Missile: Received Explosion Command")
+	LOG("Missile: Received mExplosion Command")
 	MissileHit();
 }
 
@@ -66,16 +66,16 @@ AMissile::AMissile(const FObjectInitializer& PCIP) : Super(PCIP)
 	ActorDetectionSphere->OnComponentBeginOverlap.AddDynamic(this, &AMissile::OnDetectionBeginOverlap);
 
 	// Explosionsoundeffect
-	ExplosionSound = PCIP.CreateDefaultSubobject<UAudioComponent>(this, TEXT("ExplosionSound"));
-	ExplosionSound->bAutoActivate = false;
+	mExplosionSound = PCIP.CreateDefaultSubobject<UAudioComponent>(this, TEXT("mExplosionSound"));
+	mExplosionSound->bAutoActivate = false;
 
 	// Missileboostersoundeffect
-	MissileEngineSound = PCIP.CreateDefaultSubobject<UAudioComponent>(this, TEXT("EngineSound"));
-	MissileEngineSound->bAutoActivate = true;
+	mBoosterSound = PCIP.CreateDefaultSubobject<UAudioComponent>(this, TEXT("EngineSound"));
+	mBoosterSound->bAutoActivate = true;
 
 	// Missiletrailparticlesystem
-	MissileTrail = PCIP.CreateDefaultSubobject<UParticleSystemComponent>(this, TEXT("MissileTrail"));
-	MissileTrail->bAutoActivate = false;
+	mMissileTrail = PCIP.CreateDefaultSubobject<UParticleSystemComponent>(this, TEXT("mMissileTrail"));
+	mMissileTrail->bAutoActivate = false;
 
 
 
@@ -175,9 +175,6 @@ void AMissile::BeginPlay()
 		// Randomize Missile Velocity
 		MaxVelocity *= FMath::FRandRange(0.95f, 1.05f);
 
-		// calculate max missile Life-Time (t = s/v)
-		MaxFlightTime = Range / MaxVelocity;
-		SetLifeSpan(MaxFlightTime + MissileTrailLifeSpan);              // set missile lifespan
 	}
 
 	// clients and authority
@@ -198,24 +195,24 @@ void AMissile::BeginPlay()
 	if (Role < ROLE_Authority) {
 		NetUpdateInterval = 1.0f / NetUpdateFrequency;
 		//ActorDetectionSphere->DestroyComponent();
-		//ExplosionSound->AttachToComponent(RootComponent);
+		//mExplosionSound->AttachToComponent(RootComponent);
 		//if (MissileMesh->DoesSocketExist(FName("booster"))) {
-		//	MissileTrail->AttachToComponent(MissileMesh, FName("booster"));
-		//	MissileTrail->Activate();
-		//	MissileEngineSound->AttachToComponent(MissileMesh, FName("booster"));
+		//	mMissileTrail->AttachToComponent(MissileMesh, FName("booster"));
+		//	mMissileTrail->Activate();
+		//	mBoosterSound->AttachToComponent(MissileMesh, FName("booster"));
 		//}
 	}
 	
-	ExplosionSound->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepRelativeTransform);
+	mExplosionSound->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepRelativeTransform);
 	if (Mesh->DoesSocketExist(FName("booster"))) {
-		MissileTrail->AttachToComponent(Mesh, FAttachmentTransformRules::KeepRelativeTransform, FName("booster"));
-		MissileTrail->Activate();
-		MissileEngineSound->AttachToComponent(Mesh, FAttachmentTransformRules::KeepRelativeTransform, FName("booster"));
+		mMissileTrail->AttachToComponent(Mesh, FAttachmentTransformRules::KeepRelativeTransform, FName("booster"));
+		mMissileTrail->Activate();
+		mBoosterSound->AttachToComponent(Mesh, FAttachmentTransformRules::KeepRelativeTransform, FName("booster"));
 	} else
 	{
-		MissileTrail->AttachToComponent(Mesh, FAttachmentTransformRules::KeepRelativeTransform);
-		MissileTrail->Activate();
-		MissileEngineSound->AttachToComponent(Mesh, FAttachmentTransformRules::KeepRelativeTransform);
+		mMissileTrail->AttachToComponent(Mesh, FAttachmentTransformRules::KeepRelativeTransform);
+		mMissileTrail->Activate();
+		mBoosterSound->AttachToComponent(Mesh, FAttachmentTransformRules::KeepRelativeTransform);
 	}
 }
 
@@ -352,7 +349,7 @@ void AMissile::Tick(float DeltaTime)
 }
 
 void AMissile::SmokeDrift(const float DeltaTime) {
-	if (MissileTrail && GetWorld()) {
+	if (mMissileTrail && GetWorld()) {
 
 		if (SmokeInterpAlpha > 1.0f) {
 			SmokeInterpAlpha = 0.0f;
@@ -368,7 +365,7 @@ void AMissile::SmokeDrift(const float DeltaTime) {
 
 		const FVector Dir = FMath::Lerp(CurrentInitialVelocityDirection, TargetInitialVelocityDirection,alpha);
 
-		MissileTrail->SetVectorParameter(FName("SmokeDrift"), Dir);
+		mMissileTrail->SetVectorParameter(FName("SmokeDrift"), Dir);
 	}
 }
 
@@ -392,7 +389,7 @@ void AMissile::ServerMissileHit_Implementation() {
 
 void AMissile::HitTarget_Implementation(class AActor* TargetedActor) {
 	if (Role == ROLE_Authority && !bHit) {
-		SetLifeSpan(MissileTrailLifeSpan);
+		SetLifeSpan(mMissileTrailLifeSpan);
 		if (bDamageTarget && CurrentTarget) {
 
 			
@@ -406,18 +403,18 @@ void AMissile::HitTarget_Implementation(class AActor* TargetedActor) {
 }
 
 void AMissile::ExplodeMissile() {
-	if (Explosion/* && Role < ROLE_Authority*/) {
+	if (mExplosion/* && Role < ROLE_Authority*/) {
 
-		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Red, "client: Explosion");
-		UParticleSystemComponent* Hit = UGameplayStatics::SpawnEmitterAtLocation(this, Explosion, GetActorLocation(), GetActorRotation(), true);
-		if (ExplosionSound) ExplosionSound->Activate();
+		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Red, "client: mExplosion");
+		UParticleSystemComponent* Hit = UGameplayStatics::SpawnEmitterAtLocation(this, mExplosion, GetActorLocation(), GetActorRotation(), true);
+		if (mExplosionSound) mExplosionSound->Activate();
 	}
-	if (MissileEngineSound) MissileEngineSound->Deactivate();
+	if (mBoosterSound) mBoosterSound->Deactivate();
 	SetActorTickEnabled(false);
 	
 	if (RootComponent) RootComponent->SetVisibility(false, true);
-	if (MissileTrail) MissileTrail->DeactivateSystem();
-	if (MissileTrail) MissileTrail->SetVisibility(true);
+	if (mMissileTrail) mMissileTrail->DeactivateSystem();
+	if (mMissileTrail) mMissileTrail->SetVisibility(true);
 }
 
 void AMissile::OverlappingATarget(class AActor* OtherActor/*, class UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult*/) {
