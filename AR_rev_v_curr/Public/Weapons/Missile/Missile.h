@@ -8,17 +8,99 @@
 #include "UnrealNetwork.h"
 #include "GameFramework/Actor.h"
 #include "CalcFunctionLibrary.h"
+#include "Damage.h"
+#include "Missile_Interface.h"
+#define LOG_MSG 1
+#include "CustomMacros.h"
 #include "Missile.generated.h"
 
+UENUM(BlueprintType)
+enum class EHomingType : uint8
+{
+	None 	        UMETA(DisplayName = "None"),
+	// Follow Target Location
+	Simple			UMETA(DisplayName = "Simple"),
+	// Use Target Location Prediction
+	Advanced		UMETA(DisplayName = "Advanced")
+};
+
+USTRUCT(BlueprintType)
+struct FHomingProperties {
+	GENERATED_USTRUCT_BODY()
+
+		// Homing type
+		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Homing")
+		EHomingType Homing = EHomingType::Simple;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Homing")
+		float HomingActivationDelay = 0.2f;
+
+	// if the target is not inside the missiles tracking angle it stops homing
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Homing")
+		bool bCanLooseTarget = false;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Homing")
+		float MaxTargetTrackingAngle = 90.0f;
+
+	// Turnrate in deg/s
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Homing")
+		float MaxTurnrate = 110.0f;
+
+	// advanced homing always working at full strength
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Homing")
+		bool bAlwaysActiv = false;
+
+	// Distance to the target where Homing turns from simple into advanced
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Homing")
+		float ActivationDistance = 50000.0f;
+
+	// Distance to the target where advanced Homing is working at full strength
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Homing")
+		float DistanceCompletelyActive = 10000.0f;
+};
+
+
+// struct that holds all important properties that defines the missiles behaviour
+USTRUCT(BlueprintType)
+struct FMissileProperties {
+	GENERATED_USTRUCT_BODY()
+
+		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile|Properties|Damage")
+		FBaseDamage BaseDamage;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile|Properties|Damage")
+		float ExplosionRadius = 500.0f;
+
+	// v in cm/s
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile|Properties")
+		float MaxVelocity = 30000.0f;
+
+	// maximum range in cm
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile|Properties")
+		float MaxRange = 400000.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile|Properties")
+		float AccelerationTime = 1.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile|Properties|Homing")
+		FHomingProperties HomingProperties;
+
+	// Angle that the player uses to lock on to a target
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile|Properties|Radar")
+		float LockOnHalfAngle = 6.0f;
+};
 
 UCLASS()
-class AR_REV_V_CURR_API AMissile : public AActor
+class AR_REV_V_CURR_API AMissile : public AActor, public IMissile_Interface
 {
 	GENERATED_BODY()
 
 public:
-	/* Default Constructor */
-	// AMissile();
+
+	// Interface Implementations
+		void Explode_Implementation()override;
+
+		void DeactivateForDuration_Implementation(const float Duration) override;
 
 	// Constructor that sets default values for this actor's properties
 	AMissile(const FObjectInitializer& ObjectInitializer);
@@ -33,6 +115,9 @@ public:
 	void PostInitProperties();
 	void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent);
 
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
+		FMissileProperties Properties;
+
 	/* TODO */
 	UFUNCTION(BlueprintCallable, Category = "Missile")
 		virtual void MissileHit();
@@ -43,7 +128,7 @@ public:
 
 	/* TODO */
 	UFUNCTION()
-		void Explode();
+		void ExplodeMissile();
 
 	/* TODO */
 	UFUNCTION(BlueprintNativeEvent, Category = "Missile")
@@ -53,22 +138,23 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Missile")
 		void OverlappingATarget(class AActor* OtherActor/*, class UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult*/);
 
-	/** StaticMesh component that will be the visuals for the missile */
-	UPROPERTY(Category = Mesh, VisibleDefaultsOnly, BlueprintReadOnly, meta = (AllowPrivateAccess = "true"))
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = Mesh)
+		USkeletalMeshComponent* Mesh;
 
-		/* TODO */
-	class UStaticMeshComponent* MissileMesh;
+	/** StaticMesh component that will be the visuals for the missile */
+	//UPROPERTY(VisibleDefaultsOnly, Category = Mesh)
+		//UStaticMeshComponent* MissileMesh;
 
 	/** Returns PlaneMesh subobject **/
-	FORCEINLINE class UStaticMeshComponent* GetPlaneMesh() const { return MissileMesh; }
+	FORCEINLINE class USkeletalMeshComponent* GetMesh() const { return Mesh; }
 
 	/* TODO */
 	UPROPERTY(Category = ActorDetection, BlueprintReadWrite, EditAnywhere, meta = (AllowPrivateAccess = "true"))
-	class USphereComponent* ActorDetectionSphere;
+		class USphereComponent* ActorDetectionSphere;
 
 	/* TODO */
 	UPROPERTY(Category = ParticleSystem, BlueprintReadWrite, EditAnywhere, meta = (AllowPrivateAccess = "true"))
-	class UParticleSystem* SmokeTrailTick;
+		class UParticleSystem* SmokeTrailTick;
 
 	/* TODO */
 	UPROPERTY(Category = ParticleSystem, BlueprintReadWrite, EditAnywhere, meta = (AllowPrivateAccess = "true"))
@@ -80,15 +166,15 @@ public:
 
 	/* TODO */
 	UPROPERTY(Category = ParticleSystem, BlueprintReadWrite, EditAnywhere, meta = (AllowPrivateAccess = "true"))
-	class UParticleSystem* Explosion;
+		class UParticleSystem* Explosion;
 
 	/* TODO */
 	UPROPERTY(Category = Sound, BlueprintReadWrite, EditAnywhere, meta = (AllowPrivateAccess = "true"))
-	class UAudioComponent* ExplosionSound;
+		class UAudioComponent* ExplosionSound;
 
 	/* TODO */
 	UPROPERTY(Category = Sound, BlueprintReadWrite, EditAnywhere, meta = (AllowPrivateAccess = "true"))
-	class UAudioComponent* MissileEngineSound;
+		class UAudioComponent* MissileEngineSound;
 
 
 
@@ -118,7 +204,7 @@ public:
 
 	/** missile velocity in cm/s*/
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
-	float InitialVelocity = 1000.0f;
+		float InitialVelocity = 1000.0f;
 
 	/** time it takes for the missile to reach max velocity*/
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
@@ -155,7 +241,7 @@ public:
 
 	/* TODO */
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
-	class USceneComponent* CurrentTarget;
+		class USceneComponent* CurrentTarget;
 
 	/** is advanced homing active */
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
@@ -238,6 +324,30 @@ public:
 	UFUNCTION()
 		void MissileMeshOverlap(class UPrimitiveComponent* ThisComp, class AActor* OtherActor, UPrimitiveComponent *OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
 
+	UFUNCTION()
+		void OnMeshHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
+	{
+		LOG("Missile: OnMeshHit")
+		if (CurrentTarget && CurrentTarget->GetClass()->ImplementsInterface(UMissile_Interface::StaticClass()))
+		{
+			IMissile_Interface::Execute_Explode(OtherActor);
+		}
+		MissileMeshOverlap(HitComponent, OtherActor, OtherComp, 0, false, Hit);
+	};
+
+	UFUNCTION()
+	void OnDetectionBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult & SweepResult)
+	{
+		LOG("Missile: OnDetectionBeginOverlap")
+			if (CurrentTarget) {
+				AActor* TargetOwner = CurrentTarget->GetOwner();
+				if (OtherActor && TargetOwner && OtherActor == TargetOwner && OtherActor->GetClass()->ImplementsInterface(UMissile_Interface::StaticClass()))
+				{
+					IMissile_Interface::Execute_Explode(OtherActor);
+				}
+			}
+	}
+
 	/* TODO */
 	UFUNCTION()
 		void MissileDestruction(AActor * actor);
@@ -277,7 +387,7 @@ private:
 	/* TODO */
 	bool bNotFirstTick = false;
 	/* TODO */
-	bool bDamageTarget = false;
+	bool bDamageTarget = true;
 	/* TODO */
 	float MaxFlightTime;
 	/* TODO */
@@ -297,8 +407,8 @@ private:
 	/* TODO */
 	bool bReachedMaxVelocity = false;
 	/* TODO */
-		float Velocity;
-		/* TODO */
+	float Velocity;
+	/* TODO */
 	float Dot;
 	/* TODO */
 	float Turnrate;

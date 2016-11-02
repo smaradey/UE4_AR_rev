@@ -3,41 +3,70 @@
 #include "AR_rev_v_curr.h"
 #include "Missile.h"
 
-// Sets default values
-AMissile::AMissile(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
+void AMissile::Explode_Implementation()
 {
-	// Initialize all base values
-	bReplicates = true;
-	bAlwaysRelevant = true;
+	LOG("Missile: Received Explosion Command")
+	MissileHit();
+}
+
+void AMissile::DeactivateForDuration_Implementation(const float Duration)
+{
+}
+
+// Sets default values
+AMissile::AMissile(const FObjectInitializer& PCIP) : Super(PCIP)
+{
+
+	Mesh = PCIP.CreateDefaultSubobject<USkeletalMeshComponent>(this, TEXT("MissileMesh"));
+	RootComponent = Mesh;
+	Mesh->MeshComponentUpdateFlag = EMeshComponentUpdateFlag::OnlyTickPoseWhenRendered;
+	Mesh->bReceivesDecals = false;
+	Mesh->CastShadow = true;
+	Mesh->bCastDynamicShadow = true;
+	Mesh->SetCollisionObjectType(ECC_WorldDynamic);
+	Mesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	Mesh->SetCollisionResponseToAllChannels(ECR_Ignore);
+	Mesh->SetCollisionResponseToChannel(ECC_Visibility, ECR_Block);
+	Mesh->SetCollisionResponseToChannel(ECC_WorldDynamic, ECR_Block);
+	Mesh->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Block);
+
+	if (Role == ROLE_Authority) Mesh->OnComponentHit.AddDynamic(this, &AMissile::OnMeshHit);
+
+	// Tick
 	PrimaryActorTick.bCanEverTick = true;
+	SetTickGroup(TG_PrePhysics);
+
+	// Network
+	SetReplicates(true);
+	bNetUseOwnerRelevancy = true;
 	NetCullDistanceSquared = 100000.0f * 100000.0f; // Distance of 1km
 	NetUpdateFrequency = 5.0f;
 
 	// Create static mesh component
-	MissileMesh = ObjectInitializer.CreateDefaultSubobject<UStaticMeshComponent>(this,TEXT("MissileMesh"));
-	MissileMesh->SetCollisionProfileName(TEXT("OverlapAll"));
-	RootComponent = MissileMesh;
-	if (Role == ROLE_Authority) MissileMesh->OnComponentBeginOverlap.AddDynamic(this, &AMissile::MissileMeshOverlap);
+	//MissileMesh = PCIP.CreateDefaultSubobject<UStaticMeshComponent>(this,TEXT("MissileSMesh"));
+	//MissileMesh->AttachToComponent(RootComponent,FAttachmentTransformRules::KeepRelativeTransform);
+	//MissileMesh->SetCollisionProfileName(TEXT("OverlapAll"));
+
+	//RootComponent = MissileMesh;	
 
 	// A sphere that acts as explosionradius/targetdetection
-	ActorDetectionSphere = ObjectInitializer.CreateDefaultSubobject<USphereComponent>(this, TEXT("ActorDetection"));
-	ActorDetectionSphere->bAutoActivate = false;
-	ActorDetectionSphere->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepRelativeTransform, NAME_None);
+	ActorDetectionSphere = PCIP.CreateDefaultSubobject<USphereComponent>(this, TEXT("ActorDetection"));
+	ActorDetectionSphere->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepRelativeTransform);
 	ActorDetectionSphere->InitSphereRadius(TargetDetectionRadius);
-	ActorDetectionSphere->SetCollisionProfileName(TEXT("Custom"));
-	ActorDetectionSphere->SetCanEverAffectNavigation(false);
-	//ActorDetectionSphere->OnComponentBeginOverlap.AddDynamic(this, &AMissile::OverlappingATarget);
+	ActorDetectionSphere->SetCollisionObjectType(ECollisionChannel::ECC_WorldDynamic);
+	ActorDetectionSphere->SetCollisionResponseToAllChannels(ECR_Overlap);
+	ActorDetectionSphere->OnComponentBeginOverlap.AddDynamic(this, &AMissile::OnDetectionBeginOverlap);
 
 	// Explosionsoundeffect
-	ExplosionSound = ObjectInitializer.CreateDefaultSubobject<UAudioComponent>(this, TEXT("ExplosionSound"));
+	ExplosionSound = PCIP.CreateDefaultSubobject<UAudioComponent>(this, TEXT("ExplosionSound"));
 	ExplosionSound->bAutoActivate = false;
 
 	// Missileboostersoundeffect
-	MissileEngineSound = ObjectInitializer.CreateDefaultSubobject<UAudioComponent>(this, TEXT("EngineSound"));
+	MissileEngineSound = PCIP.CreateDefaultSubobject<UAudioComponent>(this, TEXT("EngineSound"));
 	MissileEngineSound->bAutoActivate = true;
 
 	// Missiletrailparticlesystem
-	MissileTrail = ObjectInitializer.CreateDefaultSubobject<UParticleSystemComponent>(this, TEXT("MissileTrail"));
+	MissileTrail = PCIP.CreateDefaultSubobject<UParticleSystemComponent>(this, TEXT("MissileTrail"));
 	MissileTrail->bAutoActivate = false;
 
 
@@ -68,7 +97,8 @@ void AMissile::PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEven
 // replication of variables
 void AMissile::GetLifetimeReplicatedProps(TArray< FLifetimeProperty > & OutLifetimeProps) const
 {
-	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
+	Super::GetLifetimeReplicatedProps(OutLifetimeProps);	
+	DOREPLIFETIME_CONDITION(AMissile, Properties, COND_InitialOnly);
 
 	DOREPLIFETIME_CONDITION(AMissile, MaxTurnrate, COND_InitialOnly);
 	DOREPLIFETIME(AMissile, MaxVelocity);
@@ -102,16 +132,18 @@ void AMissile::BeginPlay()
 {
 	Super::BeginPlay();
 
+	//LOG("Missile: BeginPlay")
+
 	// server behaviour
 	if (Role == ROLE_Authority) {
-		if (bBombingMode) {
+		/*if (bBombingMode) {
 			CurrentTarget = nullptr;
 			ActorDetectionSphere->Activate();
 			ActorDetectionSphere->SetSphereRadius(TargetDetectionRadius);
 		}
 		else {
 			ActorDetectionSphere->DestroyComponent();
-		}
+		}*/
 
 		// create spiraling behaviour
 		{
@@ -165,12 +197,17 @@ void AMissile::BeginPlay()
 		//	MissileEngineSound->AttachToComponent(MissileMesh, FName("booster"));
 		//}
 	}
-	ActorDetectionSphere->DestroyComponent();
+	
 	ExplosionSound->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepRelativeTransform);
-	if (MissileMesh->DoesSocketExist(FName("booster"))) {
-		MissileTrail->AttachToComponent(MissileMesh, FAttachmentTransformRules::KeepRelativeTransform, FName("booster"));
+	if (Mesh->DoesSocketExist(FName("booster"))) {
+		MissileTrail->AttachToComponent(Mesh, FAttachmentTransformRules::KeepRelativeTransform, FName("booster"));
 		MissileTrail->Activate();
-		MissileEngineSound->AttachToComponent(MissileMesh, FAttachmentTransformRules::KeepRelativeTransform, FName("booster"));
+		MissileEngineSound->AttachToComponent(Mesh, FAttachmentTransformRules::KeepRelativeTransform, FName("booster"));
+	} else
+	{
+		MissileTrail->AttachToComponent(Mesh, FAttachmentTransformRules::KeepRelativeTransform);
+		MissileTrail->Activate();
+		MissileEngineSound->AttachToComponent(Mesh, FAttachmentTransformRules::KeepRelativeTransform);
 	}
 }
 
@@ -335,13 +372,13 @@ void AMissile::MissileDestruction(AActor * actor) {
 void AMissile::MissileHit() {
 	if (Role == ROLE_Authority) {
 		ServerMissileHit();
-		Explode();
+		ExplodeMissile();
 	}
 }
 
 void AMissile::ServerMissileHit_Implementation() {
 	if (Role < ROLE_Authority) {
-		Explode();
+		ExplodeMissile();
 	}
 }
 
@@ -349,6 +386,9 @@ void AMissile::HitTarget_Implementation(class AActor* TargetedActor) {
 	if (Role == ROLE_Authority && !bHit) {
 		SetLifeSpan(MissileTrailLifeSpan);
 		if (bDamageTarget && CurrentTarget) {
+
+			
+
 			//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Green, "Auth: Target HIT");
 			CurrentTarget->GetOwner()->ReceiveAnyDamage(FMath::RandRange(DamageMin, DamageMax), nullptr, GetInstigatorController(), this);
 			bHit = true;
@@ -357,7 +397,7 @@ void AMissile::HitTarget_Implementation(class AActor* TargetedActor) {
 	}
 }
 
-void AMissile::Explode() {
+void AMissile::ExplodeMissile() {
 	if (Explosion/* && Role < ROLE_Authority*/) {
 
 		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Red, "client: Explosion");
@@ -366,7 +406,7 @@ void AMissile::Explode() {
 	}
 	if (MissileEngineSound) MissileEngineSound->Deactivate();
 	SetActorTickEnabled(false);
-	if (ActorDetectionSphere) ActorDetectionSphere->DestroyComponent();
+	
 	if (RootComponent) RootComponent->SetVisibility(false, true);
 	if (MissileTrail) MissileTrail->DeactivateSystem();
 	if (MissileTrail) MissileTrail->SetVisibility(true);
@@ -391,6 +431,13 @@ void AMissile::MissileMeshOverlap(class UPrimitiveComponent* ThisComp, class AAc
 	//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::White, "Overlap Event");
 
 	if (Role == ROLE_Authority) {
+
+		// Best way to check for existence for both BP and C++
+		if(OtherActor && OtherActor->GetClass()->ImplementsInterface(UMissile_Interface::StaticClass()))
+		{
+			IMissile_Interface::Execute_Explode(OtherActor);
+		}
+
 		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Red, " Authority: Overlap Event");
 		// missileMesh is overlapping with something	
 		// Other Actor is the actor that triggered the event. Check that is not the missile.  
@@ -473,13 +520,15 @@ void AMissile::Homing(float DeltaTime) {
 	else {
 		LastTargetLocation = CurrentTargetLocation;
 		if (SpiralHoming && DistanceToTarget > SpiralDeactivationDistance) {
-			const float BaseRotation = (SpiralVelocity * LifeTime;
-			const float Rotation = int(BaseRotation + CustomSpiralOffset) % 360;
-			const FVector RotatingVector = FRotationMatrix(DirectionToTarget.Rotation()).GetScaledAxis(EAxis::Y));
-			const FVector RotatedVector = RotatingVector.RotateAngleAxis(Rotation * SpiralDirection, DirectionToTarget);
+			const float BaseRotation = SpiralVelocity * LifeTime;
+			const float NewRotation = int(BaseRotation + CustomSpiralOffset) % 360;
+			const FRotator DirToTarget = DirectionToTarget.Rotation();
+			const FVector VectorToRotate = FRotationMatrix(DirToTarget).GetScaledAxis(EAxis::Y);
+			const FVector RotatedVector = VectorToRotate.RotateAngleAxis(NewRotation * SpiralDirection, DirectionToTarget);
 			
-			float Amplitude = DistanceToTarget * SpiralStrength;
+			const float Amplitude = DistanceToTarget * SpiralStrength;
 			HomingLocation = CurrentTargetLocation + Amplitude * RotatedVector;
+
 			DirectionToTarget = (HomingLocation - GetActorLocation()).GetSafeNormal();			
 
 /*
