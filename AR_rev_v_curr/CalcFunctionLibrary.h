@@ -19,7 +19,7 @@ struct FVelocity
 		FVector PreviousLocation;
 
 	// initializes the values to a location, setting the velocity effectively to zero, prevents large values from occuring on the first read-out
-	void Init(const FVector & Location)
+	void Init(const FVector& Location)
 	{
 		PreviousLocation = Location;
 		CurrentLocation = Location;
@@ -28,7 +28,7 @@ struct FVelocity
 	/**
 	* updates the currentlocation to the new location and stores the current location in the previous location
 	*/
-	void SetCurrentLocation(const FVector &NewCurrentLocation)
+	void SetCurrentLocation(const FVector& NewCurrentLocation)
 	{
 		PreviousLocation = CurrentLocation;
 		CurrentLocation = NewCurrentLocation;
@@ -69,8 +69,8 @@ public:
 	//02
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Math_C++")
 		static float DistanceBetween2Locations(
-			const FVector &Location1,
-			const FVector &Location2);
+			const FVector& Location1,
+			const FVector& Location2);
 	//03		
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Math_C++")
 		static void QuadReg(
@@ -80,9 +80,9 @@ public:
 			const float y1,
 			const float y2,
 			const float y3,
-			float &a,
-			float &b,
-			float &c);
+			float& a,
+			float& b,
+			float& c);
 	//04
 	//
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Math_C++")
@@ -92,22 +92,22 @@ public:
 			float AQuad,
 			float BQuad,
 			float CQuad,
-			float &TimeOfIntersection);
+			float& TimeOfIntersection);
 
 
 	//05
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Projectile_C++")
 		static float ProjectileThickness(
-			const FVector &ProjectileLocation,
-			const FVector &CameraLocation,
+			const FVector& ProjectileLocation,
+			const FVector& CameraLocation,
 			const float MaxGrowingDistance = 15000.0f,
 			const float ProjectileThickness = 3.0f);
 	//06
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Projectile_C++")
 		static FVector ProjectileScale(
-			const FVector &OldLocation,
-			const FVector &NewLocation,
-			const FVector &CameraLocation,
+			const FVector& OldLocation,
+			const FVector& NewLocation,
+			const FVector& CameraLocation,
 			const float ProjectileMeshLengthInCm = 100.0f,
 			const float TracerLengthFactor = 0.5f,
 			const float MaxGrowingDistance = 15000.0f,
@@ -115,17 +115,17 @@ public:
 	//07
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Prediction_C++")
 		static FVector LinearTargetPrediction(
-			const FVector &TargetLocation,
-			const FVector &StartLocation,
-			const FVector &TargetVelocity,
+			const FVector& TargetLocation,
+			const FVector& StartLocation,
+			const FVector& TargetVelocity,
 			const float ProjectileVelocity = 0.f);
 	//08
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Movement_C++")
 		static FRotator DetermineTurnDirection(
-			const FVector &TargetLocation,
-			const FVector &ActorLocation,
-			const FVector &ActorUpVector,
-			const FVector &ActorRightVector,
+			const FVector& TargetLocation,
+			const FVector& ActorLocation,
+			const FVector& ActorUpVector,
+			const FVector& ActorRightVector,
 			const float DeltaSeconds,
 			const float TurnrateDegreePerSecond = 90.0f);
 
@@ -133,15 +133,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Projectile_C++")
 		static bool TracerMotionBlur(
 			APlayerController* InPlayer,
-			const FVector2D &InOldScreenPos,
-			const bool &InHasScreenPos,
-			FVector &OutWorldPosition,
-			FVector &OutWorldDirection,
-			FVector &OutLocationForOldScreenPos,
-			const FVector &InOldProjectileLocation,
-			const FVector &InNewProjectileLocation,
-			FRotator &OutTracerRotation,
-			FVector2D &OutScreenPosition);
+			const FVector2D& InOldScreenPos,
+			const bool& InHasScreenPos,
+			FVector& OutWorldPosition,
+			FVector& OutWorldDirection,
+			FVector& OutLocationForOldScreenPos,
+			const FVector& InOldProjectileLocation,
+			const FVector& InNewProjectileLocation,
+			FRotator& OutTracerRotation,
+			FVector2D& OutScreenPosition);
 
 
 	//11
@@ -150,26 +150,28 @@ public:
 			const float Value,
 			const float Target,
 			const float OldError,
-			float &NewError,
+			float& NewError,
 			const float P,
 			const float I,
 			const float old_I_Term,
-			float &ITerm,
+			float& ITerm,
 			const float D,
 			const float DeltaTime);
 
 	//12
 	/* convert a given FOV to UE4 horizontal FOV */
 	UFUNCTION(BlueprintCallable, Category = "Math_C++ | Camera")
-		static void SetCameraFOV(const float newFOV, const bool bVertical, const bool bDiagonal, float &CameraFOV, const bool bHorizontal = true);
+		static void SetCameraFOV(const float newFOV, const bool bVertical, const bool bDiagonal, float& CameraFOV, const bool bHorizontal = true);
 
 	UFUNCTION(BlueprintCallable, Category = "Actor | Replication")
-		static void GetReplicatedMovement(AActor* Actor, FVector &LinearVelocity, FVector &AngularVelocity);
+		static void GetReplicatedMovement(AActor* Actor, FVector& LinearVelocity, FVector& AngularVelocity);
 
 	//12
 	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Math_C++ | Gravity")
-		static FVector GetWorldGravity(UObject *other) {
-		if (other && other->GetWorld()) {
+		static FVector GetWorldGravity(UObject* other)
+	{
+		if (other && other->GetWorld())
+		{
 			return FVector(0, 0, other->GetWorld()->GetGravityZ());
 		}
 		return FVector::ZeroVector;
@@ -181,14 +183,31 @@ public:
 		static float FEaseInOutSin(const float A, const float B, const float Alpha);
 
 	UFUNCTION(BlueprintCallable, Category = "Target Prediction")
-		static void LinearTargetPredction(const FVector& TargetLocation, const FVector& StartLocation, FVelocity MainTargetVelocity, const float DeltaTime, const FVector& AdditionalVelocity, const float ProjectileVelocity, FVector& AimLocation)
+		static void LinearTargetPredction(const FVector& TargetLocation, const FVector& StartLocation, FVelocity MainTargetVelocity, const float DeltaTime, const FVector& AdditionalProjectileVelocity, const float ProjectileVelocity, FVector& AimLocation)
 	{
-		// linear targetprediction
-		const FVector AB = (TargetLocation - StartLocation).GetSafeNormal();
-		const FVector TargetVelocity = MainTargetVelocity.GetVelocityVector(DeltaTime) - AdditionalVelocity;
-		//const FVector TargetVelocity = MainLockOnTarget->GetVelocity() - AdditionalVelocity;
-		const FVector vi = TargetVelocity - (FVector::DotProduct(AB, TargetVelocity) * AB);
-		AimLocation = StartLocation + vi + AB * FMath::Sqrt(FMath::Square(ProjectileVelocity) - FMath::Pow((vi.Size()), 2.f));
-	}
+		const FVector TargetVelocity = MainTargetVelocity.GetVelocityVector(DeltaTime) - AdditionalProjectileVelocity;
 
+		const FVector DirToTarget = (TargetLocation - StartLocation).GetSafeNormal();
+
+		const FVector uj = TargetVelocity.ProjectOnToNormal(DirToTarget);
+		//const float Dot = FVector::DotProduct(DirToTarget, TargetVelocity);
+		//const FVector uj = Dot * DirToTarget;
+
+		const FVector ui = TargetVelocity - uj;
+
+		const FVector& vi = ui;	
+		
+		const float viMag = vi.Size();
+		if(viMag > ProjectileVelocity)
+		{
+			// it is not possible for the projectile to hit the target (it is too slow).
+			AimLocation = TargetLocation;
+		}
+		else {
+			const float viMagSquare = viMag * viMag;
+			const float vMagSquare = ProjectileVelocity * ProjectileVelocity;
+			const float vj = FMath::Sqrt(vMagSquare - viMagSquare);
+			AimLocation = StartLocation + vi + DirToTarget * vj;
+		}
+	}
 };
