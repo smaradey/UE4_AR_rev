@@ -40,6 +40,7 @@ AMissile::AMissile(const FObjectInitializer& PCIP) : Super(PCIP)
 	Mesh->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Block);
 
 	if (Role == ROLE_Authority) Mesh->OnComponentHit.AddDynamic(this, &AMissile::OnMeshHit);
+	//Mesh->OnComponentHit.RemoveAll(this);
 
 	// Tick
 	PrimaryActorTick.bCanEverTick = true;
@@ -61,7 +62,7 @@ AMissile::AMissile(const FObjectInitializer& PCIP) : Super(PCIP)
 	// A sphere that acts as explosionradius/targetdetection
 	ActorDetectionSphere = PCIP.CreateDefaultSubobject<USphereComponent>(this, TEXT("ActorDetection"));
 	ActorDetectionSphere->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepRelativeTransform);
-	ActorDetectionSphere->InitSphereRadius(TargetDetectionRadius);
+	ActorDetectionSphere->InitSphereRadius(mProperties.ExplosionRadius);
 	ActorDetectionSphere->SetCollisionObjectType(ECollisionChannel::ECC_WorldDynamic);
 	ActorDetectionSphere->SetCollisionResponseToAllChannels(ECR_Overlap);
 	ActorDetectionSphere->OnComponentBeginOverlap.AddDynamic(this, &AMissile::OnDetectionBeginOverlap);
@@ -110,18 +111,12 @@ void AMissile::GetLifetimeReplicatedProps(TArray< FLifetimeProperty > & OutLifet
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);	
 	DOREPLIFETIME_CONDITION(AMissile, mProperties, COND_InitialOnly);
 
-	DOREPLIFETIME_CONDITION(AMissile, MaxTurnrate, COND_InitialOnly);
-	DOREPLIFETIME(AMissile, MaxVelocity);
 	DOREPLIFETIME_CONDITION(AMissile, InitialVelocity, COND_InitialOnly);
-	DOREPLIFETIME_CONDITION(AMissile, AccelerationTime, COND_InitialOnly);
-	DOREPLIFETIME_CONDITION(AMissile, AdvancedMissileMinRange, COND_InitialOnly);
-	DOREPLIFETIME_CONDITION(AMissile, AdvancedMissileMaxRange, COND_InitialOnly);
 	DOREPLIFETIME(AMissile, MissileLock);
 	DOREPLIFETIME_CONDITION(AMissile, bBombingMode, COND_InitialOnly);
 	DOREPLIFETIME_CONDITION(AMissile, BombingTargetLocation, COND_InitialOnly);
 
 	DOREPLIFETIME(AMissile, CurrentTarget);
-	DOREPLIFETIME_CONDITION(AMissile, AdvancedHoming, COND_InitialOnly);
 	DOREPLIFETIME_CONDITION(AMissile, SpiralHoming, COND_InitialOnly);
 	DOREPLIFETIME(AMissile, CustomSpiralOffset);
 	DOREPLIFETIME(AMissile, SpiralDirection);
@@ -175,20 +170,25 @@ void AMissile::BeginPlay()
 		}
 
 		// Randomize Missile Velocity
-		MaxVelocity *= FMath::FRandRange(0.95f, 1.05f);
+		//MaxVelocity *= FMath::FRandRange(0.95f, 1.05f);
 
 	}
 
 	// clients and authority
 	{
 		if (bBombingMode) {
-			AdvancedHoming = false;
+			//AdvancedHoming = false;
 			MissileLock = true;
 			CurrentTargetLocation = BombingTargetLocation;
 		}
 		
 			Velocity = InitialVelocity;
-			Acceleration = 1.0f / AccelerationTime;
+			if (mProperties.AccelerationTime > 0.0f) {
+				Acceleration = 1.0f / mProperties.AccelerationTime;
+			} else
+			{
+				Acceleration = 1.0f;
+			}
 			FTimerHandle AccerlerationStarter;
 			GetWorldTimerManager().SetTimer(AccerlerationStarter, this, &AMissile::EnableAcceleration, 0.2f, false);
 	}
@@ -267,7 +267,7 @@ void AMissile::Tick(float DeltaTime)
 		}
 
 		// is the target inside explosionradius? (missiletraveldistance is for fast moving missiles with low fps)
-		if (DistanceToTarget < TargetDetectionRadius + Velocity * DeltaTime && bNotFirstTick && CurrentTarget) {
+		if (DistanceToTarget < mProperties.ExplosionRadius + Velocity * DeltaTime && bNotFirstTick && CurrentTarget) {
 			// explode and damage target when target is in range
 			{
 				bDamageTarget = true;
@@ -287,17 +287,17 @@ void AMissile::Tick(float DeltaTime)
 
 		// is missile is still accelerating? 
 		if (bCanAccelerate) {
-			Turnrate = MaxTurnrate;
+			Turnrate = mProperties.HomingProperties.MaxTurnrate;
 			if (!bReachedMaxVelocity) {
 				// inrease Velocity
-				Velocity += Acceleration * DeltaTime * MaxVelocity;
+				Velocity += Acceleration * DeltaTime * mProperties.MaxVelocity;
 
 				//// inrease Turnrate
 				//Turnrate += Acceleration * DeltaTime * MaxTurnrate;          
 
 				// has reached max velocity?
-				if (Velocity > MaxVelocity) {
-					Velocity = MaxVelocity;
+				if (Velocity > mProperties.MaxVelocity) {
+					Velocity = mProperties.MaxVelocity;
 					//Turnrate = MaxTurnrate;
 					bReachedMaxVelocity = true;
 					bCanAccelerate = false;
@@ -402,11 +402,8 @@ void AMissile::HitTarget_Implementation(class AActor* TargetedActor) {
 	if (Role == ROLE_Authority && !bHit) {
 		SetLifeSpan(mMissileTrailLifeSpan);
 		if (bDamageTarget && CurrentTarget) {
-
-			
-
 			//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Green, "Auth: Target HIT");
-			CurrentTarget->GetOwner()->ReceiveAnyDamage(FMath::RandRange(DamageMin, DamageMax), nullptr, GetInstigatorController(), this);
+			CurrentTarget->GetOwner()->ReceiveAnyDamage(FMath::RandRange(mProperties.BaseDamage.MinDamage, mProperties.BaseDamage.MinDamage), nullptr, GetInstigatorController(), this);
 			bHit = true;
 			MissileHit();
 		}
@@ -501,17 +498,22 @@ void AMissile::Homing(float DeltaTime) {
 	if (!CurrentTarget && !bBombingMode) return;                                           // no homing when there is no valid target
 
 	// is target prediction active?
-	if (AdvancedHoming && !LastTargetLocation.IsZero()) {
+	if (mProperties.HomingProperties.Homing == EHomingType::Advanced && !LastTargetLocation.IsZero()) {
 		//TargetVelocity = CurrentTarget->ComponentVelocity;
 		TargetVelocity = (CurrentTargetLocation - LastTargetLocation) / DeltaTime;  // A vector with v(x,y,z) = [cm/s]
-		LastTargetLocation = CurrentTargetLocation;                                 // store current targetlocation for next recalculation of target velocity
-
+		                                // store current targetlocation for next recalculation of target velocity
+		FVelocity TargetVel;
+		TargetVel.PreviousLocation = LastTargetLocation;
+		TargetVel.CurrentLocation = CurrentTargetLocation;
 		// calculate the location where missile and target will hit each other
-		PredictedTargetLocation = LinearTargetPrediction(CurrentTargetLocation, GetActorLocation(), TargetVelocity, Velocity);
+		//PredictedTargetLocation = LinearTargetPrediction(CurrentTargetLocation, GetActorLocation(), TargetVelocity, Velocity);
+		UCalcFunctionLibrary::LinearTargetPrediction(CurrentTargetLocation, GetActorLocation(), TargetVel, DeltaTime, FVector::ZeroVector, Velocity, PredictedTargetLocation);
+
+			LastTargetLocation = CurrentTargetLocation;
 
 		// a factor (0.0f - 1.0f) so that the missile is only following the target when far away and is predicting the targetlocation when close
 		AdvancedHomingStrength = FMath::GetMappedRangeValueClamped(
-			FVector2D(AdvancedMissileMaxRange, AdvancedMissileMinRange),
+			FVector2D(mProperties.HomingProperties.ActivationDistance, mProperties.HomingProperties.DistanceCompletelyActive),
 			FVector2D(0.0f, 1.0f),
 			DistanceToTarget);
 
@@ -574,20 +576,6 @@ void AMissile::Homing(float DeltaTime) {
 	// apply the new direction as rotation to the missile
 	SetActorRotation(NewDirection.Rotation());
 }
-
-//returns a location at which has to be aimed in order to hit the target
-FVector AMissile::LinearTargetPrediction(
-	const FVector &TargetLocation,
-	const FVector &StartLocation,
-	const FVector &_TargetVelocity, // cm/s
-	const float ProjectileVelocity) // cm/s	
-{
-	FVector AB = TargetLocation - StartLocation;
-	AB.Normalize();
-	FVector vi = _TargetVelocity - (FVector::DotProduct(AB, _TargetVelocity) * AB);
-	return StartLocation + vi + AB * FMath::Sqrt(ProjectileVelocity * ProjectileVelocity - FMath::Pow((vi.Size()), 2.f));
-}
-
 
 //----------------------------------------------------- TESTING ------------------------------------------------
 
