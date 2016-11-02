@@ -1,18 +1,3 @@
-//// Fill out your copyright notice in the Description page of Project Settings.
-//
-//#pragma once
-//
-///**
-// * 
-// */
-//class AR_REV_V_CURR_API Gun_Interface
-//{
-//public:
-//	Gun_Interface();
-//	~Gun_Interface();
-//};
-//--------------------
-
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
@@ -71,6 +56,9 @@ public:
 
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GunFireInterface|StatusUpdates")
 		void NoLongerOverheated();
+
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "GunFireInterface|FPS_Recoil")
+		APawn* GetOwningPawn();
 
 
 
