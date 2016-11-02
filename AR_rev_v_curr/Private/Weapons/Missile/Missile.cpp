@@ -13,6 +13,14 @@ void AMissile::DeactivateForDuration_Implementation(const float Duration)
 {
 }
 
+FMissileStatus AMissile::GetCurrentMissileStatus_Implementation()
+{
+	FMissileStatus Status;
+	Status.Target = CurrentTarget ? CurrentTarget->GetOwner() : nullptr;
+	Status.bIsHoming = mHomingStatus != EHomingType::None;
+	return Status;
+}
+
 // Sets default values
 AMissile::AMissile(const FObjectInitializer& PCIP) : Super(PCIP)
 {

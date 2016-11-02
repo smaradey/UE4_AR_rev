@@ -29,6 +29,8 @@ public:
 
 		void DeactivateForDuration_Implementation(const float Duration) override;
 
+		FMissileStatus GetCurrentMissileStatus_Implementation() override;
+
 	// Constructor that sets default values for this actor's properties
 	AMissile(const FObjectInitializer& ObjectInitializer);
 
@@ -45,6 +47,13 @@ public:
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
 		FMissileProperties Properties;
 
+private:
+
+	EHomingType mHomingStatus;
+
+	
+
+public:
 	/* TODO */
 	UFUNCTION(BlueprintCallable, Category = "Missile")
 		virtual void MissileHit();

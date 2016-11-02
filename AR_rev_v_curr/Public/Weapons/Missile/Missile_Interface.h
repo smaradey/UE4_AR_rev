@@ -23,4 +23,7 @@ public:
 
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Missile_Interface")
 		void DeactivateForDuration(const float Duration);
+
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Missile_Interface")
+		FMissileStatus GetCurrentMissileStatus();
 };
