@@ -12,6 +12,11 @@ bool AMainPawn::GetIsTargetable_Implementation()
 	return !GetWorldTimerManager().IsTimerActive(EvasiveActionHandle);
 }
 
+void AMainPawn::GetTargetPoints_Implementation(TArray<ATargetPoint*>& TargetPoints)
+{
+	
+}
+
 // Sets default values
 AMainPawn::AMainPawn(const FObjectInitializer& ObjectInitializer) : Super(ObjectInitializer)
 {

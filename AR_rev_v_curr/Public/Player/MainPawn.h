@@ -28,6 +28,8 @@ public:
 	/* Implementation of the function to set this pawn to be target-able */
 	bool GetIsTargetable_Implementation() override;
 
+	void GetTargetPoints_Implementation(TArray<ATargetPoint*>& TargetPoints) override;
+
 	/*-------------------------------------------------------------------
 	 End Interface Implementations--------------------------------------- */
 

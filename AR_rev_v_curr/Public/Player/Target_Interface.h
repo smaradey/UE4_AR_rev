@@ -22,6 +22,9 @@ public:
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Target_Interface")
 		bool GetIsTargetable();
 
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Target_Interface")
+		void GetTargetPoints(TArray<ATargetPoint*>& TargetPoints);
+
 
 
 };
