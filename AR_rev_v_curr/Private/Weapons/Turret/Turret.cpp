@@ -79,7 +79,7 @@ void ATurret::Tick(float DeltaTime)
 		GetAimDirection(TargetLocation);
 		CalculateCurrentRelativeAimRotation();
 		CalculateAndChooseRotation(DeltaTime);
-		RotateTurret();
+		RotateTurret(DeltaTime);
 		if (CheckAimFinished())
 		{
 			SetActorTickEnabled(false);
@@ -90,14 +90,14 @@ void ATurret::Tick(float DeltaTime)
 		GetAimDirection(TargetLocation);
 		CalculateCurrentRelativeAimRotation();
 		CalculateAndChooseRotation(DeltaTime);
-		RotateTurret();
+		RotateTurret(DeltaTime);
 	}
 									  break;
 	case ETurretOperationMode::AimOnce: {
 		GetAimDirection(TargetLocation);
 		CalculateCurrentRelativeAimRotation();
 		CalculateAndChooseRotation(DeltaTime);
-		RotateTurret();
+		RotateTurret(DeltaTime);
 		if (CheckAimFinished())
 		{
 			CurrentMode = ETurretOperationMode::Freeze;
@@ -161,10 +161,11 @@ void ATurret::SetRestingAimLocation()
 		// TODO: make resting direction editable
 		TargetLocation = TurretYawPart->GetSocketLocation(YawPartConnectionSocket) + GetActorForwardVector();
 		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, TargetLocation.ToString());
-	} else
+	}
+	else
 	{
 		TargetLocation = GetActorLocation() + GetActorForwardVector();
-		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Red, "Resting: Else-Case: "+ TargetLocation.ToString());
+		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Red, "Resting: Else-Case: " + TargetLocation.ToString());
 	}
 	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Red, TargetLocation.ToString());
 }
@@ -278,7 +279,7 @@ FRotator ATurret::CalcFinalRotation(const float& DeltaTime)
 	return TargetRelativeAimRotation;
 }
 
-void ATurret::RotateTurret()
+void ATurret::RotateTurret(const float DeltaTime)
 {
 	const float Yaw = FMath::Clamp(ResultYaw.Yaw, TurretYawLimitLeft, TurretYawLimitRight);
 	if (TurretYawPart && bCanYaw)
@@ -305,9 +306,10 @@ void ATurret::RotateTurret()
 	// Audio Smoothing
 	if (bUseAudioSmooting)
 	{
-		CurrentYawRotationSpeed = FMath::Lerp(PrevYawRotationSpeed, CurrentYawRotationSpeed, AudioSmoothAlpha);
+		const float Alpha = FMath::Min(DeltaTime * AudioSmoothSpeed, 1.0f);
+		CurrentYawRotationSpeed = FMath::Lerp(PrevYawRotationSpeed, CurrentYawRotationSpeed, Alpha);
 		PrevYawRotationSpeed = CurrentYawRotationSpeed;
-		CurrentPitchRotationSpeed = FMath::Lerp(PrevPitchRotationSpeed, CurrentPitchRotationSpeed, AudioSmoothAlpha);
+		CurrentPitchRotationSpeed = FMath::Lerp(PrevPitchRotationSpeed, CurrentPitchRotationSpeed, Alpha);
 		PrevPitchRotationSpeed = CurrentPitchRotationSpeed;
 	}
 }

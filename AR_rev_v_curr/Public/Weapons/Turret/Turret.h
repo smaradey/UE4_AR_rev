@@ -42,7 +42,7 @@ public:
 
 	// get all sockets of the pitch-part starting with "muzzle"
 	UFUNCTION(BlueprintCallable, Category = "Turret")
-	void GetProjectileSpawnPointSockets();
+		void GetProjectileSpawnPointSockets();
 
 	// Called every frame
 	virtual void Tick(float DeltaSeconds) override;
@@ -75,12 +75,12 @@ public:
 	inline void CalculateAndChooseRotation(const float& DeltaTime);
 
 	void CalculateConstantYawRotation(const float& DeltaTime);
-	void CalculateConstantPitchRotation(const float& DeltaTime);	
+	void CalculateConstantPitchRotation(const float& DeltaTime);
 	void ChooseRotations(const float& DeltaTime);
 	inline FRotator CalcFinalRotation(const float& DeltaTime);
 
 	/* Rotates the turret using the choosen Rotation */
-	void RotateTurret();
+	void RotateTurret(const float DeltaTime);
 
 	/* Checks whether the Turret is aiming at the Target using a default precision of 1/1000th of a degree */
 	bool CheckAimFinished(const float& Precision = 0.001f) const;
@@ -157,16 +157,17 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings|Audio")
 		bool bUseAudioSmooting = true;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings|Audio", meta = (ClampMin = "0.1", ClampMax = "1.0", UIMin = "0.1", UIMax = "1.0"))
-	float AudioSmoothAlpha = 0.5f;
+	// 1.0 -> 1 Second; 10.0 -> 0.1 Seconds (Transitiontime)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Settings|Audio", meta = (ClampMin = "0.1", ClampMax = "200.0", UIMin = "0.1", UIMax = "20.0"))
+		float AudioSmoothSpeed = 5.0f;
 
 	// returns the current yaw rotation speed mapped to 0.0-1.0; 1.0 indicates speed is at max
 	UFUNCTION(BlueprintCallable, Category = "Turret|Rotation")
-	float GetCurrentYawRotationSpeed() const;
+		float GetCurrentYawRotationSpeed() const;
 
 	// returns the current picth rotation speed mapped to 0.0-1.0; 1.0 indicates speed is at max
 	UFUNCTION(BlueprintCallable, Category = "Turret|Rotation")
-	float GetCurrentPitchRotationSpeed() const;
+		float GetCurrentPitchRotationSpeed() const;
 
 private:
 	FRotator ResultYaw;
