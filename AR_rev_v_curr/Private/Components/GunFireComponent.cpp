@@ -7,7 +7,8 @@
 #define DEBUG_MSG 0
 
 // Sets default values for this component's properties
-UGunFireComponent::UGunFireComponent() {
+UGunFireComponent::UGunFireComponent()
+{
 	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
 	// off to improve performance if you don't need them.
 	bWantsBeginPlay = true;
@@ -42,8 +43,6 @@ void UGunFireComponent::BeginPlay()
 {
 	Super::BeginPlay();
 	LOG("GunFireComp: BeginPlay");
-
-
 }
 
 
@@ -51,13 +50,25 @@ void UGunFireComponent::BeginPlay()
 void UGunFireComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-	//UpdateOwner();
-	if (mGunProperties.bSpreadAndRecoilProjectileDynamics) {
+	UpdateOwner();
+	if (mGunProperties.bSpreadAndRecoilProjectileDynamics)
+	{
 		AddSmoothRecoil(DeltaTime);
 		ReduceRecoil(DeltaTime);
 	}
 	Cooldown(DeltaTime);
 
+	if (mGunOverheatingLevel == 0.0f
+		&& mPendingRecoilSum.Equals(FVector2D::ZeroVector))
+	{
+		LOG("GunfireComponent: Stopped Ticking")
+			SetComponentTickEnabled(false);
+	}
+	else
+	{
+		LOGA("GunfireComponent: Ticking: Overheating-Level = %f", mGunOverheatingLevel)
+			LOGA2("GunfireComponent: %f, %f", mPendingRecoilSum.X, mPendingRecoilSum.Y)
+	}
 }
 
 void UGunFireComponent::CallStartFiring(const FRandomStream& Stream)
@@ -284,9 +295,8 @@ void UGunFireComponent::Initialize()
 		}
 		else
 		{
-
 			FVector SpreadStrength = FVector(1.0f, 0, 0).RotateAngleAxis(Spread.InitialRecoil, FVector(0, 0, 1.0f));
-			FVector  SpreadDirection = SpreadStrength.RotateAngleAxis(-Spread.RecoilOffsetDirections[i], FVector(1.0f, 0, 0));
+			FVector SpreadDirection = SpreadStrength.RotateAngleAxis(-Spread.RecoilOffsetDirections[i], FVector(1.0f, 0, 0));
 			mLocalRecoilDirections.Add(SpreadDirection.GetSafeNormal());
 
 			FVector2D FPS_Recoil = FVector2D(SpreadDirection.Y, SpreadDirection.Z).GetSafeNormal();
@@ -298,7 +308,8 @@ void UGunFireComponent::Initialize()
 	mSalveInterval = mGunProperties.FireCycleInterval / FMath::FloorToInt(mGunProperties.NumSalvesInCycle) * mGunProperties.SalveDistributionInCycle;
 
 	// precalculate Temperature Increase per shot
-	if (mGunProperties.MaxContinuousFire > 0) {
+	if (mGunProperties.MaxContinuousFire > 0)
+	{
 		mTempIncreasePercentagePerShot = 1.0f / mGunProperties.MaxContinuousFire;
 	}
 	else
@@ -374,7 +385,15 @@ void UGunFireComponent::Salve()
 		PrepareReloading(true);
 	}
 	break;
-	case EGunStatus::Deactivated: break;
+	case EGunStatus::Deactivated:
+	{
+		AActor* Owner = GetOwner();
+		if (Owner)
+		{
+			Owner->GetWorldTimerManager().SetTimer(mSalveTimer, 0.0f, false);
+			Owner->GetWorldTimerManager().SetTimer(mGunFireTimer, 0.0f, false);
+		}
+	}break;
 	case EGunStatus::Firing:
 	{
 		FireSalve();
@@ -399,7 +418,8 @@ void UGunFireComponent::FireSalve()
 
 	if (CheckMagazine())
 	{
-		if (mGunProperties.bSpreadAndRecoilProjectileDynamics) {
+		if (mGunProperties.bSpreadAndRecoilProjectileDynamics)
+		{
 			HandleRecoil();
 			HandleSpread();
 		}
@@ -410,8 +430,11 @@ void UGunFireComponent::FireSalve()
 			FireProjectile();
 		}
 
+		SetComponentTickEnabled(true);
+
 		// increment Projectile index
-		if (mGunProperties.ProjectileProperties.Num() > 0) {
+		if (mGunProperties.ProjectileProperties.Num() > 0)
+		{
 			mProjectileIndex = (mProjectileIndex + 1) % mGunProperties.ProjectileProperties.Num();
 		}
 		else
@@ -420,7 +443,8 @@ void UGunFireComponent::FireSalve()
 		}
 
 		// increment Tracer index
-		if (mGunProperties.TracerOrder.Num() > 0) {
+		if (mGunProperties.TracerOrder.Num() > 0)
+		{
 			mTracerIndex = (mTracerIndex + 1) % mGunProperties.TracerOrder.Num();
 		}
 		else
@@ -533,7 +557,7 @@ void UGunFireComponent::IncreaseTemperature()
 {
 	LOG("GunFireComp: IncreaseTemperature");
 
-	mGunOverheatingLevel += FMath::Min(1.0f, mTempIncreasePercentagePerShot);
+	mGunOverheatingLevel = FMath::Min(1.0f, mGunOverheatingLevel + mTempIncreasePercentagePerShot);
 	CheckOverheated();
 }
 
@@ -563,9 +587,10 @@ bool UGunFireComponent::CheckMagazine()
 	return false;
 }
 
-void UGunFireComponent::CheckOverheated() {
-
-	if (!mGunProperties.bSpreadAndRecoilProjectileDynamics) {
+void UGunFireComponent::CheckOverheated()
+{
+	if (!mGunProperties.bSpreadAndRecoilProjectileDynamics)
+	{
 		mGunOverheatingLevel = 0.0f;
 		return;
 	}
@@ -590,11 +615,13 @@ void UGunFireComponent::CheckOverheated() {
 			if (mGunProperties.bOverheatingDeactivatesGun && mGunOverheatingLevel == 0.0f)
 			{
 				mCurrentStatus = EGunStatus::Overheated;
+				CheckRequests();
 			}
 		}
 		else if (mCurrentStatus == EGunStatus::Overheated)
 		{
 			mCurrentStatus = EGunStatus::Idle;
+			CheckRequests();
 		}
 	}
 }
@@ -919,16 +946,19 @@ void UGunFireComponent::ReloadCancelled()
 void UGunFireComponent::AddSmoothRecoil(const float DeltaTime)
 {
 	AActor* Owner = GetOwner();
-	if (Owner)
+	if (Owner && Owner->Implements<UGun_Interface>())
 	{
-		APawn* Pawn = Cast<APawn>(Owner);
-		if (Pawn)
-		{
+		APawn* Pawn = IGun_Interface::Execute_GetOwningPawn(Owner);
+		if (Pawn) {
 			FVector2D RecoilToApply = mPendingRecoilSum * FMath::Min(1.0f, DeltaTime * mRecoilVelocity);
 			mPendingRecoilSum -= RecoilToApply;
 			Pawn->AddControllerYawInput(RecoilToApply.X);
 			Pawn->AddControllerPitchInput(RecoilToApply.Y);
 			mRecoilSum += RecoilToApply;
+		}
+		else
+		{
+			mPendingRecoilSum = FVector2D::ZeroVector;
 		}
 	}
 }
@@ -936,11 +966,10 @@ void UGunFireComponent::AddSmoothRecoil(const float DeltaTime)
 void UGunFireComponent::ReduceRecoil(const float DeltaTime)
 {
 	AActor* Owner = GetOwner();
-	if (Owner)
+	if (Owner && Owner->Implements<UGun_Interface>())
 	{
-		APawn* Pawn = Cast<APawn>(Owner);
-		if (Pawn)
-		{
+		APawn* Pawn = IGun_Interface::Execute_GetOwningPawn(Owner);
+		if (Pawn) {
 			FVector2D ConstResult = FMath::Vector2DInterpConstantTo(
 				mRecoilSum,
 				FVector2D::ZeroVector,

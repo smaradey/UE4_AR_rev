@@ -68,13 +68,13 @@ struct FSpreadProperties
 
 	// max spread used for random generation of spread in Degree
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings|Spread")
-		float MaxSpread = 3.0f;
+		float MaxSpread = 1.0f;
 
 	// initial fixed amount of change of direction in Degree
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings|Spread")
 		float InitialRecoil = 1.0f;
 
-	// multiplier to decrease next change in direction
+	// Speed to decrease next change in direction
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings|Spread")
 		float RecoilDecreaseSpeed = 2.0f;
 
@@ -95,7 +95,7 @@ struct FSpreadProperties
 
 	// Time it takes to return to the initial aim direction after the gun stops firing
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings|Spread")
-		float RecoilReturnTime = 0.2f;
+		float RecoilReturnTime = 0.1f;
 };
 
 UENUM(BlueprintType)
@@ -126,7 +126,7 @@ struct FGunProperties
 
 		// Number of Projectiles available for firing
 		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
-		int32 TotalAmmunitionCount = 120;
+		int32 TotalAmmunitionCount = 300;
 
 	// Number of Projectiles that can be fired before a reload is needed
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
@@ -210,7 +210,7 @@ struct FGunProperties
 
 	// if true the Gun has to cool down entirely in order to fire/reload again.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
-		bool bOverheatingDeactivatesGun = false;
+		bool bOverheatingDeactivatesGun = true;
 
 	// Total Time it takes to cool an Overheated Gun down so that it can Fire again
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
