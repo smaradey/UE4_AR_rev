@@ -1619,7 +1619,7 @@ void AMainPawn::TargetLock()
 	// get all target-able Actors
 	for (TActorIterator<AActor> currActor(GetWorld()); currActor /* while is valid */; ++currActor)
 	{
-		if (*currActor != this && currActor->Implements<UTarget_Interface>())
+		if (*currActor != this && currActor->GetClass()->ImplementsInterface(UTarget_Interface::StaticClass()) && ITarget_Interface::Execute_GetIsTargetable(*currActor))			
 		{
 #if DEBUG_MSG == 1
 			if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, currActor->GetName() + " has the Interface");
