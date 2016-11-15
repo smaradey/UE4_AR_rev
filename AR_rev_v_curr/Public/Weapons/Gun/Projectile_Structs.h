@@ -12,25 +12,25 @@ struct FProjectileProperties {
 
 	// v in cm/s
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Settings")
-		float MuzzleVelocity;
+		float MuzzleVelocity = 30000.0f;
 
 	// maximum range in cm the projectile can fly
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Settings")
-		float MaxRange;
+		float MaxRange = 100000.0f;
 
 	// projectiles has a bright tracer
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Settings")
-		bool bTracer;
+		bool bTracer = true;
 
 	// color which the tracer emmits
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Settings")
-		FLinearColor TracerColor;
+		FLinearColor TracerColor = FLinearColor::White;
 
 	// defines the type of projectile (kinetic/energy)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Settings")
-		EProjectileType ProjectileType;
+		EProjectileType ProjectileType = EProjectileType::Kinetic;
 
 	// mass in kg of the Projectile
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Settings")
-		float Mass;
+		float Mass = 0.1f;
 };
