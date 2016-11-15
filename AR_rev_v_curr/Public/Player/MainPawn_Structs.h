@@ -242,3 +242,17 @@ struct FPositionHistoryElement {
 	UPROPERTY()
 		FTransform Transform;
 };
+
+USTRUCT(BlueprintType)
+struct FTarget {
+	GENERATED_USTRUCT_BODY()
+		
+		UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Target")
+		AActor* Actor;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Target")
+		FTransform PreviousTransform;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Target")
+		FTransform CurrentTransform;
+};

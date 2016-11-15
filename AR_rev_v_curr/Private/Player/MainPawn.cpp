@@ -5,16 +5,85 @@
 
 #define DEBUG_MSG 0
 
-bool AMainPawn::GetIsTargetable_Implementation()
+bool AMainPawn::GetIsTargetable_Implementation(AActor* enemy)
 {
+	if (enemy && enemy->Instigator == Instigator) { return false; }
+
 	// TODO: when dead -> not target-able
 	// if the timer for an active evasive action is active, the pawn is not target-able
 	return !GetWorldTimerManager().IsTimerActive(EvasiveActionHandle);
 }
 
+void AMainPawn::StartTargetingActor_Implementation(AActor* enemy)
+{
+	if (enemy) {
+		bool bAlreadySet = false;
+		mEnemiesTargeting.Add(enemy, &bAlreadySet);
+		if (bAlreadySet)
+		{
+			LOGA("MainPawn: already targeted by %s", *enemy->GetName())
+		}
+		else
+		{
+			LOGA("MainPawn: now being targeted by %s", *enemy->GetName())
+		}
+	}
+}
+
+void AMainPawn::StopTargetingActor_Implementation(AActor* enemy)
+{
+	if (enemy)
+	{
+		if (mEnemiesTargeting.Contains(enemy)) {
+			LOGA("MainPawn: removing %s from enemy list", *enemy->GetName())
+				mEnemiesTargeting.Remove(enemy);
+		}
+		else
+		{
+			LOGA("MainPawn: %s was not in enemy list", *enemy->GetName())
+		}
+	}
+}
+
 void AMainPawn::GetTargetPoints_Implementation(TArray<ATargetPoint*>& TargetPoints)
 {
-	
+
+
+}
+
+void AMainPawn::CheckCurrentTargets()
+{
+	if (MainLockOnTarget && MainLockOnTarget->GetClass()->ImplementsInterface(UTarget_Interface::StaticClass()))
+	{
+		if (!ITarget_Interface::Execute_GetIsTargetable(MainLockOnTarget, this))
+		{
+			ITarget_Interface::Execute_StopTargetingActor(MainLockOnTarget, this);
+			MainLockOnTarget = nullptr;
+		}
+	}
+
+	int32 index = 0;
+	while (MultiTargets.IsValidIndex(index))
+	{
+		AActor* target = MultiTargets[index];
+
+		if (target && target->GetClass()->ImplementsInterface(UTarget_Interface::StaticClass()))
+		{
+			if (!ITarget_Interface::Execute_GetIsTargetable(target, this))
+			{
+				ITarget_Interface::Execute_StopTargetingActor(target, this);
+				MultiTargets.RemoveAt(index);
+			}
+			else
+			{
+				++index;
+			}
+		}
+		else
+		{
+			MultiTargets.RemoveAt(index);
+		}
+	}
 }
 
 // Sets default values
@@ -27,10 +96,6 @@ AMainPawn::AMainPawn(const FObjectInitializer& ObjectInitializer) : Super(Object
 	bReplicateMovement = false;
 
 	//SetActorEnableCollision(true);
-
-	//Create components
-	RootComponent = ObjectInitializer.CreateDefaultSubobject<USceneComponent>(this,TEXT("RootComponent"));
-
 	// the aircraft frame
 	ArmorMesh = ObjectInitializer.CreateDefaultSubobject<UStaticMeshComponent>(this, TEXT("ArmorMesh"));
 	ArmorMesh->OnComponentHit.AddDynamic(this, &AMainPawn::ArmorHit);
@@ -133,10 +198,6 @@ void AMainPawn::RecoverFromCollision(const float DeltaSeconds)
 
 void AMainPawn::InitWeapon()
 {
-	WeaponSpreadRadian = WeaponSpreadHalfAngle * PI / 180.0f;
-	GunSalveIntervall = (GunSalveDensity * FireRateGun) / GunNumSalves;
-	bGunHasAmmo = GunAmmunitionAmount > 0;
-
 	MissileSpreadRadian = MissileSpreadHalfAngle * PI / 180.0f;
 	MissileSalveIntervall = (MissileSalveDensity * FireRateMissile) / MissileNumSalves;
 	bMissileHasAmmo = MissileAmmunitionAmount > 0;
@@ -321,6 +382,7 @@ void AMainPawn::Tick(float DeltaTime)
 
 	if (Role == ROLE_Authority)
 	{
+		CheckCurrentTargets();
 		TargetLock();
 
 		// unpack received inputdata package
@@ -380,9 +442,6 @@ void AMainPawn::Tick(float DeltaTime)
 void AMainPawn::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-
-	DOREPLIFETIME_CONDITION(AMainPawn, bGunHasAmmo, COND_OwnerOnly);
-	DOREPLIFETIME_CONDITION(AMainPawn, bGunReady, COND_OwnerOnly);
 	DOREPLIFETIME_CONDITION(AMainPawn, bMissileHasAmmo, COND_OwnerOnly);
 	DOREPLIFETIME_CONDITION(AMainPawn, bMissileReady, COND_OwnerOnly);
 	DOREPLIFETIME(AMainPawn, TransformOnAuthority);
@@ -394,8 +453,6 @@ void AMainPawn::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetim
 	DOREPLIFETIME_CONDITION(AMainPawn, bMultiTarget, COND_OwnerOnly);
 	DOREPLIFETIME_CONDITION(AMainPawn, AutoLevelAxis, COND_OwnerOnly);
 	DOREPLIFETIME_CONDITION(AMainPawn, AuthorityAck, COND_OwnerOnly);
-
-	DOREPLIFETIME_CONDITION(AMainPawn, bGunFire, COND_SkipOwner);
 	DOREPLIFETIME_CONDITION(AMainPawn, bMissileFire, COND_SkipOwner);
 	DOREPLIFETIME(AMainPawn, MainLockOnTarget);
 	DOREPLIFETIME(AMainPawn, MultiTargets);
@@ -736,8 +793,8 @@ void AMainPawn::SetupPlayerInputComponent(class UInputComponent* _InputComponent
 	_InputComponent->BindAction("ZoomIn", IE_Released, this, &AMainPawn::ZoomOut);
 	_InputComponent->BindAction("FreeCamera", IE_Pressed, this, &AMainPawn::ActivateFreeCamera);
 	_InputComponent->BindAction("FreeCamera", IE_Released, this, &AMainPawn::DeactivateFreeCamera);
-	_InputComponent->BindAction("Fire Gun Action", IE_Pressed, this, &AMainPawn::StartGunFire);
-	_InputComponent->BindAction("Fire Gun Action", IE_Released, this, &AMainPawn::StopGunFire);
+	//_InputComponent->BindAction("Fire Gun Action", IE_Pressed, this, &AMainPawn::StartGunFire);
+	//_InputComponent->BindAction("Fire Gun Action", IE_Released, this, &AMainPawn::StopGunFire);
 	_InputComponent->BindAction("Fire Missile Action", IE_Pressed, this, &AMainPawn::StartMissileFire);
 	_InputComponent->BindAction("Fire Missile Action", IE_Released, this, &AMainPawn::StopMissileFire);
 	_InputComponent->BindAction("StopMovement", IE_Pressed, this, &AMainPawn::StopMovement);
@@ -904,208 +961,6 @@ void AMainPawn::DeactivateFreeCamera()
 	SpringArm->SetRelativeRotation(FRotator::ZeroRotator, false, nullptr, ETeleportType::None);
 }
 
-
-void AMainPawn::OnRep_GunFire()
-{
-	if (bGunFire)
-	{
-		StartGunFire();
-	}
-	else
-	{
-		StopGunFire();
-	}
-}
-
-
-void AMainPawn::StartGunFire()
-{
-	// player has gunfire button pressed
-	bGunFire = true;
-	InputPackage.setGunFire(bGunFire);
-	if (bGunReady && bGunHasAmmo)
-	{ // gun is ready to fire
-		// make sure no other gunfire timer is activ by clearing it
-		GetWorldTimerManager().ClearTimer(GunFireHandle);
-		// activate a new gunfire timer
-		GetWorldTimerManager().SetTimer(GunFireHandle, this, &AMainPawn::GunFire, FireRateGun, true, 0.0f);
-#if DEBUG_MSG == 1
-		// debug
-		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Green, "Gun ON");
-#endif
-	}
-	else if (!GetWorldTimerManager().IsTimerActive(GunFireCooldown))
-	{ // gun is not cooling down but could not be fired
-		// enable gun
-		bGunReady = true;
-#if DEBUG_MSG == 1
-		// debug
-		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Gun COOLDOWN NOT ACTIVATED");
-#endif
-		// try again to fire gun
-		if (bGunHasAmmo)
-		{
-			StartGunFire();
-		}
-#if DEBUG_MSG == 1
-		else
-		{
-			if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Gun OUT OF AMMO");
-		}
-#endif
-	}
-#if DEBUG_MSG == 1
-	else
-	{
-		// gun is cooling down
-		// debug
-		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Gun STILL COOLING DOWN");
-	}
-#endif
-}
-
-void AMainPawn::StopGunFire()
-{
-	// player has gunfire button released
-	bGunFire = false;
-	InputPackage.setGunFire(bGunFire);
-	// is a gunfire timer active
-	if (GetWorldTimerManager().IsTimerActive(GunFireHandle))
-	{
-		// stop the timer
-		GetWorldTimerManager().PauseTimer(GunFireHandle);
-		// make sure gun is disabled
-		bGunReady = false;
-		// store the remaining time
-		const float CoolDownTime = GetWorldTimerManager().GetTimerRemaining(GunFireHandle);
-		// remove old gunfire timer
-		GetWorldTimerManager().ClearTimer(GunFireHandle);
-		// create a new timer to reactivate gun after a cooldownperiod		
-		GetWorldTimerManager().SetTimer(GunFireCooldown, this, &AMainPawn::GunCooldownElapsed, CoolDownTime, false);
-	}
-#if DEBUG_MSG == 1
-	// debug
-	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Red, "Gun OFF");
-#endif
-}
-
-void AMainPawn::GunCooldownElapsed()
-{
-#if DEBUG_MSG == 1
-	// debug
-	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Blue, "Gun COOLED");
-#endif
-	// gun has cooled down and is again ready to fire
-	bGunReady = true;
-	// has the user requested Firing reactivate gunfire
-	if (bGunFire)
-	{
-#if DEBUG_MSG == 1
-		if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 1.0f, FColor::Green, "Gun CONTINUE");
-#endif
-		StartGunFire();
-	}
-}
-
-void AMainPawn::GunFire()
-{
-	// start only Firing if there is ammuntion to do so
-	if (GunAmmunitionAmount > 0)
-	{
-		// reset the salve counter
-		GunCurrentSalve = 0;
-		// start a subtimer that fires GunNumSalves salves
-		GetWorldTimerManager().SetTimer(GunSalveTimerHandle, this, &AMainPawn::GunFireSalve, GunSalveIntervall, true, 0.0f);
-	}
-}
-
-void AMainPawn::GunFireSalve()
-{
-	// fire a salve only if not all salves have been fired
-	if (GunCurrentSalve < GunNumSalves)
-	{
-		// loop through the projectiles in each salve to be fired
-		for (uint8 shot = 0; shot < NumProjectiles; ++shot)
-		{
-			// stop Firing if there is no ammunition
-			if (GunAmmunitionAmount < 1)
-			{
-				bGunHasAmmo = false;
-#if DEBUG_MSG == 1
-				if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 10.0f, FColor::Red, "Gun OUT OF AMMO!");
-#endif
-				GetWorldTimerManager().ClearTimer(GunSalveTimerHandle);
-				return;
-			}
-
-			// choose next avaliable gun sockets or start over from the first if last was used
-			CurrGunSocketIndex = (CurrGunSocketIndex + 1) % GunSockets.Num();
-			// get the tranform of the choosen socket
-			const FTransform& CurrentSocketTransform = ArmorMesh->GetSocketTransform(GunSockets[CurrGunSocketIndex]);
-
-			const FVector& AdditionalVelocity = ArmorMesh->GetPhysicsLinearVelocityAtPoint(CurrentSocketTransform.GetLocation());
-
-			FVector SpawnDirection;
-
-			// aiming to hit the target
-			if (MainLockOnTarget && bHasGunLock)
-			{
-				// linear targetprediction
-				const FVector& TargetLocation = MainLockOnTarget->GetActorLocation();
-				const FVector& StartLocation = CurrentSocketTransform.GetLocation();
-				const FVector AB = (TargetLocation - StartLocation).GetUnsafeNormal();
-				const FVector TargetVelocity = MainTargetVelocity.GetVelocityVector(GetWorld()->GetDeltaSeconds()) - AdditionalVelocity;
-				//const FVector TargetVelocity = MainLockOnTarget->GetVelocity() - AdditionalVelocity;
-				const FVector vi = TargetVelocity - (FVector::DotProduct(AB, TargetVelocity) * AB);
-				GunAimLocation = StartLocation + vi + AB * FMath::Sqrt(FMath::Square(ProjectileVel) - FMath::Pow((vi.Size()), 2.f));
-
-				// get the rotation of the aim-direction
-				SpawnDirection = (GunAimLocation - StartLocation).GetUnsafeNormal();
-			}
-			else
-			{
-				// get the rotation of the forward vector of the current gun-socket
-				SpawnDirection = CurrentSocketTransform.GetRotation().GetForwardVector();
-			}
-
-			// add weaponspread
-			SpawnDirection = FMath::VRandCone(SpawnDirection, WeaponSpreadRadian);
-
-			// spawn/fire projectile with tracers
-			if (TracerIntervall > 0)
-			{
-				// loop Tracer-Counter
-				CurrentTracer = (CurrentTracer + 1) % TracerIntervall;
-
-				// Spawn projectile, if Current-Tracer == 0 a tracer will be visible/spawned
-				SpawnProjectile(FTransform(SpawnDirection.Rotation(), CurrentSocketTransform.GetLocation()), CurrentTracer == 0, AdditionalVelocity, CurrentSocketTransform.GetLocation());
-			}
-			else
-			{
-				// spawn projectiles without tracers
-				SpawnProjectile(FTransform(SpawnDirection.Rotation(), CurrentSocketTransform.GetLocation()), false, AdditionalVelocity, CurrentSocketTransform.GetLocation());
-			}
-
-			// decrease ammunition after each shot
-			--GunAmmunitionAmount;
-
-			// add recoil to rootcomponent
-			ArmorMesh->AddImpulseAtLocation(SpawnDirection * GunRecoilForce * FMath::FRandRange(0.5f, 1.5f), CurrentSocketTransform.GetLocation());
-		}
-		// increase salve counter
-		++GunCurrentSalve;
-	}
-	else
-	{
-		// deactivate the salve-timer if all salves have been fired
-		GetWorldTimerManager().ClearTimer(GunSalveTimerHandle);
-	}
-}
-
-void AMainPawn::SpawnProjectile_Implementation(const FTransform& SocketTransform, const bool bTracer, const FVector& FireBaseVelocity, const FVector& TracerStartLocation)
-{
-	// method overridden by blueprint to spawn the projectile
-}
 
 // Missile spawning START --------------------------------
 
@@ -1326,8 +1181,7 @@ bool AMainPawn::Server_StopPlayerMovement_Validate()
 void AMainPawn::Server_StopPlayerMovement_Implementation()
 {
 	if (bCanReceivePlayerInput)
-	{
-		bGunReady = false;
+	{	
 		bMissileReady = false;
 		// make sure there is no pending movement activation
 		GetWorldTimerManager().ClearTimer(StartMovementTimerHandle);
@@ -1344,7 +1198,6 @@ void AMainPawn::Server_StopPlayerMovement_Implementation()
 
 void AMainPawn::StartMovementCoolDownElapsed()
 {
-	bGunReady = true;
 	bMissileReady = true;
 	bCanReceivePlayerInput = true;
 	RotControlStrength = TimeOfNoControl;
@@ -1419,8 +1272,8 @@ void AMainPawn::Server_GetPlayerInput_Implementation(FPlayerInputPackage inputDa
 #if DEBUG_MSG == 1
 		if (GEngine)
 			GEngine->AddOnScreenDebugMessage(-1, 0/*seconds*/, FColor::Green,
-			                                 FString::SanitizeFloat(NetDelta) + "    " +
-			                                 FString::FromInt(GetVelocity().Size() * 0.036f) + " km/h");
+				FString::SanitizeFloat(NetDelta) + "    " +
+				FString::FromInt(GetVelocity().Size() * 0.036f) + " km/h");
 #endif
 	}
 
@@ -1441,20 +1294,20 @@ void AMainPawn::Server_GetPlayerInput_Implementation(FPlayerInputPackage inputDa
 	}
 
 
-	if (InputPackage.getGunFire())
-	{
-		if (!bGunFire)
-		{
-			StartGunFire();
-		}
-	}
-	else
-	{
-		if (bGunFire)
-		{
-			StopGunFire();
-		}
-	}
+	//if (InputPackage.getGunFire())
+	//{
+	//	if (!bGunFire)
+	//	{
+	//		StartGunFire();
+	//	}
+	//}
+	//else
+	//{
+	//	if (bGunFire)
+	//	{
+	//		StopGunFire();
+	//	}
+	//}
 
 	if (InputPackage.getMissileFire())
 	{
@@ -1483,7 +1336,7 @@ void AMainPawn::Server_GetPlayerInput_Implementation(FPlayerInputPackage inputDa
 	bHasGunLock = InputPackage.getGunLock();
 	bHasMissileLock = InputPackage.getMissileLock();
 
-	if (GEngine && bGunFire) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "Received GunfireInput");
+	//if (GEngine && bGunFire) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "Received GunfireInput");
 	if (GEngine && bMissileFire) GEngine->AddOnScreenDebugMessage(-1, NetDelta, FColor::Green, "Received GunfireInput");
 
 
@@ -1539,8 +1392,8 @@ inline void AMainPawn::GetCursorLocation(FVector2D& _CursorLoc)
 #if DEBUG_MSG == 1
 			if (GEngine)
 				GEngine->AddOnScreenDebugMessage(-1, 0/*seconds*/, FColor::Red,
-				                                 FString::SanitizeFloat(_CursorLoc.X) + " " +
-				                                 FString::SanitizeFloat(_CursorLoc.Y));
+					FString::SanitizeFloat(_CursorLoc.X) + " " +
+					FString::SanitizeFloat(_CursorLoc.Y));
 #endif
 		}
 	}
@@ -1610,34 +1463,31 @@ void AMainPawn::TargetLock()
 	{
 		return;
 	}
-#if DEBUG_MSG == 1
-	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, "... looking for targets");
-#endif
 
 	TMap<float, AActor*> TargetableTargets;
 
 	// get all target-able Actors
 	for (TActorIterator<AActor> currActor(GetWorld()); currActor /* while is valid */; ++currActor)
 	{
-		if (*currActor != this && currActor->GetClass()->ImplementsInterface(UTarget_Interface::StaticClass()) && ITarget_Interface::Execute_GetIsTargetable(*currActor))			
+		if (*currActor != this && currActor->GetClass()->ImplementsInterface(UTarget_Interface::StaticClass()) && ITarget_Interface::Execute_GetIsTargetable(*currActor, this))
 		{
-#if DEBUG_MSG == 1
-			if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, currActor->GetName() + " has the Interface");
-#endif
+
+			//LOGA("MainPawn: %s has the Interface", *currActor->GetName());
+
 
 			// Vector to the current target-able Target
-			FVector VecToTarget;			
+			FVector VecToTarget;
 			if (currActor && Camera) {
-				if(bFreeCameraActive)
+				if (bFreeCameraActive)
 				{
 					VecToTarget = currActor->GetActorLocation() - GetActorLocation();
 				}
 				else
 				{
 					VecToTarget = currActor->GetActorLocation() - Camera->GetComponentLocation();
-				}				
+				}
 			}
-			
+
 			// angle between Forward-Vector and Vector to current Target
 			const float DeltaAngleRad = FVector::DotProduct(ForwardVector, VecToTarget.GetSafeNormal());
 
@@ -1657,9 +1507,9 @@ void AMainPawn::TargetLock()
 
 	// sort the Targets
 	TargetableTargets.KeySort([](const float A, const float B)
-		{
-			return (A - B) > 0.0f;
-		});
+	{
+		return (A - B) > 0.0f;
+	});
 
 
 	TArray<AActor*> ChosenTargets;
@@ -1752,6 +1602,14 @@ void AMainPawn::SetTargets(AActor* MainTarget, const TArray<AActor*>& OtherTarge
 	{
 		Server_SetTargets(MainTarget, OtherTargets);
 		return;
+	}
+	for (AActor* target : MultiTargets)
+	{
+		if (target && target->GetClass()->ImplementsInterface(UTarget_Interface::StaticClass()))
+		{
+			ITarget_Interface::Execute_StartTargetingActor(target, this);
+			LOGA("MainPawn: Starting to target %s", *target->GetName())
+		}
 	}
 
 	MainLockOnTarget = MainTarget;

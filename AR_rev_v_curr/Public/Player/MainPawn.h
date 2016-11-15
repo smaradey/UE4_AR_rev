@@ -13,6 +13,8 @@
 #include "CalcFunctionLibrary.h"
 #include "MainPawn_Enums.h"
 #include "MainPawn_Structs.h"
+#define LOG_MSG 1
+#include "CustomMacros.h"
 #include "MainPawn.generated.h"
 
 UCLASS()
@@ -26,18 +28,22 @@ public:
 	---------------------------------------------------------------------*/
 
 	/* Implementation of the function to set this pawn to be target-able */
-	bool GetIsTargetable_Implementation() override;
-
+	bool GetIsTargetable_Implementation(AActor* enemy) override;
+	void StartTargetingActor_Implementation(AActor* enemy) override;
+	void StopTargetingActor_Implementation(AActor* enemy) override;
 	void GetTargetPoints_Implementation(TArray<ATargetPoint*>& TargetPoints) override;
 
 	/*-------------------------------------------------------------------
 	 End Interface Implementations--------------------------------------- */
 
+	void CheckCurrentTargets();
+	TSet<AActor*> mEnemiesTargeting;
 
-	 /* Initialization Functions: ----------------------------------------
-	 ---------------------------------------------------------------------*/
 
-	 // Sets default values for this actor's properties
+	/* Initialization Functions: ----------------------------------------
+	---------------------------------------------------------------------*/
+
+	// Sets default values for this actor's properties
 	AMainPawn(const FObjectInitializer& ObjectInitializer);
 
 	// Called to bind functionality to input
@@ -279,97 +285,13 @@ protected:
 	/* TODO */
 	void ActivateContinueousLockOn();
 
-	// Guns ------------------------------------------------------------------------
-	/* TODO */
-	void StartGunFire();
-	/* TODO */
-	void StopGunFire();
-
-
-	/* TODO */
-	UPROPERTY(ReplicatedUsing = OnRep_GunFire)
-
-		/* TODO */
-		bool bGunFire;
-	/* TODO */
-	UFUNCTION()
-		void OnRep_GunFire();
-
-	/* TODO */
-	UPROPERTY(Replicated)
-		uint32 bGunReady : 1;
-
-	/* atempts to start the timer that fires the salves if there is ammunition */
-	void GunFire();
-	/* TODO */
-	FTimerHandle GunFireHandle;
-
-	/* TODO */
-	UFUNCTION(BlueprintNativeEvent, Category = "Weapons | Guns")
-		void SpawnProjectile(const FTransform &SocketTransform, const bool bTracer, const FVector &FireBaseVelocity = FVector::ZeroVector, const FVector &TracerStartLocation = FVector::ZeroVector);
-
-	/** time in Seconds */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Guns")
-		float FireRateGun = 1.0f;
-
-	/* TODO */
-	void GunCooldownElapsed();
-	/* TODO */
-	FTimerHandle GunFireCooldown;
-
-	/* fires a salve with 1..n projectiles */
-	void GunFireSalve();
-	/* TODO */
-	FTimerHandle GunSalveTimerHandle;
-	/* TODO */
-	float GunSalveIntervall;
-	/* TODO */
-	uint8 GunCurrentSalve;
-
-	/** number of projectile salves fired after a shot has been triggered */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Guns")
-		uint8 GunNumSalves = 4;
-	/** smaller values lower the time between the salves and increase the time between last salve and next first salve */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Guns", meta = (ClampMin = "0.05", ClampMax = "1.0", UIMin = "0.05", UIMax = "1.0"))
-		float GunSalveDensity = 1.0f;
-	/** number of simultaniously fired projectile in a salve */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Guns")
-		uint8 NumProjectiles = 2;
-
 	/* TODO */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Guns")
 		TArray<FName> GunSockets;
 
 	/* TODO */
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Guns")
-		float GunRecoilForce = -500000.0f;
-
-	/** number of degrees the projectiles can deviate from actual firedirection */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Guns")
-		float WeaponSpreadHalfAngle = 0.5f;
-	float WeaponSpreadRadian;
-
-	/** number of projectiles available */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Guns")
-		int GunAmmunitionAmount = 10000;
-
-	/* TODO */
-	UPROPERTY(Replicated)
-		bool bGunHasAmmo = true;
-
-	/** every x-th projectile has a tracer, set to 0 to disable tracers completely */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Guns")
-		uint8 TracerIntervall = 1;
-	/* TODO */
-	uint8 CurrentTracer;
-	/* TODO */
-	uint8 CurrGunSocketIndex;
-	/* TODO */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapons | Guns")
-		float ProjectileVel = 100000.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Lockon")
-		FVector GunAimLocation;
+		float GunRecoilForce = 0.0f;
 
 	// Radar  ------------------------------------------------------------------------
 
