@@ -20,7 +20,14 @@ class ITarget_Interface
 public:
 
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Target_Interface")
-		bool GetIsTargetable();
+		bool GetIsTargetable(AActor* enemy);
+
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Target_Interface")
+		void StartTargetingActor(AActor* enemy);
+
+	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Target_Interface")
+		void StopTargetingActor(AActor* enemy);
+
 
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Target_Interface")
 		void GetTargetPoints(TArray<ATargetPoint*>& TargetPoints);
