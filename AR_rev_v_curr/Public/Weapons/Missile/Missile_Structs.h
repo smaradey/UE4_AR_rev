@@ -61,7 +61,7 @@ struct FMissileProperties {
 		FBaseDamage BaseDamage;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile|Properties|Damage")
-		float ExplosionRadius = 500.0f;
+		float ExplosionRadius = 50.0f;
 
 	// v in cm/s
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile|Properties")
