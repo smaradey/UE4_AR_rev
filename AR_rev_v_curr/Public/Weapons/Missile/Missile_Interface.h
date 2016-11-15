@@ -19,7 +19,7 @@ class AR_REV_V_CURR_API IMissile_Interface
 	// Add interface functions to this class. This is the class that will be inherited to implement this interface.
 public:
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Missile_Interface")
-		void Explode();
+		void Explode(UObject* object);
 
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Missile_Interface")
 		void DeactivateForDuration(const float Duration);
