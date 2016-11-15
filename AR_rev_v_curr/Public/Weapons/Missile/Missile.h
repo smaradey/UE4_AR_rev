@@ -13,6 +13,7 @@
 #include "Missile_Interface.h"
 #define LOG_MSG 1
 #include "CustomMacros.h"
+#include "Target_Interface.h"
 #include "Missile.generated.h"
 
 
@@ -24,8 +25,8 @@ class AR_REV_V_CURR_API AMissile : public AActor, public IMissile_Interface
 
 public:
 
-	// Interface Implementations
-	void Explode_Implementation() override;
+	// Missile_Interface Implementations
+	void Explode_Implementation(UObject* object) override;
 	void DeactivateForDuration_Implementation(const float Duration) override;
 	FMissileStatus GetCurrentMissileStatus_Implementation() override;
 
@@ -42,6 +43,7 @@ public:
 	void PostInitProperties();
 	void PostEditChangeProperty(FPropertyChangedEvent& PropertyChangedEvent);
 
+
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
 		FMissileProperties mProperties;
 
@@ -55,6 +57,22 @@ private:
 
 	void MaxBoostRangeReached()
 	{
+		MissileHit();
+	}
+
+	void CheckTargetTargetable()
+	{
+		if(CurrentTarget)
+		{
+			AActor* TargetActor = CurrentTarget->GetOwner();
+			if(TargetActor && TargetActor->GetClass()->ImplementsInterface(UTarget_Interface::StaticClass()))
+			{
+				if(!ITarget_Interface::Execute_GetIsTargetable(TargetActor, this))
+				{
+					CurrentTarget = nullptr;
+				}
+			}
+		}
 	}
 
 public:
@@ -207,36 +225,10 @@ public:
 		void MissileMeshOverlap(class UPrimitiveComponent* ThisComp, class AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
 
 	UFUNCTION()
-		void OnMeshHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
-	{
-		LOG("Missile: OnMeshHit")
-			if (CurrentTarget)
-			{
-				AActor* TargetActor = CurrentTarget->GetOwner();
-				if (OtherComp == CurrentTarget && TargetActor->GetClass()->ImplementsInterface(UMissile_Interface::StaticClass()))
-				{
-					IMissile_Interface::Execute_Explode(OtherActor);
-				}
-			}
-		//MissileMeshOverlap(HitComponent, OtherActor, OtherComp, 0, false, Hit);
-	};
+	void OnMeshHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
 
 	UFUNCTION()
-		void OnDetectionBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
-	{
-		LOG("Missile: OnDetectionBeginOverlap")
-			if (OtherActor) { LOGA("Missile: OnDetectionBeginOverlap %s", *OtherActor->GetName()); }
-			
-			if (CurrentTarget)
-			{
-				AActor* TargetActor = CurrentTarget->GetOwner();
-				if (OtherComp == CurrentTarget && TargetActor->GetClass()->ImplementsInterface(UMissile_Interface::StaticClass()))
-				{
-					
-					IMissile_Interface::Execute_Explode(OtherActor);
-				}
-			}
-	}
+	void OnDetectionBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
 
 	/* TODO */
 	UFUNCTION()
