@@ -167,21 +167,18 @@ public:
 		static void GetReplicatedMovement(AActor* Actor, FVector& LinearVelocity, FVector& AngularVelocity);
 
 	//12
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Math_C++ | Gravity")
-		static FVector GetWorldGravity(UObject* other)
-	{
-		if (other && other->GetWorld())
-		{
-			return FVector(0, 0, other->GetWorld()->GetGravityZ());
-		}
-		return FVector::ZeroVector;
-	}
+	/**
+	* Object Reference to any Object in the world
+	* Gravity Variable the Gravity-Vector will be returned in
+	*/
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "CalcFunctionLibrary|Gravity")
+		static void GetWorldGravity(const UObject* const Object, FVector& Gravity);
 
 	// 13 interpolate from A to B using Alpha [0.0..1.0] and the sinus function
 	// Alpha will be clamped to 0.0..1.0
-	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "Math_C++ | Ease")
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "CalcFunctionLibrary|Ease")
 		static float FEaseInOutSin(const float A, const float B, const float Alpha);
 
 	UFUNCTION(BlueprintCallable, Category = "Target Prediction")
-	static void LinearTargetPrediction(const FVector& TargetLocation, const FVector& StartLocation, FVelocity MainTargetVelocity, const float DeltaTime, const FVector& AdditionalProjectileVelocity, const float ProjectileVelocity, FVector& AimLocation);
+		static void LinearTargetPrediction(const FVector& TargetLocation, const FVector& StartLocation, FVelocity MainTargetVelocity, const float DeltaTime, const FVector& AdditionalProjectileVelocity, const float ProjectileVelocity, FVector& AimLocation);
 };
