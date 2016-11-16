@@ -70,7 +70,6 @@ private:
 	FVector TraceStartLocation;
 	FVector TraceEndLocation;
 	float PendingTravel;
-	FVector TempVelocity;
 	int32 Bounces;
 	bool bUnlimitedBouncing;
 	bool bBounceAgain;

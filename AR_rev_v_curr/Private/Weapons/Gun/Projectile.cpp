@@ -39,9 +39,14 @@ void AProjectile::BeginPlay()
 	SetActorRotation(Velocity.Rotation(), ETeleportType::TeleportPhysics);
 
 	// TODO: recalc Tracer Length
-	// TODO: random forward movement for realism
 
 	OnBounce();
+	// Initial Random Movement for more realistic Projectile Movement
+	const FVector TempVelocity = Velocity;
+	// TODO: make Seeded random
+	Velocity *= FMath::Rand;
+	Movement();
+	Velocity = TempVelocity;
 }
 
 // Called every frame
@@ -77,15 +82,15 @@ void AProjectile::TraceAfterBounce()
 	{
 		switch (ProjectileProperties.ProjectileType)
 		{
-		case EProjectileType::Kinetic:
-		{
-			FVector Gravity = World ? FVector(0, 0, World->GetGravityZ()) : FVector::ZeroVector;
-			UCalcFunctionLibrary::GetWorldGravity(this, Gravity);
-			Velocity = Velocity + Gravity * (PendingTravel * World->DeltaTimeSeconds);
-		}
-		break;
-		case EProjectileType::Energy: break;
-		default: break;
+			case EProjectileType::Kinetic:
+				{
+					FVector Gravity = World ? FVector(0, 0, World->GetGravityZ()) : FVector::ZeroVector;
+					UCalcFunctionLibrary::GetWorldGravity(this, Gravity);
+					Velocity = Velocity + Gravity * (PendingTravel * World->DeltaTimeSeconds);
+				}
+				break;
+			case EProjectileType::Energy: break;
+			default: break;
 		}
 		TraceEndLocation = TraceStartLocation + Velocity * (World->DeltaTimeSeconds * PendingTravel);
 
