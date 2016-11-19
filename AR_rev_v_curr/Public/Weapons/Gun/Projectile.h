@@ -63,8 +63,18 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Movement")
 		float BounceThreshold;
 
+	// Actors Locations: index 0 = StartLocation; last index = EndLocation; between 1st and last: all the locations where the actor bounced/penetrated
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Movement")
+		TArray<FVector> Locations;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Movement|DEBUG")
+	bool bCanMove = true;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Movement|DEBUG")
+	float DEBUGLineLifeTime = 5.0f;
 
 
+	FTransform DEBUGStart;
 
 private:
 	FVector TraceStartLocation;
@@ -81,15 +91,15 @@ protected:
 	UFUNCTION(BlueprintNativeEvent, Category = "Projectile|Collsion")
 		void OnImpact();
 
-	virtual void Movement();
+	FORCEINLINE virtual void Movement();
 
-	virtual void TraceAfterBounce();
+	FORCEINLINE virtual void TraceAfterBounce();
 
-	virtual FORCEINLINE bool BouncingAllowed();
-	virtual FORCEINLINE bool CanBounce(const FHitResult& Hit);
+	FORCEINLINE virtual bool BouncingAllowed();
+	FORCEINLINE virtual bool CanBounce(const FHitResult& Hit);
 
 	virtual void Impact(const FHitResult& Hit);
 	virtual void Bounce(const FHitResult& Hit);
-	virtual void HandleTraceResult(const FHitResult& Hit);
-	virtual void UpdateTransform();
+	FORCEINLINE virtual void HandleTraceResult(const FHitResult& Hit);
+	FORCEINLINE virtual void UpdateTransform();
 };

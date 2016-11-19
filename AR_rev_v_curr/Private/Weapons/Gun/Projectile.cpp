@@ -27,6 +27,8 @@ void AProjectile::BeginPlay()
 {
 	Super::BeginPlay();
 
+	DEBUGStart = GetTransform();
+
 	Velocity = GetActorForwardVector() * ProjectileProperties.MuzzleVelocity + AdditionalVelocity;
 
 	bUnlimitedBouncing = MaxBounces < 0;
@@ -40,13 +42,14 @@ void AProjectile::BeginPlay()
 
 	// TODO: recalc Tracer Length
 
-	OnBounce();
+	//OnBounce();
 	// Initial Random Movement for more realistic Projectile Movement
 	const FVector TempVelocity = Velocity;
 	// TODO: make Seeded random
-	Velocity *= FMath::Rand;
-	Movement();
-	Velocity = TempVelocity;
+	//Velocity *= FMath::FRand();
+	//Movement();
+	//Velocity = TempVelocity;
+	PendingTravel = FMath::FRand();
 }
 
 // Called every frame
@@ -66,13 +69,36 @@ void AProjectile::OnImpact_Implementation()
 
 void AProjectile::Movement()
 {
+
+
+
+	// DEBUG
+	if (!bCanMove)
+	{
+		SetActorTransform(DEBUGStart, false, nullptr, ETeleportType::TeleportPhysics);
+		Velocity = GetActorForwardVector() * 100000.0f;
+	}
+	Locations.Empty(4);
 	TraceStartLocation = GetActorLocation();
-	PendingTravel = 1.0f;
+	Locations.Add(TraceStartLocation);
+
+
+	
+	int cnt = 0;
 	do
 	{
 		bBounceAgain = false;
 		TraceAfterBounce();
+		++cnt;
+		if(cnt > 100)
+		{
+			LOG("Projectile: TOO MANY COLLISIONS")
+			Destroy();
+			break;
+		}
 	} while (bBounceAgain);
+
+	PendingTravel = 1.0f;
 }
 
 void AProjectile::TraceAfterBounce()
@@ -99,7 +125,7 @@ void AProjectile::TraceAfterBounce()
 		TraceParams.RemoveObjectTypesToQuery(ECC_Projectile);
 		FHitResult HitResult;
 #if DEBUG == 1
-		const float DEBUGLineLifeTime = 5.0f;
+		
 #endif
 		if (World->LineTraceSingleByObjectType(HitResult, TraceStartLocation, TraceEndLocation, TraceParams))
 		{
@@ -109,6 +135,7 @@ void AProjectile::TraceAfterBounce()
 			::DrawDebugLine(World, HitResult.ImpactPoint, TraceEndLocation, FColor::Green, false, DEBUGLineLifeTime);
 			::DrawDebugPoint(World, HitResult.ImpactPoint, 16.f, FColor::Red, false, DEBUGLineLifeTime);
 #endif
+			Locations.Add(HitResult.ImpactPoint);
 			HandleTraceResult(HitResult);
 		}
 		else
@@ -117,6 +144,7 @@ void AProjectile::TraceAfterBounce()
 			// no hit means all red
 			::DrawDebugLine(World, TraceStartLocation, TraceEndLocation, FColor::Red, false, DEBUGLineLifeTime);
 #endif
+			Locations.Add(TraceEndLocation);
 			UpdateTransform();
 		}
 	}
@@ -143,7 +171,7 @@ void AProjectile::Bounce(const FHitResult& Hit)
 {
 	OnBounce();
 	PendingTravel *= (1.0f - Hit.Time);
-	TraceStartLocation = Hit.ImpactPoint; // + Hit.Normal;
+	TraceStartLocation = Hit.ImpactPoint + Hit.Normal;
 	Velocity = Velocity.MirrorByVector(Hit.Normal) * Bounciness;
 	++Bounces;
 	if (Velocity.SizeSquared() < MinVelocitySquarred)
@@ -179,5 +207,5 @@ void AProjectile::HandleTraceResult(const FHitResult& Hit)
 void AProjectile::UpdateTransform()
 {
 	const FRotator newRotation = (TraceEndLocation - TraceStartLocation).Rotation();
-	SetActorLocationAndRotation(TraceEndLocation, newRotation, false, nullptr, ETeleportType::TeleportPhysics);
+	SetActorLocationAndRotation(TraceEndLocation, newRotation, false, nullptr, ETeleportType::TeleportPhysics);	
 }
