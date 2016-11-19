@@ -361,4 +361,8 @@ private:
 
 	FVector CurrentInitialVelocityDirection;
 	FVector TargetInitialVelocityDirection;
+
+private:
+	bool bHadATarget;
+
 };

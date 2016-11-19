@@ -8,7 +8,8 @@
 
 void AMissile::Explode_Implementation(UObject* object)
 {
-	if (object) {
+	if (object)
+	{
 		LOGA("Missile: Received mExplosion Command from \"%s\"", *object->GetName())
 	}
 	MissileHit();
@@ -136,6 +137,8 @@ void AMissile::BeginPlay()
 	// server behaviour
 	if (Role == ROLE_Authority)
 	{
+		bHadATarget = CurrentTarget ? true : false;
+
 		/*if (bBombingMode) {
 			CurrentTarget = nullptr;
 			ActorDetectionSphere->Activate();
@@ -329,17 +332,23 @@ void AMissile::Tick(float DeltaTime)
 	// server only
 	if (Role == ROLE_Authority)
 	{
+		if (!CurrentTarget && bHadATarget)
+		{
+			MissileHit();
+		}
+
+
 		FCollisionObjectQueryParams TraceParams;
 		TraceParams.AddObjectTypesToQuery(ECollisionChannel::ECC_WorldStatic);
 		FHitResult HitResult;
-		if(GetWorld()->LineTraceSingleByObjectType(HitResult, GetActorLocation(), GetActorLocation() + MovementVector,TraceParams))
+		if (GetWorld()->LineTraceSingleByObjectType(HitResult, GetActorLocation(), GetActorLocation() + MovementVector, TraceParams))
 		{
 			SetActorLocation(HitResult.ImpactPoint);
 			LOGA("Missile: LineTrace HitActor = \"%s\"", *HitResult.Actor->GetName())
 			MissileHit();
 		}
-		else {
-
+		else
+		{
 			// perform movement
 			AddActorWorldOffset(MovementVector);
 			// current missile transform for replication to client
