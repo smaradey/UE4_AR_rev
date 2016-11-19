@@ -74,6 +74,10 @@ struct FSpreadProperties
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings|Spread")
 		float InitialRecoil = 1.0f;
 
+	// the time it takes to add the recoil of one shot to the pawn is 1.0/mRecoilVelocity seconds, eg. 1.0/10 = 0.1 [Seconds]
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GunFireComponent|Recoil", meta = (ClampMin = "0.01", ClampMax = "1000.0", UIMin = "0.01", UIMax = "100.0"))
+		float RecoilVelocity = 15.0f;
+
 	// Speed to decrease next change in direction
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings|Spread")
 		float RecoilDecreaseSpeed = 2.0f;
@@ -168,11 +172,11 @@ struct FGunProperties
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
 		float FireCycleInterval = 0.1f;
 
-	// true: can shot again after a time of FireCycleInterval has passed after a shot
-	// false: can shot again after the gun was requested to stop firing and a time of FireCycleInterval has passed
+	// false: can shot again after the time of FireCycleInterval has passed after a shot
+	// true: can shot again after the gun was requested to stop firing and the time of FireCycleInterval has passed
 	// only affects semi-automatic Gunfire
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
-		bool bImmediatelyFinishGunCylce = true;
+		bool bReleaseForCooldown = false;
 
 	// Number of Salves in one Firingcycle (at least one)
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
@@ -212,9 +216,22 @@ struct FGunProperties
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
 		bool bOverheatingDeactivatesGun = true;
 
-	// Total Time it takes to cool an Overheated Gun down so that it can Fire again
+	// defines the speed of the cooldown, use ECooldownType::RelativeSpeed combined with RelativeCoolDownSpeed for a more realistic cooling
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GunFireComponent|Cooldown")
+		ECooldownType CooldownType = ECooldownType::ConstantSpeed;
+
+	// Total Time it takes to cool an Overheated Gun down so that it can Fire again 
+	// only used when mCooldownType == ECooldownType::ConstantSpeed;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
 		float CoolDownTime = 5.0f;
+
+	// use this when using ECooldownType::RelativeSpeed
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GunFireComponent|Cooldown")
+		float RelativeCoolDownSpeed = 0.25f;
+
+	// when activated this increases the time it takes for the gun to overheat -> MaxContinuousFire is affected
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GunFireComponent|Cooldown")
+		bool bCanCooldownWhileFiring = false;
 
 	// automatic or triggeraction
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Gun|Settings")
@@ -297,20 +314,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "GunFireComponent")
 		static FVector VRandConeFromStream(FVector const& Dir, float ConeHalfAngleRad, const FRandomStream& Stream);
 
-	// the time it takes to add the recoil of one shot to the pawn is 1.0/mRecoilVelocity seconds, eg. 1.0/10 = 0.1 [Seconds]
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GunFireComponent|Recoil", meta = (ClampMin = "0.01", ClampMax = "1000.0", UIMin = "0.01", UIMax = "100.0"))
-		float mRecoilVelocity = 15.0f;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GunFireComponent|Cooldown")
-		bool mbCanCooldownWhileFiring = false;
-
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GunFireComponent|Cooldown")
-		ECooldownType mCooldownType = ECooldownType::ConstantSpeed;
-
-	// use this when using ECooldownType::RelativeSpeed
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "GunFireComponent|Cooldown")
-		float mRelativeCoolDownSpeed = 0.25f;
-
 
 private:
 	void Initialize();
@@ -332,6 +335,7 @@ private:
 	void GunCooled();
 	void CheckRequests();
 	bool CanReload();
+	// TODO: change funtion name to something more fitting of actual function
 	void PrepareReloading(const bool bUseCycleCooldown);
 	void Reloading();
 	void AddChamberRound();

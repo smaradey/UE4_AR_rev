@@ -182,7 +182,7 @@ void UGunFireComponent::CallRequestReload()
 			if (Owner)
 			{
 				// stop the Salve-Timer by setting the rate to zero
-				Owner->GetWorldTimerManager().SetTimer(mCycleCooldownTimer, 0.0f, false);
+				Owner->GetWorldTimerManager().SetTimer(mCycleCooldownTimer, this, &UGunFireComponent::GunCooled, 0.0f);
 			}
 			Reloading();
 		}
@@ -390,8 +390,8 @@ void UGunFireComponent::Salve()
 		AActor* Owner = GetOwner();
 		if (Owner)
 		{
-			Owner->GetWorldTimerManager().SetTimer(mSalveTimer, 0.0f, false);
-			Owner->GetWorldTimerManager().SetTimer(mGunFireTimer, 0.0f, false);
+			Owner->GetWorldTimerManager().SetTimer(mSalveTimer, this, &UGunFireComponent::Salve, 0.0f, true);
+			Owner->GetWorldTimerManager().SetTimer(mGunFireTimer, this, &UGunFireComponent::GunFireCycle, 0.0f, true);
 		}
 	}break;
 	case EGunStatus::Firing:
@@ -470,7 +470,7 @@ void UGunFireComponent::FireSalve()
 			if (Owner)
 			{
 				// stop the Salve-Timer by setting the rate to zero
-				Owner->GetWorldTimerManager().SetTimer(mSalveTimer, 0.0f, false);
+				Owner->GetWorldTimerManager().SetTimer(mSalveTimer, this, &UGunFireComponent::Salve, 0.0f, true);
 			}
 			CheckMagazine();
 		}
@@ -557,7 +557,7 @@ void UGunFireComponent::IncreaseTemperature()
 {
 	LOG("GunFireComp: IncreaseTemperature");
 
-	mGunOverheatingLevel = FMath::Min(1.0f, mGunOverheatingLevel + mTempIncreasePercentagePerShot);
+	mGunOverheatingLevel = mGunOverheatingLevel + mTempIncreasePercentagePerShot;
 	CheckOverheated();
 }
 
@@ -580,7 +580,7 @@ bool UGunFireComponent::CheckMagazine()
 	if (Owner)
 	{
 		// stop the Salve-Timer by setting the rate to zero
-		Owner->GetWorldTimerManager().SetTimer(mSalveTimer, 0.0f, false);
+		Owner->GetWorldTimerManager().SetTimer(mSalveTimer, this, &UGunFireComponent::Salve, 0.0f, true);
 	}
 	mbReload = mGunProperties.bAutoReload;
 	PrepareReloading(true);
@@ -589,12 +589,15 @@ bool UGunFireComponent::CheckMagazine()
 
 void UGunFireComponent::CheckOverheated()
 {
+	// return if  Spread/Recoil is not in use
 	if (!mGunProperties.bSpreadAndRecoilProjectileDynamics)
 	{
 		mGunOverheatingLevel = 0.0f;
 		return;
 	}
-	if (mGunOverheatingLevel == 1.0f)
+
+	// Overheated
+	if (mGunOverheatingLevel >= 1.0f)
 	{
 		if (mCurrentStatus == EGunStatus::Firing)
 		{
@@ -608,20 +611,21 @@ void UGunFireComponent::CheckOverheated()
 			}
 		}
 	}
-	else
+	else // not yet overheated
 	{
 		if (mCurrentStatus == EGunStatus::Deactivated)
 		{
+			// check if gun has completely cooled down
 			if (mGunProperties.bOverheatingDeactivatesGun && mGunOverheatingLevel == 0.0f)
 			{
 				mCurrentStatus = EGunStatus::Overheated;
-				CheckRequests();
 			}
 		}
+		// 
 		else if (mCurrentStatus == EGunStatus::Overheated)
 		{
-			mCurrentStatus = EGunStatus::Idle;
-			CheckRequests();
+			mCurrentStatus = EGunStatus::Firing;
+			PrepareReloading(true);
 		}
 	}
 }
@@ -634,17 +638,17 @@ void UGunFireComponent::StopFiring()
 	{
 		CalcCycleRemainingTime();
 		mCurrentStatus = EGunStatus::FinishingCycle;
-		if (mCycleRemainingTime > 0.0f)
+		AActor* Owner = GetOwner();
+		if (Owner)
 		{
-			AActor* Owner = GetOwner();
-			if (Owner)
+			if (mCycleRemainingTime > 0.0f)
 			{
 				Owner->GetWorldTimerManager().SetTimer(mCycleCooldownTimer, this, &UGunFireComponent::GunCooled, mCycleRemainingTime, false);
 			}
-		}
-		else
-		{
-			GunCooled();
+			else
+			{
+				GunCooled();
+			}
 		}
 	}
 }
@@ -662,7 +666,8 @@ void UGunFireComponent::CalcCycleRemainingTime()
 			{
 				Owner->GetWorldTimerManager().PauseTimer(mGunFireTimer);
 				mCycleRemainingTime = Owner->GetWorldTimerManager().GetTimerRemaining(mGunFireTimer);
-				Owner->GetWorldTimerManager().SetTimer(mGunFireTimer, 0.0f, false);
+				Owner->GetWorldTimerManager().SetTimer(mGunFireTimer, this, &UGunFireComponent::GunFireCycle, 0.0f, true);
+				Owner->GetWorldTimerManager().SetTimer(mSalveTimer, this, &UGunFireComponent::Salve, 0.0f, true);
 			}
 		}
 		else
@@ -675,7 +680,8 @@ void UGunFireComponent::CalcCycleRemainingTime()
 		AActor* Owner = GetOwner();
 		if (Owner)
 		{
-			Owner->GetWorldTimerManager().SetTimer(mGunFireTimer, 0.0f, false);
+			Owner->GetWorldTimerManager().SetTimer(mGunFireTimer, this, &UGunFireComponent::GunFireCycle, 0.0f, true);
+			Owner->GetWorldTimerManager().SetTimer(mSalveTimer, this, &UGunFireComponent::Salve, 0.0f, true);
 		}
 		mCycleRemainingTime = 0.0f;
 	}
@@ -688,7 +694,7 @@ float UGunFireComponent::GetSemiAutoCooldown()
 	UWorld* World = GetWorld();
 	if (World)
 	{
-		float CoolingStartTime = mGunProperties.bImmediatelyFinishGunCylce ? mLastCycleStartTime : mTimeStopRequested;
+		float CoolingStartTime = mGunProperties.bReleaseForCooldown ? mTimeStopRequested : mLastCycleStartTime;
 		float RemainingCooldownTime = mGunProperties.FireCycleInterval - (World->TimeSeconds - CoolingStartTime);
 		return FMath::Max(0.0f, RemainingCooldownTime);
 	}
@@ -699,12 +705,12 @@ void UGunFireComponent::GunCooled()
 {
 	LOG("GunFireComp: GunCooled");
 
-	AActor* Owner = GetOwner();
-	if (Owner)
-	{
-		// Clear CycleCooldownTimer
-		Owner->GetWorldTimerManager().SetTimer(mCycleCooldownTimer, 0.0f, false);
-	}
+	//AActor* Owner = GetOwner();
+	//if (Owner)
+	//{
+	//	// Clear CycleCooldownTimer
+	//	Owner->GetWorldTimerManager().SetTimer(mCycleCooldownTimer, this, &UGunFireComponent::GunCooled, 0.0f);
+	//}
 	if (mCurrentStatus == EGunStatus::FinishingCycle)
 	{
 		CheckRequests();
@@ -730,7 +736,7 @@ void UGunFireComponent::CheckRequests()
 	if (CanStillFire())
 	{
 		mCurrentStatus = EGunStatus::Idle;
-		if (mbFiringRequested && mGunProperties.bAutoContinueFire)
+		if (mbFiringRequested && mGunProperties.bAutoContinueFire && mGunProperties.ActionType == EGunActionType::Automatic)
 		{
 			StartGunFire();
 		}
@@ -840,7 +846,7 @@ void UGunFireComponent::ReloadingFinished()
 		if (Owner)
 		{
 			// Clear ReloadTimer
-			Owner->GetWorldTimerManager().SetTimer(mReloadTimer, 0.0f, false);
+			Owner->GetWorldTimerManager().SetTimer(mReloadTimer, this, &UGunFireComponent::ReloadingFinished, 0.0f);
 		}
 		FillMagazine(1);
 	}
@@ -854,7 +860,7 @@ void UGunFireComponent::ReloadingFinished()
 			if (Owner)
 			{
 				// Clear ReloadTimer
-				Owner->GetWorldTimerManager().SetTimer(mReloadTimer, 0.0f, false);
+				Owner->GetWorldTimerManager().SetTimer(mReloadTimer, this, &UGunFireComponent::ReloadingFinished, 0.0f);
 			}
 			FillMagazine(
 				FMath::Min(
@@ -873,7 +879,7 @@ void UGunFireComponent::ReloadingFinished()
 				if (Owner)
 				{
 					// Clear ReloadTimer
-					Owner->GetWorldTimerManager().SetTimer(mReloadTimer, 0.0f, false);
+					Owner->GetWorldTimerManager().SetTimer(mReloadTimer, this, &UGunFireComponent::ReloadingFinished, 0.0f);
 				}
 			}
 			else
@@ -888,7 +894,7 @@ void UGunFireComponent::ReloadingFinished()
 			if (Owner)
 			{
 				// Clear ReloadTimer
-				Owner->GetWorldTimerManager().SetTimer(mReloadTimer, 0.0f, false);
+				Owner->GetWorldTimerManager().SetTimer(mReloadTimer, this, &UGunFireComponent::ReloadingFinished, 0.0f);
 			}
 			FillMagazine(1);
 		}
@@ -937,7 +943,7 @@ void UGunFireComponent::ReloadCancelled()
 	AActor* Owner = GetOwner();
 	if (Owner)
 	{
-		Owner->GetWorldTimerManager().SetTimer(mReloadTimer, 0.0f, false);
+		Owner->GetWorldTimerManager().SetTimer(mReloadTimer, this, &UGunFireComponent::ReloadingFinished, 0.0f);
 	}
 	mbReload = false;
 	CheckRequests();
@@ -950,7 +956,7 @@ void UGunFireComponent::AddSmoothRecoil(const float DeltaTime)
 	{
 		APawn* Pawn = IGun_Interface::Execute_GetOwningPawn(Owner);
 		if (Pawn) {
-			FVector2D RecoilToApply = mPendingRecoilSum * FMath::Min(1.0f, DeltaTime * mRecoilVelocity);
+			FVector2D RecoilToApply = mPendingRecoilSum * FMath::Min(1.0f, DeltaTime * mGunProperties.SpreadProperties.RecoilVelocity);
 			mPendingRecoilSum -= RecoilToApply;
 			Pawn->AddControllerYawInput(RecoilToApply.X);
 			Pawn->AddControllerPitchInput(RecoilToApply.Y);
@@ -999,11 +1005,11 @@ void UGunFireComponent::ReduceRecoil(const float DeltaTime)
 void UGunFireComponent::Cooldown(const float DeltaTime)
 {
 	if (mCurrentStatus == EGunStatus::Error) return;
-	if ((mCurrentStatus == EGunStatus::Firing || mCurrentStatus == EGunStatus::FinishingCycle) && !mbCanCooldownWhileFiring)
+	if ((mCurrentStatus == EGunStatus::Firing || mCurrentStatus == EGunStatus::FinishingCycle) && !mGunProperties.bCanCooldownWhileFiring)
 	{
 		return;
 	}
-	if (mCooldownType == ECooldownType::ConstantSpeed)
+	if (mGunProperties.CooldownType == ECooldownType::ConstantSpeed)
 	{
 		mGunOverheatingLevel = FMath::FInterpConstantTo(
 			mGunOverheatingLevel,
@@ -1013,11 +1019,11 @@ void UGunFireComponent::Cooldown(const float DeltaTime)
 	}
 	else
 	{
-		mGunOverheatingLevel = FMath::FInterpConstantTo(
+		mGunOverheatingLevel = FMath::FInterpTo(
 			mGunOverheatingLevel,
 			0.0f,
 			DeltaTime,
-			mRelativeCoolDownSpeed);
+			mGunProperties.RelativeCoolDownSpeed);
 	}
 	CheckOverheated();
 }
