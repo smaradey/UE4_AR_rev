@@ -123,16 +123,6 @@ AMainPawn::AMainPawn(const FObjectInitializer& ObjectInitializer) : Super(Object
 	Camera = ObjectInitializer.CreateDefaultSubobject<UCameraComponent>(this, TEXT("GameCamera"));
 	Camera->AttachToComponent(SpringArm, FAttachmentTransformRules::KeepRelativeTransform, USpringArmComponent::SocketName);
 
-	// PostProcessSettings
-	Camera->PostProcessSettings.bOverride_LensFlareIntensity = true;
-	Camera->PostProcessSettings.LensFlareIntensity = 0.0f;
-	Camera->PostProcessSettings.bOverride_BloomIntensity = true;
-	Camera->PostProcessSettings.BloomIntensity = 0.5f;
-	Camera->PostProcessSettings.bOverride_AntiAliasingMethod = true;
-	Camera->PostProcessSettings.AntiAliasingMethod = EAntiAliasingMethod::AAM_TemporalAA;
-	Camera->PostProcessSettings.bOverride_MotionBlurAmount = true;
-	Camera->PostProcessSettings.MotionBlurAmount = 0.2f;
-
 	// default gun sockets
 	GunSockets.Add("gun0");
 	GunSockets.Add("gun1");
