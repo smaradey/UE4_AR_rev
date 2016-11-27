@@ -25,6 +25,8 @@ class AR_REV_V_CURR_API AMissile : public AActor, public IMissile_Interface
 
 public:
 
+	virtual void OnConstruction(const FTransform& Transform) override;
+
 	// Missile_Interface Implementations
 	void Explode_Implementation(UObject* object) override;
 	void DeactivateForDuration_Implementation(const float Duration) override;
@@ -55,34 +57,17 @@ private:
 	// Decrease the distance the missile can still travel using boost
 	void DecreaseRemainingDistance(const float DeltaTime, const float BoostIntensity = 1.0f);
 
-	void MaxBoostRangeReached()
-	{
-		MissileHit();
-	}
-
-	void CheckTargetTargetable()
-	{
-		if(CurrentTarget)
-		{
-			AActor* TargetActor = CurrentTarget->GetOwner();
-			if(TargetActor && TargetActor->GetClass()->ImplementsInterface(UTarget_Interface::StaticClass()))
-			{
-				if(!ITarget_Interface::Execute_GetIsTargetable(TargetActor, this))
-				{
-					CurrentTarget = nullptr;
-				}
-			}
-		}
-	}
+	FORCEINLINE void MaxBoostRangeReached();
+	FORCEINLINE void CheckTargetTargetable();
 
 public:
 	/* TODO */
 	UFUNCTION(BlueprintCallable, Category = "Missile")
-		virtual void MissileHit();
+		virtual void DetonateMissile();
 
 	/* TODO */
 	UFUNCTION(NetMulticast, Reliable)
-		void ServerMissileHit();
+		void Authority_DetonateMissile();
 
 	/* TODO */
 	UFUNCTION()

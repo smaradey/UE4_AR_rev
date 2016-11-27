@@ -6,13 +6,23 @@
 // custom collision profile created in Editor, Tracechannel found in DefaultEngine.ini
 //#define ECC_Missile ECC_GameTraceChannel2
 
+void AMissile::OnConstruction(const FTransform& Transform)
+{
+	LOG("Missile: OnConstruction")
+	mRemainingBoostDistance = mProperties.MaxRange;
+
+}
+
 void AMissile::Explode_Implementation(UObject* object)
 {
 	if (object)
 	{
 		LOGA("Missile: Received mExplosion Command from \"%s\"", *object->GetName())
 	}
-	MissileHit();
+	// make sure the missile has no target
+	CurrentTarget = nullptr;
+	// detonate missile
+	DetonateMissile();
 }
 
 void AMissile::DeactivateForDuration_Implementation(const float Duration)
@@ -75,7 +85,7 @@ AMissile::AMissile(const FObjectInitializer& PCIP) : Super(PCIP)
 	mMissileTrail->bAutoActivate = false;
 
 
-	mRemainingBoostDistance = mProperties.MaxRange;
+	
 
 
 	// binding an a function to event OnDestroyed
@@ -266,21 +276,21 @@ void AMissile::Tick(float DeltaTime)
 	{
 		//if (GetOwner()) { // not working???
 		//	if (GetOwner()->IsPendingKill()) {
-		//		MissileHit();
+		//		DetonateMissile();
 		//		return;
 		//	}
 		//}
 
 		/*if (LifeTime > MaxFlightTime) {
 			CurrentTarget = nullptr;
-			MissileHit();
+			DetonateMissile();
 			return;
 		}*/
 
 		// in bombing mode explode when reaching hominglocation
 		/*if (bBombingMode) {
 			if (FVector::DotProduct(DirectionToTarget, GetActorForwardVector()) < 0.0f) {
-				MissileHit();
+				DetonateMissile();
 				return;
 			}
 		}*/
@@ -334,7 +344,7 @@ void AMissile::Tick(float DeltaTime)
 	{
 		if (!CurrentTarget && bHadATarget)
 		{
-			MissileHit();
+			DetonateMissile();
 		}
 
 
@@ -345,7 +355,7 @@ void AMissile::Tick(float DeltaTime)
 		{
 			SetActorLocation(HitResult.ImpactPoint);
 			LOGA("Missile: LineTrace HitActor = \"%s\"", *HitResult.Actor->GetName())
-			MissileHit();
+			DetonateMissile();
 		}
 		else
 		{
@@ -422,7 +432,7 @@ void AMissile::OnDetectionBeginOverlap(UPrimitiveComponent* OverlappedComponent,
 {
 	if (!HasAuthority()) return; // is not server
 	if (OtherActor
-		&& OtherActor->Instigator
+		&& OtherActor->Instigator != nullptr
 		&& OtherActor->Instigator == Instigator)
 		return; // other actor is owned by the same Player
 
@@ -433,20 +443,24 @@ void AMissile::OnDetectionBeginOverlap(UPrimitiveComponent* OverlappedComponent,
 		if (CurrentTarget)
 		{
 			AActor* TargetActor = CurrentTarget->GetOwner();
+
 			// overlapped the target?
 			if (OtherActor == TargetActor)
 			{
+				// disable Overlap Events
 				if (ActorDetectionSphere)
 				{
 					ActorDetectionSphere->OnComponentBeginOverlap.RemoveAll(this);
 				}
+
 				// was target a missile?
 				if (OtherActor->GetClass()->ImplementsInterface(UMissile_Interface::StaticClass()))
 				{
 					IMissile_Interface::Execute_Explode(OtherActor, this);
 				}
+
 				// explode
-				MissileHit();
+				DetonateMissile();
 			}
 		}
 	}
@@ -464,20 +478,40 @@ void AMissile::DecreaseRemainingDistance(const float DeltaTime, const float Boos
 	{
 		MaxBoostRangeReached();
 	}
+}
+
+void AMissile::MaxBoostRangeReached()
+{
+	DetonateMissile();
+}
+
+void AMissile::CheckTargetTargetable()
+{
+	if (CurrentTarget)
+	{
+		AActor* TargetActor = CurrentTarget->GetOwner();
+		if (TargetActor && TargetActor->GetClass()->ImplementsInterface(UTarget_Interface::StaticClass()))
+		{
+			if (!ITarget_Interface::Execute_GetIsTargetable(TargetActor, this))
+			{
+				CurrentTarget = nullptr;
+			}
+		}
+	}
 }// called on server for Multi-Cast of explosion
-void AMissile::MissileHit()
+void AMissile::DetonateMissile()
 {
 	if (!bHit && HasAuthority())
 	{
 		bHit = true;
 		if (Mesh) Mesh->SetCollisionResponseToAllChannels(ECR_Ignore);
 		if (ActorDetectionSphere)ActorDetectionSphere->SetCollisionResponseToAllChannels(ECR_Ignore);
-		ServerMissileHit();
+		Authority_DetonateMissile();
 		ExplodeMissile();
 	}
 }
 
-void AMissile::ServerMissileHit_Implementation()
+void AMissile::Authority_DetonateMissile_Implementation()
 {
 	if (Role < ROLE_Authority)
 	{
@@ -495,7 +529,7 @@ void AMissile::HitTarget_Implementation(class AActor* TargetedActor)
 			//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Green, "Auth: Target HIT");
 			CurrentTarget->GetOwner()->ReceiveAnyDamage(FMath::RandRange(mProperties.BaseDamage.MinDamage, mProperties.BaseDamage.MinDamage), nullptr, GetInstigatorController(), this);
 			bHit = true;
-			MissileHit();
+			DetonateMissile();
 		}
 	}
 }
@@ -570,7 +604,7 @@ void AMissile::MissileMeshOverlap(class UPrimitiveComponent* ThisComp, class AAc
 	//		if (OtherComp->GetOwner() != GetOwner())
 	//		{
 	//			//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::White, " Auth: sth. HIT");
-	//			MissileHit();
+	//			DetonateMissile();
 	//			return;
 	//		}
 	//	}
@@ -580,7 +614,7 @@ void AMissile::MissileMeshOverlap(class UPrimitiveComponent* ThisComp, class AAc
 void AMissile::OnMeshHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {
 	LOG("Missile: OnMeshHit")
-	MissileHit();
+	DetonateMissile();
 	Mesh->OnComponentHit.RemoveAll(this);
 }
 
