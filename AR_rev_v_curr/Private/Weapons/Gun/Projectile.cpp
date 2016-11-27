@@ -3,7 +3,7 @@
 #include "AR_rev_v_curr.h"
 #include "Projectile.h"
 
-#define DEBUG 0
+#define DEBUG 1
 
 
 // Sets default values
@@ -16,10 +16,12 @@ AProjectile::AProjectile(const FObjectInitializer& PCIP) : Super(PCIP)
 	MinVelocitySquarred = 2500.0f;
 	Bounciness = 0.25f;
 	MaxBounces = 2;
-	BounceThreshold = -0.8f;
+	BounceThreshold = 0.6f;
+	bUsePhysicalMaterial = true;
 
 	// private
 	Bounces = 0;
+	bPendingDestruction = false;
 }
 
 // Called when the game starts or when spawned
@@ -56,22 +58,27 @@ void AProjectile::BeginPlay()
 void AProjectile::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-	Movement();
+
+	if (bPendingDestruction)
+	{
+		Destroy();
+	}
+	else
+	{
+		Movement();
+	}
 }
 
-void AProjectile::OnBounce_Implementation()
+void AProjectile::OnBounce_Implementation(const FHitResult& Hit)
 {
 }
 
-void AProjectile::OnImpact_Implementation()
+void AProjectile::OnImpact_Implementation(const FHitResult& HitResult)
 {
 }
 
 void AProjectile::Movement()
 {
-
-
-
 	// DEBUG
 	if (!bCanMove)
 	{
@@ -83,17 +90,16 @@ void AProjectile::Movement()
 	Locations.Add(TraceStartLocation);
 
 
-	
 	int cnt = 0;
 	do
 	{
 		bBounceAgain = false;
 		TraceAfterBounce();
 		++cnt;
-		if(cnt > 100)
+		if (cnt > 100)
 		{
 			LOG("Projectile: TOO MANY COLLISIONS")
-			Destroy();
+				Destroy();
 			break;
 		}
 	} while (bBounceAgain);
@@ -108,15 +114,15 @@ void AProjectile::TraceAfterBounce()
 	{
 		switch (ProjectileProperties.ProjectileType)
 		{
-			case EProjectileType::Kinetic:
-				{
-					FVector Gravity = World ? FVector(0, 0, World->GetGravityZ()) : FVector::ZeroVector;
-					UCalcFunctionLibrary::GetWorldGravity(this, Gravity);
-					Velocity = Velocity + Gravity * (PendingTravel * World->DeltaTimeSeconds);
-				}
-				break;
-			case EProjectileType::Energy: break;
-			default: break;
+		case EProjectileType::Kinetic:
+		{
+			FVector Gravity = World ? FVector(0, 0, World->GetGravityZ()) : FVector::ZeroVector;
+			UCalcFunctionLibrary::GetWorldGravity(this, Gravity);
+			Velocity = Velocity + Gravity * (PendingTravel * World->DeltaTimeSeconds);
+		}
+		break;
+		case EProjectileType::Energy: break;
+		default: break;
 		}
 		TraceEndLocation = TraceStartLocation + Velocity * (World->DeltaTimeSeconds * PendingTravel);
 
@@ -124,10 +130,11 @@ void AProjectile::TraceAfterBounce()
 		TraceParams.AllObjects;
 		TraceParams.RemoveObjectTypesToQuery(ECC_Projectile);
 		FHitResult HitResult;
-#if DEBUG == 1
-		
-#endif
-		if (World->LineTraceSingleByObjectType(HitResult, TraceStartLocation, TraceEndLocation, TraceParams))
+		FCollisionQueryParams QueryParams;
+		QueryParams.bReturnPhysicalMaterial = true;
+		QueryParams.bFindInitialOverlaps = false;
+
+		if (World->LineTraceSingleByObjectType(HitResult, TraceStartLocation, TraceEndLocation, TraceParams, QueryParams))
 		{
 #if DEBUG == 1
 			// Red up to the blocking hit, green thereafter
@@ -157,26 +164,70 @@ bool AProjectile::BouncingAllowed()
 
 bool AProjectile::CanBounce(const FHitResult& Hit)
 {
-	return FVector::DotProduct(Hit.Normal, Velocity.GetSafeNormal()) > BounceThreshold;
+	lastImpactDotProduct = FMath::Abs(FVector::DotProduct(Hit.Normal, Velocity.GetSafeNormal()));
+
+	UPhysicalMaterial* PhysMatRef = Hit.PhysMaterial.Get();
+	if(bUsePhysicalMaterial && PhysMatRef)
+	{		
+		LOGA("Projectile: CanBounce: PhysMat = %d", (int32) PhysMatRef->SurfaceType.GetValue())
+		LOGA2("Projectile: CanBounce: Restitution = %f; Dot = %f", PhysMatRef->Restitution, lastImpactDotProduct)
+		LOGA2("Projectile: CanBounce: Dot %f < %f ?", lastImpactDotProduct, BounceThreshold * PhysMatRef->Restitution)
+
+		return lastImpactDotProduct < BounceThreshold * PhysMatRef->Restitution;
+	} else
+	{
+		LOG("Projectile: CanBounce: NoPhysMat")
+
+		return lastImpactDotProduct < BounceThreshold;
+	}
 }
 
 void AProjectile::Impact(const FHitResult& Hit)
 {
-	OnImpact();
+	OnImpact(Hit);
 	LOG("Projectile: Impact")
-		Destroy();
+		bPendingDestruction = true;
 }
 
 void AProjectile::Bounce(const FHitResult& Hit)
 {
-	OnBounce();
+	OnBounce(Hit);
 	PendingTravel *= (1.0f - Hit.Time);
 	TraceStartLocation = Hit.ImpactPoint + Hit.Normal;
-	Velocity = Velocity.MirrorByVector(Hit.Normal) * Bounciness;
+	UPhysicalMaterial* PhysMatRef = Hit.PhysMaterial.Get();
+	if (bUsePhysicalMaterial && PhysMatRef)
+	{
+		const float CombinedBounciness = Bounciness * PhysMatRef->Restitution;
+		Velocity = Velocity.MirrorByVector(Hit.Normal);
+
+		const float VelocityMag = Velocity.Size() * CombinedBounciness * /* testing */ (1.0f - lastImpactDotProduct);
+		Velocity.Normalize();
+
+		const FVector PlaneDistanceVector = Velocity.ProjectOnToNormal(Hit.Normal);
+
+		if(PhysMatRef->Friction < 1.0f)
+		{
+			Velocity = Velocity - PlaneDistanceVector * PhysMatRef->Friction;
+			Velocity.Normalize();
+			Velocity *= VelocityMag;
+		} else
+		{
+			Velocity = Velocity + PlaneDistanceVector * PhysMatRef->Friction;
+			const float FrictionLength = Velocity.Size();
+			Velocity.Normalize();
+			Velocity *= VelocityMag / FrictionLength;
+		}
+
+
+	}else
+	{
+		Velocity = Velocity.MirrorByVector(Hit.Normal) * Bounciness;
+	}
+	
 	++Bounces;
 	if (Velocity.SizeSquared() < MinVelocitySquarred)
 	{
-		Destroy();
+		bPendingDestruction = true;
 	}
 	else
 	{
@@ -187,16 +238,9 @@ void AProjectile::Bounce(const FHitResult& Hit)
 
 void AProjectile::HandleTraceResult(const FHitResult& Hit)
 {
-	if (BouncingAllowed())
+	if (BouncingAllowed() && CanBounce(Hit))
 	{
-		if (CanBounce(Hit))
-		{
-			Bounce(Hit);
-		}
-		else
-		{
-			Impact(Hit);
-		}
+		Bounce(Hit);
 	}
 	else
 	{
@@ -207,5 +251,5 @@ void AProjectile::HandleTraceResult(const FHitResult& Hit)
 void AProjectile::UpdateTransform()
 {
 	const FRotator newRotation = (TraceEndLocation - TraceStartLocation).Rotation();
-	SetActorLocationAndRotation(TraceEndLocation, newRotation, false, nullptr, ETeleportType::TeleportPhysics);	
+	SetActorLocationAndRotation(TraceEndLocation, newRotation, false, nullptr, ETeleportType::TeleportPhysics);
 }

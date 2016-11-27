@@ -51,27 +51,31 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Projectile|Collision")
 		TArray<AActor*> IgnoreActors;
 
-	// 1.0 -> 100% Velocity after bounce
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Movement")
+	// 1.0 -> 100% Velocity after bounce, will be combined with the bounciness of the Physical Materials Restitution if it exists
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Collision")
 		float Bounciness;
 
 	// -1 unlimited bounces; 0 bouncing disabled
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Movement")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Collision")
 		int32 MaxBounces;
 
-	// dot product of the velocity vector and the surface normal, choose in range of -1.0 (always bounce) and 0.0 (never bounce)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Movement")
+	// dot product of the velocity vector and the surface normal, choose in range of 1.0 (always bounce when bUsePhysicalMaterial deactivated) and 0.0 (never bounce)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Collision")
 		float BounceThreshold;
+
+	// use the physical material of the actor the projectile hits in order to calculate impact/bounce behaviour
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Collision")
+		bool bUsePhysicalMaterial;
 
 	// Actors Locations: index 0 = StartLocation; last index = EndLocation; between 1st and last: all the locations where the actor bounced/penetrated
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Movement")
 		TArray<FVector> Locations;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Movement|DEBUG")
-	bool bCanMove = true;
+		bool bCanMove = true;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Projectile|Movement|DEBUG")
-	float DEBUGLineLifeTime = 5.0f;
+		float DEBUGLineLifeTime = 5.0f;
 
 
 	FTransform DEBUGStart;
@@ -81,21 +85,25 @@ private:
 	FVector TraceEndLocation;
 	float PendingTravel;
 	int32 Bounces;
+	// will be calculated every time CanBounce is called
+	float lastImpactDotProduct;
 	bool bUnlimitedBouncing;
 	bool bBounceAgain;
+	bool bPendingDestruction;
 
 protected:
 	UFUNCTION(BlueprintNativeEvent, Category = "Projectile|Collsion")
-		void OnBounce();
+		void OnBounce(const FHitResult& HitResult);
 
 	UFUNCTION(BlueprintNativeEvent, Category = "Projectile|Collsion")
-		void OnImpact();
+		void OnImpact(const FHitResult& HitResult);
 
 	FORCEINLINE virtual void Movement();
 
 	FORCEINLINE virtual void TraceAfterBounce();
 
 	FORCEINLINE virtual bool BouncingAllowed();
+	// calculates the dot product of the impact and decides whether the projectile can bounce
 	FORCEINLINE virtual bool CanBounce(const FHitResult& Hit);
 
 	virtual void Impact(const FHitResult& Hit);
