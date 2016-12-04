@@ -71,6 +71,13 @@ struct FMissileProperties {
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile|Properties")
 		float MaxRange = 400000.0f;
 
+	// time on seconds it takes for the missile to start its booster,
+	//	if delay <= 0.0f -> instant ignition
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Homing")
+		float BoosterIgnitionDelay = 0.2f;
+
+	// time in seconds it takes after the ignition for the missile to reach max velocity,
+	//	if delay <= 0.0f -> instant max Velocity
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile|Properties")
 		float AccelerationTime = 1.0f;
 

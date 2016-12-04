@@ -9,20 +9,51 @@
 void AMissile::OnConstruction(const FTransform& Transform)
 {
 	LOG("Missile: OnConstruction")
-	mRemainingBoostDistance = mProperties.MaxRange;
+		mRemainingBoostDistance = mProperties.MaxRange;
 
+	if (ActorDetectionSphere)ActorDetectionSphere->SetSphereRadius(mProperties.ExplosionRadius);
+	// Attach
+	LOGA("Missile: BeginPlay: BoosterSocket = \"%s\"", *BoosterSocket.ToString())
+		if (Mesh && Mesh->DoesSocketExist(BoosterSocket))
+		{
+			if (mMissileTrail)
+			{
+				mMissileTrail->AttachToComponent(Mesh, FAttachmentTransformRules::KeepRelativeTransform, BoosterSocket);
+				mMissileTrail->Activate();
+			}
+			if (mBoosterSound) mBoosterSound->AttachToComponent(Mesh, FAttachmentTransformRules::KeepRelativeTransform, BoosterSocket);
+		}
+		else
+		{
+			if (mMissileTrail)
+			{
+				mMissileTrail->AttachToComponent(Mesh, FAttachmentTransformRules::KeepRelativeTransform);
+				mMissileTrail->Activate();
+			}
+			if (mBoosterSound)mBoosterSound->AttachToComponent(Mesh, FAttachmentTransformRules::KeepRelativeTransform);
+		}
 }
 
-void AMissile::Explode_Implementation(UObject* object)
+void AMissile::Explode_Implementation(UObject* object, const float Delay)
 {
 	if (object)
 	{
 		LOGA("Missile: Received mExplosion Command from \"%s\"", *object->GetName())
 	}
-	// make sure the missile has no target
-	CurrentTarget = nullptr;
+	if (bDetonated) return;
+
+	if(Delay > 0.0f){
+		FTimerManager& TimerManager = GetWorldTimerManager();
+		if (!TimerManager.IsTimerActive(DetonationDelayTimer)
+			|| TimerManager.GetTimerRemaining(DetonationDelayTimer) > Delay){
+
+			TimerManager.SetTimer(DetonationDelayTimer,this, &AMissile::DelayedDetonation, Delay, false);			
+		}
+		return;
+	}
+
 	// detonate missile
-	DetonateMissile();
+	DetonateMissile(GetActorTransform());
 }
 
 void AMissile::DeactivateForDuration_Implementation(const float Duration)
@@ -48,8 +79,9 @@ AMissile::AMissile(const FObjectInitializer& PCIP) : Super(PCIP)
 	// Network
 	SetReplicates(true);
 	bNetUseOwnerRelevancy = true;
-	NetCullDistanceSquared = 100000.0f * 100000.0f; // Distance of 1km
-	NetUpdateFrequency = 5.0f;
+	NetCullDistanceSquared = FMath::Square(100000.0f); // Distance of 1km
+	NetUpdateFrequency = 10.0f;
+	MinNetUpdateFrequency = 1.0f;
 
 	// the skeletal Mesh
 	Mesh = PCIP.CreateDefaultSubobject<USkeletalMeshComponent>(this, TEXT("MissileMesh"));
@@ -66,15 +98,12 @@ AMissile::AMissile(const FObjectInitializer& PCIP) : Super(PCIP)
 	// A sphere that acts as explosionradius/targetdetection
 	ActorDetectionSphere = PCIP.CreateDefaultSubobject<USphereComponent>(this, TEXT("ActorDetection"));
 	ActorDetectionSphere->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepRelativeTransform);
-	ActorDetectionSphere->InitSphereRadius(mProperties.ExplosionRadius);
 	ActorDetectionSphere->SetCollisionProfileName(TEXT("OverlapAll"));
+	ActorDetectionSphere->SetCollisionObjectType(ECollisionChannel::ECC_Camera);
+	ActorDetectionSphere->SetCollisionResponseToChannel(ECC_Camera, ECR_Ignore);
+	ActorDetectionSphere->SetCollisionResponseToChannel(ECC_Visibility, ECR_Ignore);
 
 	ActorDetectionSphere->OnComponentBeginOverlap.AddDynamic(this, &AMissile::OnDetectionBeginOverlap);
-
-	// Explosionsoundeffect
-	mExplosionSound = PCIP.CreateDefaultSubobject<UAudioComponent>(this, TEXT("mExplosionSound"));
-	mExplosionSound->AttachToComponent(RootComponent, FAttachmentTransformRules::KeepRelativeTransform);
-	mExplosionSound->bAutoActivate = false;
 
 	// Missileboostersoundeffect
 	mBoosterSound = PCIP.CreateDefaultSubobject<UAudioComponent>(this, TEXT("EngineSound"));
@@ -84,9 +113,8 @@ AMissile::AMissile(const FObjectInitializer& PCIP) : Super(PCIP)
 	mMissileTrail = PCIP.CreateDefaultSubobject<UParticleSystemComponent>(this, TEXT("mMissileTrail"));
 	mMissileTrail->bAutoActivate = false;
 
-
-	
-
+	BoosterSocket = "booster";
+	ShockWaveVelocity = 30000.0f;
 
 	// binding an a function to event OnDestroyed
 	OnDestroyed.AddDynamic(this, &AMissile::MissileDestruction);
@@ -128,7 +156,7 @@ void AMissile::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetime
 	DOREPLIFETIME(AMissile, SpiralVelocity);
 	DOREPLIFETIME_CONDITION(AMissile, SpiralDeactivationDistance, COND_InitialOnly);
 
-	DOREPLIFETIME(AMissile, bHit);
+	DOREPLIFETIME(AMissile, bDetonated);
 
 	DOREPLIFETIME(AMissile, MissileTransformOnAuthority);
 	DOREPLIFETIME(AMissile, IntegerArray);
@@ -141,103 +169,36 @@ void AMissile::BeginPlay()
 {
 	Super::BeginPlay();
 
-
-	//LOG("Missile: BeginPlay")
-
 	// server behaviour
 	if (Role == ROLE_Authority)
 	{
 		bHadATarget = CurrentTarget ? true : false;
-
-		/*if (bBombingMode) {
-			CurrentTarget = nullptr;
-			ActorDetectionSphere->Activate();
-			ActorDetectionSphere->SetSphereRadius(TargetDetectionRadius);
-		}
-		else {
-			ActorDetectionSphere->DestroyComponent();
-		}*/
-
-		// create spiraling behaviour
-		{
-			// Rotation offset
-			if (CustomSpiralOffset != 0.0f)
-			{
-				CustomSpiralOffset = FMath::FRandRange(0.0f, 360.f);
-			}
-			// Rotation direction cw/ccw
-			if (SpiralDirection != 0)
-			{
-				SpiralDirection = FMath::Sign(SpiralDirection);
-			}
-			else
-			{
-				SpiralDirection = (FMath::RandBool()) ? -1.0f : 1.0f;
-			}
-			// Rotationrate
-			if (RandomizeSpiralVelocity)
-			{
-				SpiralVelocity *= FMath::FRandRange(0.5f, 1.5f);
-			}
-		}
-
-		// Randomize Missile Velocity
-		//MaxVelocity *= FMath::FRandRange(0.95f, 1.05f);
+		CreateSpiralingBehaviour();
 	}
 
 	// clients and authority
+	if (bBombingMode)
 	{
-		if (bBombingMode)
-		{
-			//AdvancedHoming = false;
-			MissileLock = true;
-			CurrentTargetLocation = BombingTargetLocation;
-		}
-
-		Velocity = InitialVelocity;
-		if (mProperties.AccelerationTime > 0.0f)
-		{
-			Acceleration = 1.0f / mProperties.AccelerationTime;
-		}
-		else
-		{
-			Acceleration = 1.0f;
-		}
-		FTimerHandle AccerlerationStarter;
-		GetWorldTimerManager().SetTimer(AccerlerationStarter, this, &AMissile::EnableAcceleration, 0.2f, false);
+		//AdvancedHoming = false;
+		MissileLock = true;
+		CurrentTargetLocation = BombingTargetLocation;
+	}
+	if (CurrentTarget) {
+		TargetInfo.Actor = CurrentTarget->GetOwner();
 	}
 
-	// clients only
-	if (Role < ROLE_Authority)
+	// check: can accelerate
+	bCanAccelerate = false;
+	if (mProperties.AccelerationTime > 0.0f)
 	{
-		NetUpdateInterval = 1.0f / NetUpdateFrequency;
-		//ActorDetectionSphere->DestroyComponent();
-		//mExplosionSound->AttachToComponent(RootComponent);
-		//if (MissileMesh->DoesSocketExist(FName("booster"))) {
-		//	mMissileTrail->AttachToComponent(MissileMesh, FName("booster"));
-		//	mMissileTrail->Activate();
-		//	mBoosterSound->AttachToComponent(MissileMesh, FName("booster"));
-		//}
-	}
-
-
-	if (Mesh && Mesh->DoesSocketExist(FName("booster")))
-	{
-		if (mMissileTrail)
-		{
-			mMissileTrail->AttachToComponent(Mesh, FAttachmentTransformRules::KeepRelativeTransform, FName("booster"));
-			mMissileTrail->Activate();
-		}
-		if (mBoosterSound) mBoosterSound->AttachToComponent(Mesh, FAttachmentTransformRules::KeepRelativeTransform, FName("booster"));
+		CurrentVelocity = InitialVelocity;
+		Acceleration = 1.0f / mProperties.AccelerationTime;
+		GetWorldTimerManager().SetTimer(AccelStartTimer, this, &AMissile::EnableAcceleration, mProperties.BoosterIgnitionDelay, false);
 	}
 	else
 	{
-		if (mMissileTrail)
-		{
-			mMissileTrail->AttachToComponent(Mesh, FAttachmentTransformRules::KeepRelativeTransform);
-			mMissileTrail->Activate();
-		}
-		if (mBoosterSound)mBoosterSound->AttachToComponent(Mesh, FAttachmentTransformRules::KeepRelativeTransform);
+		CurrentVelocity = mProperties.MaxVelocity;
+		Acceleration = 0.0f;
 	}
 }
 
@@ -251,7 +212,7 @@ void AMissile::Tick(float DeltaTime)
 	// count missile lifetime
 	LifeTime += DeltaTime;
 
-	DecreaseRemainingDistance(DeltaTime);
+	DecreaseRemainingBoostDistance(DeltaTime);
 
 	// client and server
 	if (bBombingMode)
@@ -271,82 +232,40 @@ void AMissile::Tick(float DeltaTime)
 		}
 	}
 
-	// server only
-	if (Role == ROLE_Authority)
+	// perform homing to the target by rotating, both clients and server
+	if (MissileLock) Homing(DeltaTime);
+
+	// the distance the missile will be moved at the end of the current tick
+	MovementVector = GetActorForwardVector() * DeltaTime * CurrentVelocity;
+
+	if (bCanAccelerate)
 	{
-		//if (GetOwner()) { // not working???
-		//	if (GetOwner()->IsPendingKill()) {
-		//		DetonateMissile();
-		//		return;
-		//	}
-		//}
-
-		/*if (LifeTime > MaxFlightTime) {
-			CurrentTarget = nullptr;
-			DetonateMissile();
-			return;
-		}*/
-
-		// in bombing mode explode when reaching hominglocation
-		/*if (bBombingMode) {
-			if (FVector::DotProduct(DirectionToTarget, GetActorForwardVector()) < 0.0f) {
-				DetonateMissile();
-				return;
-			}
-		}*/
-
-		// is the target inside explosionradius? (missiletraveldistance is for fast moving missiles with low fps)
-		//if (DistanceToTarget < mProperties.ExplosionRadius + Velocity * DeltaTime && bNotFirstTick && CurrentTarget) {
-		//	// explode and damage target when target is in range
-		//	{
-		//		bDamageTarget = true;
-		//		HitTarget(CurrentTarget ? ((CurrentTarget->GetOwner()) ? CurrentTarget->GetOwner() : nullptr) : nullptr);
-		//		return;
-		//	}
-		//}
-	}
-
-	// clients and server
-	{
-		// perform homing to the target by rotating, both clients and server
-		if (MissileLock) Homing(DeltaTime);
-
-		// the distance the missile will be moved at the end of the current tick
-		MovementVector = GetActorForwardVector() * DeltaTime * Velocity;
-
-		// is missile is still accelerating? 
-		if (bCanAccelerate)
+		if (!bReachedMaxVelocity)
 		{
-			Turnrate = mProperties.HomingProperties.MaxTurnrate;
-			if (!bReachedMaxVelocity)
+			// inrease Velocity
+			CurrentVelocity += Acceleration * DeltaTime * mProperties.MaxVelocity;
+
+			// inrease Turnrate
+			Turnrate += Acceleration * DeltaTime * mProperties.HomingProperties.MaxTurnrate;
+
+			// has reached max velocity?
+			if (CurrentVelocity > mProperties.MaxVelocity)
 			{
-				// inrease Velocity
-				Velocity += Acceleration * DeltaTime * mProperties.MaxVelocity;
-
-				//// inrease Turnrate
-				//Turnrate += Acceleration * DeltaTime * MaxTurnrate;          
-
-				// has reached max velocity?
-				if (Velocity > mProperties.MaxVelocity)
-				{
-					Velocity = mProperties.MaxVelocity;
-					//Turnrate = MaxTurnrate;
-					bReachedMaxVelocity = true;
-					bCanAccelerate = false;
-					// has now reached max velocity
-				}
+				CurrentVelocity = mProperties.MaxVelocity;
+				Turnrate = mProperties.HomingProperties.MaxTurnrate;
+				bReachedMaxVelocity = true;
+				bCanAccelerate = false;
 			}
 		}
 	}
 
 	// server only
-	if (Role == ROLE_Authority)
+	if (HasAuthority())
 	{
-		if (!CurrentTarget && bHadATarget)
-		{
-			DetonateMissile();
-		}
-
+		//if (!CurrentTarget && bHadATarget)
+		//{
+		//	DetonateMissile();
+		//}
 
 		FCollisionObjectQueryParams TraceParams;
 		TraceParams.AddObjectTypesToQuery(ECollisionChannel::ECC_WorldStatic);
@@ -355,7 +274,7 @@ void AMissile::Tick(float DeltaTime)
 		{
 			SetActorLocation(HitResult.ImpactPoint);
 			LOGA("Missile: LineTrace HitActor = \"%s\"", *HitResult.Actor->GetName())
-			DetonateMissile();
+				DetonateMissile(GetActorTransform());
 		}
 		else
 		{
@@ -365,44 +284,24 @@ void AMissile::Tick(float DeltaTime)
 		}
 		MissileTransformOnAuthority = GetTransform();
 	}
-
-	// clients only
-	if (Role < ROLE_Authority)
-	{
+	else {
 		// perform movement with correction
 		if (LocationCorrectionTimeLeft > 0.0f)
 		{
-			AddActorWorldOffset(MovementVector + (ClientLocationError * DeltaTime));
+			AddActorWorldOffset(MovementVector + ClientLocationError * DeltaTime);
 			LocationCorrectionTimeLeft -= DeltaTime;
 		}
 		else
 		{
 			AddActorWorldOffset(MovementVector);
 		}
-
-		// ping testing
-		{
-			//if (GetWorld()->GetFirstPlayerController()) {      // get ping
-			//	State = Cast<APlayerState>(GetWorld()->GetFirstPlayerController()->PlayerState); // "APlayerState" hardcoded, needs to be changed for main project
-			//	if (State) {
-			//		Ping = float(State->Ping) * 0.001f;
-			//		// debug display ping on screen
-			//		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, DeltaTime/*seconds*/, FColor::Green, FString::SanitizeFloat(Ping));
-
-			//		// client has now the most recent ping in seconds
-			//	}
-			//}
-		}
 	}
 
-	// clients and server
-	{
-		SmokeDrift(DeltaTime);
+	SmokeDrift(DeltaTime);
 
-		// store current location for next Tick
-		LastActorLocation = GetActorLocation();
-		bNotFirstTick = true;
-	}
+	// store current location for next Tick
+	LastActorLocation = GetActorLocation();
+	bNotFirstTick = true;
 }
 
 void AMissile::SmokeDrift(const float DeltaTime)
@@ -431,39 +330,33 @@ void AMissile::SmokeDrift(const float DeltaTime)
 void AMissile::OnDetectionBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
 {
 	if (!HasAuthority()) return; // is not server
-	if (OtherActor
-		&& OtherActor->Instigator != nullptr
-		&& OtherActor->Instigator == Instigator)
+	if (OtherActor && 
+		 (OtherActor->Instigator != nullptr
+		&& OtherActor->Instigator == Instigator))
 		return; // other actor is owned by the same Player
 
 	LOG("Missile: OnDetectionBeginOverlap")
-	if (OtherActor)
-	{
-		LOGA("Missile: overlapping with %s", *OtherActor->GetName());
-		if (CurrentTarget)
+		if (OtherActor)
 		{
-			AActor* TargetActor = CurrentTarget->GetOwner();
-
-			// overlapped the target?
-			if (OtherActor == TargetActor)
+			LOGA("Missile: overlapping with %s", *OtherActor->GetName());
+			if (CurrentTarget)
 			{
-				// disable Overlap Events
-				if (ActorDetectionSphere)
-				{
-					ActorDetectionSphere->OnComponentBeginOverlap.RemoveAll(this);
-				}
+				AActor* TargetActor = CurrentTarget->GetOwner();
 
-				// was target a missile?
-				if (OtherActor->GetClass()->ImplementsInterface(UMissile_Interface::StaticClass()))
+				// overlapped the target?
+				if (OtherActor == TargetActor)
 				{
-					IMissile_Interface::Execute_Explode(OtherActor, this);
-				}
+					// was target a missile?
+					if (OtherActor->GetClass()->ImplementsInterface(UMissile_Interface::StaticClass()))
+					{
+						IMissile_Interface::Execute_Explode(OtherActor, this, 0.0f);
+					}
 
-				// explode
-				DetonateMissile();
+					// explode
+					DetonateMissile(GetActorTransform());
+				}
 			}
 		}
-	}
 }
 
 void AMissile::MissileDestruction(AActor* actor)
@@ -471,7 +364,7 @@ void AMissile::MissileDestruction(AActor* actor)
 	//
 }
 
-void AMissile::DecreaseRemainingDistance(const float DeltaTime, const float BoostIntensity)
+void AMissile::DecreaseRemainingBoostDistance(const float DeltaTime, const float BoostIntensity)
 {
 	mRemainingBoostDistance -= mProperties.MaxVelocity * DeltaTime * BoostIntensity;
 	if (mRemainingBoostDistance < 0.0f)
@@ -482,7 +375,10 @@ void AMissile::DecreaseRemainingDistance(const float DeltaTime, const float Boos
 
 void AMissile::MaxBoostRangeReached()
 {
-	DetonateMissile();
+	if (HasAuthority())
+	{
+		DetonateMissile(GetActorTransform());
+	}
 }
 
 void AMissile::CheckTargetTargetable()
@@ -495,59 +391,126 @@ void AMissile::CheckTargetTargetable()
 			if (!ITarget_Interface::Execute_GetIsTargetable(TargetActor, this))
 			{
 				CurrentTarget = nullptr;
+				// reduce Boostdistance to cause an earlier explosion
+				mRemainingBoostDistance *= 0.2f;
 			}
 		}
 	}
-}// called on server for Multi-Cast of explosion
-void AMissile::DetonateMissile()
+}
+
+void AMissile::CreateSpiralingBehaviour()
 {
-	if (!bHit && HasAuthority())
+	// Rotation offset
+	if (CustomSpiralOffset != 0.0f)
 	{
-		bHit = true;
-		if (Mesh) Mesh->SetCollisionResponseToAllChannels(ECR_Ignore);
-		if (ActorDetectionSphere)ActorDetectionSphere->SetCollisionResponseToAllChannels(ECR_Ignore);
-		Authority_DetonateMissile();
-		ExplodeMissile();
+		CustomSpiralOffset = FMath::FRandRange(0.0f, 360.f);
+	}
+	// Rotation direction cw/ccw
+	if (SpiralDirection != 0)
+	{
+		SpiralDirection = FMath::Sign(SpiralDirection);
+	}
+	else
+	{
+		SpiralDirection = (FMath::RandBool()) ? -1.0f : 1.0f;
+	}
+	// Rotationrate
+	if (RandomizeSpiralVelocity)
+	{
+		SpiralVelocity *= FMath::FRandRange(0.5f, 1.5f);
 	}
 }
 
-void AMissile::Authority_DetonateMissile_Implementation()
+void AMissile::DetonateMissile(const FTransform& Transform)
+{
+	if (!bDetonated && HasAuthority())
+	{
+		bDetonated = true;
+		// make sure the missile looses its target
+		CurrentTarget = nullptr;
+
+		if (ActorDetectionSphere)
+		{
+			// cause all missiles overlapping this missiles detectionsphere to also explode (chain reaction) 
+			TArray<AActor*> OverlappingActors;
+			ActorDetectionSphere->GetOverlappingActors(OverlappingActors);
+
+			LOGA("Missile: Overlapping Num = %d", OverlappingActors.Num())
+				int32 num = 0;
+
+			for (AActor* OverlapActor : OverlappingActors)
+			{
+				if (OverlapActor) {
+					LOGA2("Missile: In Explosion Radius No: %d: \"%s\"", num, *OverlapActor->GetName())
+						++num;
+					if (OverlapActor->GetClass()->ImplementsInterface(UMissile_Interface::StaticClass()))
+					{
+						const float Distance = (OverlapActor->GetActorLocation() - GetActorLocation()).Size();
+						const float Delay = FMath::GetMappedRangeValueUnclamped(FVector2D(0.0f, ShockWaveVelocity), FVector2D(0.0f, 1.0f), Distance);
+						IMissile_Interface::Execute_Explode(OverlapActor, this, Delay);
+					}
+				}
+			}
+
+			// disable Overlap Events
+			ActorDetectionSphere->OnComponentBeginOverlap.RemoveAll(this);
+
+		}
+		AllDetonateMissile(Transform);
+		ExplodeMissile(Transform);
+	}
+}
+
+void AMissile::DelayedDetonation()
+{
+	DetonateMissile(GetActorTransform());
+}
+
+void AMissile::OnDetonation_Implementation(const FTransform& Transform)
+{
+}
+
+void AMissile::AllDetonateMissile_Implementation(const FTransform& ExplosionTransform)
 {
 	if (Role < ROLE_Authority)
 	{
-		ExplodeMissile();
+		ExplodeMissile(ExplosionTransform);
 	}
 }
 
 void AMissile::HitTarget_Implementation(class AActor* TargetedActor)
 {
-	if (Role == ROLE_Authority && !bHit)
+	if (Role == ROLE_Authority && !bDetonated)
 	{
 		SetLifeSpan(mMissileTrailLifeSpan);
 		if (bDamageTarget && CurrentTarget)
 		{
 			//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Green, "Auth: Target HIT");
 			CurrentTarget->GetOwner()->ReceiveAnyDamage(FMath::RandRange(mProperties.BaseDamage.MinDamage, mProperties.BaseDamage.MinDamage), nullptr, GetInstigatorController(), this);
-			bHit = true;
-			DetonateMissile();
+			bDetonated = true;
+			DetonateMissile(GetActorTransform());
 		}
 	}
 }
 
-void AMissile::ExplodeMissile()
+void AMissile::ExplodeMissile(const FTransform& ExplosionTransform)
 {
-	if (mExplosion/* && Role < ROLE_Authority*/)
-	{
-		//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Red, "client: mExplosion");
-		UParticleSystemComponent* Hit = UGameplayStatics::SpawnEmitterAtLocation(this, mExplosion, GetActorLocation(), GetActorRotation(), true);
-		if (mExplosionSound) mExplosionSound->Activate();
-	}
-	if (mBoosterSound) mBoosterSound->Deactivate();
 	SetActorTickEnabled(false);
+	OnDetonation(ExplosionTransform);
 
-	if (RootComponent) RootComponent->SetVisibility(false, true);
-	if (mMissileTrail) mMissileTrail->DeactivateSystem();
-	if (mMissileTrail) mMissileTrail->SetVisibility(true);
+	if (mBoosterSound) {
+		mBoosterSound->Deactivate();
+	}
+	if (Mesh) {
+		Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+		Mesh->SetHiddenInGame(true, false);
+	}
+	if (ActorDetectionSphere) {
+		ActorDetectionSphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+	if (mMissileTrail) {
+		mMissileTrail->DeactivateSystem();
+	}
 }
 
 void AMissile::OverlappingATarget(class AActor* OtherActor/*, class UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult*/)
@@ -565,56 +528,10 @@ void AMissile::OverlappingATarget(class AActor* OtherActor/*, class UPrimitiveCo
 	}
 }
 
-void AMissile::MissileMeshOverlap(class UPrimitiveComponent* ThisComp, class AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult)
-{
-	// if missile has already exploded abort function
-	if (bHit) return;
-	////if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::White, "Overlap Event");
-
-	//if (Role == ROLE_Authority)
-	//{
-	//	// Best way to check for existence for both BP and C++
-	//	if (OtherActor && OtherActor->GetClass()->ImplementsInterface(UMissile_Interface::StaticClass()))
-	//	{
-	//		IMissile_Interface::Execute_Explode(OtherActor, this);
-	//	}
-
-	//	//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Red, " Authority: Overlap Event");
-	//	// missileMesh is overlapping with something	
-	//	// Other Actor is the actor that triggered the event. Check that is not the missile.  
-	//	if (OtherActor && (OtherActor != this) && OtherComp)
-	//	{
-	//		// did the missile hit the target?
-	//		if (CurrentTarget)
-	//		{
-	//			if (CurrentTarget->GetOwner() == OtherActor)
-	//			{
-	//				bDamageTarget = true;
-	//				HitTarget(CurrentTarget ? ((CurrentTarget->GetOwner()) ? CurrentTarget->GetOwner() : nullptr) : nullptr);
-	//				return;
-	//			}
-	//		}
-	//		// missile is overlapping with another missile fired by the same player
-	//		if (OtherActor->GetInstigator() == GetInstigator() && GetInstigator())
-	//		{
-	//			//if (GEngine) GEngine->AddOnScreenDebugMessage(2, 3.0f/*seconds*/, FColor::Green, "Same Instigator");
-	//			return;
-	//		}
-	//		// did the missile hit something else?
-	//		if (OtherComp->GetOwner() != GetOwner())
-	//		{
-	//			//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::White, " Auth: sth. HIT");
-	//			DetonateMissile();
-	//			return;
-	//		}
-	//	}
-	//}
-}
-
 void AMissile::OnMeshHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {
 	LOG("Missile: OnMeshHit")
-	DetonateMissile();
+		DetonateMissile(GetActorTransform());
 	Mesh->OnComponentHit.RemoveAll(this);
 }
 
@@ -650,7 +567,7 @@ void AMissile::Homing(float DeltaTime)
 		TargetVel.CurrentLocation = CurrentTargetLocation;
 		// calculate the location where missile and target will hit each other
 		//PredictedTargetLocation = LinearTargetPrediction(CurrentTargetLocation, GetActorLocation(), TargetVelocity, Velocity);
-		UCalcFunctionLibrary::LinearTargetPrediction(CurrentTargetLocation, GetActorLocation(), TargetVel, DeltaTime, FVector::ZeroVector, Velocity, PredictedTargetLocation);
+		UCalcFunctionLibrary::LinearTargetPrediction(CurrentTargetLocation, GetActorLocation(), TargetVel, DeltaTime, FVector::ZeroVector, CurrentVelocity, PredictedTargetLocation);
 
 		LastTargetLocation = CurrentTargetLocation;
 
@@ -797,20 +714,20 @@ void AMissile::ServerDealing_Implementation()
 }
 
 float AMissile::DistanceLineLine(const FVector& a1,
-                                 const FVector& a2,
-                                 const FVector& b1,
-                                 const FVector& b2)
+	const FVector& a2,
+	const FVector& b1,
+	const FVector& b2)
 {
 	return ((a1 - a2) * (b1 ^ b2)).Size() / (b1 ^ b2).Size();
 }
 
 //returns the Distance or -1 / WIP
 bool AMissile::ClosestPointsOnTwoLines(const FVector& LineStartA,
-                                       const FVector& LineEndA,
-                                       const FVector& LineStartB,
-                                       const FVector& LineEndB,
-                                       FVector& PointA,
-                                       FVector& PointB)
+	const FVector& LineEndA,
+	const FVector& LineStartB,
+	const FVector& LineEndB,
+	FVector& PointA,
+	FVector& PointB)
 {
 	const FVector u = LineEndA - LineStartA;
 	const FVector v = LineEndB - LineStartB;

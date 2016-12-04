@@ -14,6 +14,7 @@
 #define LOG_MSG 1
 #include "CustomMacros.h"
 #include "Target_Interface.h"
+#include "MainPawn_Structs.h"
 #include "Missile.generated.h"
 
 
@@ -28,8 +29,10 @@ public:
 	virtual void OnConstruction(const FTransform& Transform) override;
 
 	// Missile_Interface Implementations
-	void Explode_Implementation(UObject* object) override;
+	void Explode_Implementation(UObject* object, const float Delay) override;
+
 	void DeactivateForDuration_Implementation(const float Duration) override;
+
 	FMissileStatus GetCurrentMissileStatus_Implementation() override;
 
 	// Constructor that sets default values for this actor's properties
@@ -55,23 +58,30 @@ private:
 
 	float mRemainingBoostDistance;
 	// Decrease the distance the missile can still travel using boost
-	void DecreaseRemainingDistance(const float DeltaTime, const float BoostIntensity = 1.0f);
+	void DecreaseRemainingBoostDistance(const float DeltaTime, const float BoostIntensity = 1.0f);
 
 	FORCEINLINE void MaxBoostRangeReached();
 	FORCEINLINE void CheckTargetTargetable();
+	FORCEINLINE void CreateSpiralingBehaviour();
 
 public:
-	/* TODO */
+	// 
 	UFUNCTION(BlueprintCallable, Category = "Missile")
-		virtual void DetonateMissile();
+		virtual void DetonateMissile(const FTransform& Transform);
 
-	/* TODO */
+	void DelayedDetonation();
+
+	UFUNCTION(BlueprintNativeEvent, Category = "Missile|Explosion")
+		void OnDetonation(const FTransform& Transform);
+
+
+	// Called from Authority to detonate the Missile
 	UFUNCTION(NetMulticast, Reliable)
-		void Authority_DetonateMissile();
+		void AllDetonateMissile(const FTransform& ExplosionTransform);
 
 	/* TODO */
 	UFUNCTION()
-		void ExplodeMissile();
+		void ExplodeMissile(const FTransform& ExplosionTransform);
 
 	/* TODO */
 	UFUNCTION(BlueprintNativeEvent, Category = "Missile")
@@ -95,16 +105,9 @@ public:
 		UParticleSystemComponent* mMissileTrail;
 
 	/* How long the particle system is still visible after it has been deactivated */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile | Trail")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile|Trail")
 		float mMissileTrailLifeSpan = 10.0f;
 
-	/* particlesystem that is activated when the missile explodes */
-	UPROPERTY(Category = ParticleSystem, BlueprintReadWrite, EditAnywhere, meta = (AllowPrivateAccess = "true"))
-		class UParticleSystem* mExplosion;
-
-	/* explosion sound effect */
-	UPROPERTY(Category = Sound, BlueprintReadWrite, EditAnywhere, meta = (AllowPrivateAccess = "true"))
-		class UAudioComponent* mExplosionSound;
 
 	/* Sound Cue that loops while the missile is boosting */
 	UPROPERTY(Category = Sound, BlueprintReadWrite, EditAnywhere, meta = (AllowPrivateAccess = "true"))
@@ -131,6 +134,9 @@ public:
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
 		class USceneComponent* CurrentTarget;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile|Target")
+		FTarget TargetInfo;
+
 
 	/** is spiral homing active */
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Meta = (ExposeOnSpawn = true), Category = "Missile")
@@ -145,7 +151,7 @@ public:
 		float SpiralDirection = 0.0f;
 
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Missile")
-		bool bHit = false;
+		bool bDetonated = false;
 
 
 	/** Spiral strength factor */
@@ -163,6 +169,13 @@ public:
 	/** distance to target when spiraling deactivates to hit the target */
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Missile")
 		float SpiralDeactivationDistance = 1000.0f;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile|Trail")
+		FName BoosterSocket;
+
+	// Used to calculate the explosion delay of nearby missiles (v in cm/s)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Missile|Explosion")
+		float ShockWaveVelocity;
 
 
 	///** A Replicated Boolean Flag */
@@ -205,15 +218,11 @@ public:
 	/* TODO */
 	virtual void RunsOnAllClients();
 
-	/* TODO */
 	UFUNCTION()
-		void MissileMeshOverlap(class UPrimitiveComponent* ThisComp, class AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+		void OnMeshHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
 
 	UFUNCTION()
-	void OnMeshHit(UPrimitiveComponent* HitComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit);
-
-	UFUNCTION()
-	void OnDetectionBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
+		void OnDetectionBeginOverlap(UPrimitiveComponent* OverlappedComponent, AActor* OtherActor, UPrimitiveComponent* OtherComp, int32 OtherBodyIndex, bool bFromSweep, const FHitResult& SweepResult);
 
 	/* TODO */
 	UFUNCTION()
@@ -242,6 +251,10 @@ public:
 	////// end: example for function replication
 
 private:
+
+	FTimerHandle AccelStartTimer;
+	FTimerHandle DetonationDelayTimer;
+
 
 	/* TODO */
 	UFUNCTION()
@@ -274,7 +287,7 @@ private:
 	/* TODO */
 	bool bReachedMaxVelocity = false;
 	/* TODO */
-	float Velocity;
+	float CurrentVelocity;
 	/* TODO */
 	float Dot;
 	/* TODO */
@@ -349,5 +362,4 @@ private:
 
 private:
 	bool bHadATarget;
-
 };
