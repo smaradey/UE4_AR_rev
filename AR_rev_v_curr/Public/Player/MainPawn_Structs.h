@@ -17,216 +17,273 @@ USTRUCT()
 struct FPlayerInputPackage {
 	GENERATED_USTRUCT_BODY()
 		// Default Constructor
-		FPlayerInputPackage() {
-		PlayerDataCompressed = 0LLU;
-	};
+	FPlayerInputPackage();
 
 	// Constructor to initialize the Struct
-	FPlayerInputPackage(bool Gun, bool Missile, bool Lock, const FVector2D & MovementInput, const FVector2D &MouseInput, const uint32 newPacketNumber) {
-		PlayerDataCompressed = 0LLU;
-		setGunFire(Gun);
-		setMissileFire(Missile);
-		setSwitchTarget(Lock);
-		SetMovementInput(MovementInput);
-		setMouseInput(MouseInput);
-		setPacketNumber(newPacketNumber);
-	};
+	FPlayerInputPackage(bool Gun, bool Missile, bool Lock, const FVector2D& MovementInput, const FVector2D& MouseInput, const uint32 newPacketNumber);;
 
 	/* TODO */
 	UPROPERTY()
 		uint64 PlayerDataCompressed;
 
 	// 4 bit 64-4 = 60
-	/* TODO */
-	void SetMovementInput(const FVector2D & MovementInput) {
-		uint64 const rightPressed = 1LLU;
-		uint64 const leftPressed = 1LLU << 1;
-		uint64 const forwardPressed = 1LLU << 2;
-		uint64 const backwardsPressed = 1LLU << 3;
-		uint64 const clearMovementInput = ~15LLU;
+	void SetMovementInput(const FVector2D& MovementInput);
 
-		PlayerDataCompressed &= clearMovementInput;
-		// forward
-		if (MovementInput.X > 0.0f) {
-			PlayerDataCompressed |= forwardPressed;
-		}
-		else
-			// backwards
-			if (MovementInput.X < 0.0f) {
-				PlayerDataCompressed |= backwardsPressed;
-			}
-		// right
-		if (MovementInput.Y > 0.0f) {
-			PlayerDataCompressed |= rightPressed;
-		}
-		else
-			// left
-			if (MovementInput.Y < 0.0f) {
-				PlayerDataCompressed |= leftPressed;
-			}
-	}
-
-	/* TODO */
-	FVector2D GetMovementInput() const {
-		uint64 const rightPressed = 1LLU;
-		uint64 const leftPressed = 1LLU << 1;
-		uint64 const forwardPressed = 1LLU << 2;
-		uint64 const backwardsPressed = 1LLU << 3;
-		FVector2D Input = FVector2D::ZeroVector;
-		// forward
-		if ((PlayerDataCompressed & forwardPressed) == forwardPressed) {
-			Input.X = 1.0f;
-		}
-		// backwards
-		if ((PlayerDataCompressed & backwardsPressed) == backwardsPressed) {
-			Input.X = -1.0f;
-		}
-		// right
-		if ((PlayerDataCompressed & rightPressed) == rightPressed) {
-			Input.Y = 1.0f;
-		}
-		// left
-		if ((PlayerDataCompressed & leftPressed) == leftPressed) {
-			Input.Y = -1.0f;
-		}
-		return Input;
-	}
+	FVector2D GetMovementInput() const;
 
 	// 24 bit 60-24 = 36
-	/* TODO */
-	void setMouseInput(const FVector2D &MouseInput) {
-		uint64 const mouseInputClear = ~(16777215LLU << 4);
-		uint64 const mouseYawIsNegative = 1LLU << 15;
-		uint64 const mousePitchIsNegative = 1LLU << 27;
+	void setMouseInput(const FVector2D& MouseInput);
 
-		PlayerDataCompressed &= mouseInputClear;
+	float getMouseYaw() const;
 
-		PlayerDataCompressed |= ((uint64)(2047 * FMath::Abs(MouseInput.X))) << 4;
-		if (MouseInput.X < 0.0f) {
-			PlayerDataCompressed |= mouseYawIsNegative;
-		}
+	float getMousePitch() const;
 
-		PlayerDataCompressed |= ((uint64)(2047 * FMath::Abs(MouseInput.Y))) << 16;
-		if (MouseInput.Y < 0.0f) {
-			PlayerDataCompressed |= mousePitchIsNegative;
-		}
-	}
+	FVector2D getMouseInput() const;
 
-	/* TODO */
-	float getMouseYaw() const {
-		uint64 const mouseYaw = 2047LLU << 4;
-		uint64 const mouseYawIsNegative = 1LLU << 15;
+	void setPacketNumber(const uint32 newPacketNumber);
 
-		if ((PlayerDataCompressed & mouseYawIsNegative) == mouseYawIsNegative) {
-
-			return 0.0f - (((PlayerDataCompressed & mouseYaw) >> 4) / 2047.0f);
-
-		}
-		return ((PlayerDataCompressed & mouseYaw) >> 4) / 2047.0f;
-	}
-
-	/* TODO */
-	float getMousePitch() const {
-		uint64 const mousePitch = 2047LLU << 16;
-		uint64 const mousePitchIsNegative = 1LLU << 27;
-
-		if ((PlayerDataCompressed & mousePitchIsNegative) == mousePitchIsNegative) {
-			return 0.0f - (((PlayerDataCompressed & mousePitch) >> 16) / 2047.0f);
-		}
-		return ((PlayerDataCompressed & mousePitch) >> 16) / 2047.0f;
-	}
-
-	/* TODO */
-	FVector2D getMouseInput() const {
-		return FVector2D(getMouseYaw(), getMousePitch());
-	}
-
-	/* TODO */
-	void setPacketNumber(const uint32 newPacketNumber) {
-		uint64 const PacketNoClear = ~(16777215LLU << 28);
-		PlayerDataCompressed &= PacketNoClear;
-		PlayerDataCompressed |= ((uint64)newPacketNumber) << 28;
-	}
-
-	/* TODO */
-	void IncrementPacketNumber() {
-		setPacketNumber(1 + getPacketNumber());
-	}
+	void IncrementPacketNumber();
 
 	// 24 bit 36-24 = 12
-	/* TODO */
-	uint32 getPacketNumber() const {
-		uint64 const PacketNo = 16777215LLU << 28;
-		return (uint32)((PlayerDataCompressed & PacketNo) >> 28);
-	}
+	uint32 getPacketNumber() const;
 
 	// 1 bit 64th  11
-	/* TODO */
-	void setGunFire(const uint32 bGunFire) {
-		setBit(bGunFire, 63);
-	}
+	void setGunFire(const uint32 bGunFire);
 
-	/* TODO */
-	bool getGunFire() const {
-		return (PlayerDataCompressed & (1LLU << 63)) == (1LLU << 63);
-	}
+	bool getGunFire() const;
 
 	// 1 bit 63th 10
-	/* TODO */
-	void setMissileFire(const uint32 bMissileFire) {
-		setBit(bMissileFire, 62);
-	}
+	void setMissileFire(const uint32 bMissileFire);
 
-	/* TODO */
-	bool getMissileFire() const {
-		return (PlayerDataCompressed & (1LLU << 62)) == (1LLU << 62);
-	}
+	bool getMissileFire() const;
 
 	// help function to reduce redundancy
-	void setBit(const uint32 bSet, const int Position) {
-		if (bSet) {
-			PlayerDataCompressed |= (1LLU << Position);
-		}
-		else {
-			PlayerDataCompressed &= ~(1LLU << Position);
-		}
-	}
+	void setBit(const uint32 bSet, const int Position);
 
-	// 1 bit 62th 9
-	/* TODO */
-	void setSwitchTarget(const uint32 bSwitchTarget) {
-		setBit(bSwitchTarget, 61);
-	}
+	// 1 bit 62th 9	
+	void setSwitchTarget(const uint32 bSwitchTarget);
 
-	/* TODO */
-	bool getSwitchTarget() const {
-		return (PlayerDataCompressed & (1LLU << 61)) == (1LLU << 61);
-	}
+	bool getSwitchTarget() const;
 
 	// 1 bit 61th 8
-	/* TODO */
-	void setGunLock(const uint32 bGunLock) {
-		setBit(bGunLock, 60);
-	}
+	void setGunLock(const uint32 bGunLock);
 
-	/* TODO */
-	bool getGunLock() const {
-		return (PlayerDataCompressed & (1LLU << 60)) == (1LLU << 60);
-	}
+	bool getGunLock() const;
 
 	// 1 bit 60th 7
-	/* TODO */
-	void setMissileLock(const uint32 bMissileLock) {
-		setBit(bMissileLock, 59);
-	}
+	void setMissileLock(const uint32 bMissileLock);
 
-	/* TODO */
-	bool getMissileLock() const {
-		return (PlayerDataCompressed & (1LLU << 59)) == (1LLU << 59);
-	}
-
-
+	bool getMissileLock() const;
 };
+
+inline FPlayerInputPackage::FPlayerInputPackage()
+{
+	PlayerDataCompressed = 0LLU;
+}
+
+inline FPlayerInputPackage::FPlayerInputPackage(bool Gun, bool Missile, bool Lock, const FVector2D& MovementInput, const FVector2D& MouseInput, const uint32 newPacketNumber)
+{
+	PlayerDataCompressed = 0LLU;
+	setGunFire(Gun);
+	setMissileFire(Missile);
+	setSwitchTarget(Lock);
+	SetMovementInput(MovementInput);
+	setMouseInput(MouseInput);
+	setPacketNumber(newPacketNumber);
+}
+
+inline void FPlayerInputPackage::SetMovementInput(const FVector2D& MovementInput)
+{
+	uint64 const rightPressed = 1LLU;
+	uint64 const leftPressed = 1LLU << 1;
+	uint64 const forwardPressed = 1LLU << 2;
+	uint64 const backwardsPressed = 1LLU << 3;
+	uint64 const clearMovementInput = ~15LLU;
+
+	PlayerDataCompressed &= clearMovementInput;
+	// forward
+	if (MovementInput.X > 0.0f)
+	{
+		PlayerDataCompressed |= forwardPressed;
+	}
+	else
+	// backwards
+	if (MovementInput.X < 0.0f)
+	{
+		PlayerDataCompressed |= backwardsPressed;
+	}
+	// right
+	if (MovementInput.Y > 0.0f)
+	{
+		PlayerDataCompressed |= rightPressed;
+	}
+	else
+	// left
+	if (MovementInput.Y < 0.0f)
+	{
+		PlayerDataCompressed |= leftPressed;
+	}
+}
+
+inline FVector2D FPlayerInputPackage::GetMovementInput() const
+{
+	uint64 const rightPressed = 1LLU;
+	uint64 const leftPressed = 1LLU << 1;
+	uint64 const forwardPressed = 1LLU << 2;
+	uint64 const backwardsPressed = 1LLU << 3;
+	FVector2D Input = FVector2D::ZeroVector;
+	// forward
+	if ((PlayerDataCompressed & forwardPressed) == forwardPressed)
+	{
+		Input.X = 1.0f;
+	}
+	// backwards
+	if ((PlayerDataCompressed & backwardsPressed) == backwardsPressed)
+	{
+		Input.X = -1.0f;
+	}
+	// right
+	if ((PlayerDataCompressed & rightPressed) == rightPressed)
+	{
+		Input.Y = 1.0f;
+	}
+	// left
+	if ((PlayerDataCompressed & leftPressed) == leftPressed)
+	{
+		Input.Y = -1.0f;
+	}
+	return Input;
+}
+
+inline void FPlayerInputPackage::setMouseInput(const FVector2D& MouseInput)
+{
+	uint64 const mouseInputClear = ~(16777215LLU << 4);
+	uint64 const mouseYawIsNegative = 1LLU << 15;
+	uint64 const mousePitchIsNegative = 1LLU << 27;
+
+	PlayerDataCompressed &= mouseInputClear;
+
+	PlayerDataCompressed |= ((uint64)(2047 * FMath::Abs(MouseInput.X))) << 4;
+	if (MouseInput.X < 0.0f)
+	{
+		PlayerDataCompressed |= mouseYawIsNegative;
+	}
+
+	PlayerDataCompressed |= ((uint64)(2047 * FMath::Abs(MouseInput.Y))) << 16;
+	if (MouseInput.Y < 0.0f)
+	{
+		PlayerDataCompressed |= mousePitchIsNegative;
+	}
+}
+
+inline float FPlayerInputPackage::getMouseYaw() const
+{
+	uint64 const mouseYaw = 2047LLU << 4;
+	uint64 const mouseYawIsNegative = 1LLU << 15;
+
+	if ((PlayerDataCompressed & mouseYawIsNegative) == mouseYawIsNegative)
+	{
+		return 0.0f - (((PlayerDataCompressed & mouseYaw) >> 4) / 2047.0f);
+	}
+	return ((PlayerDataCompressed & mouseYaw) >> 4) / 2047.0f;
+}
+
+inline float FPlayerInputPackage::getMousePitch() const
+{
+	uint64 const mousePitch = 2047LLU << 16;
+	uint64 const mousePitchIsNegative = 1LLU << 27;
+
+	if ((PlayerDataCompressed & mousePitchIsNegative) == mousePitchIsNegative)
+	{
+		return 0.0f - (((PlayerDataCompressed & mousePitch) >> 16) / 2047.0f);
+	}
+	return ((PlayerDataCompressed & mousePitch) >> 16) / 2047.0f;
+}
+
+inline FVector2D FPlayerInputPackage::getMouseInput() const
+{
+	return FVector2D(getMouseYaw(), getMousePitch());
+}
+
+inline void FPlayerInputPackage::setPacketNumber(const uint32 newPacketNumber)
+{
+	uint64 const PacketNoClear = ~(16777215LLU << 28);
+	PlayerDataCompressed &= PacketNoClear;
+	PlayerDataCompressed |= ((uint64)newPacketNumber) << 28;
+}
+
+inline void FPlayerInputPackage::IncrementPacketNumber()
+{
+	setPacketNumber(1 + getPacketNumber());
+}
+
+inline uint32 FPlayerInputPackage::getPacketNumber() const
+{
+	uint64 const PacketNo = 16777215LLU << 28;
+	return (uint32)((PlayerDataCompressed & PacketNo) >> 28);
+}
+
+inline void FPlayerInputPackage::setGunFire(const uint32 bGunFire)
+{
+	setBit(bGunFire, 63);
+}
+
+inline bool FPlayerInputPackage::getGunFire() const
+{
+	return (PlayerDataCompressed & (1LLU << 63)) == (1LLU << 63);
+}
+
+inline void FPlayerInputPackage::setMissileFire(const uint32 bMissileFire)
+{
+	setBit(bMissileFire, 62);
+}
+
+inline bool FPlayerInputPackage::getMissileFire() const
+{
+	return (PlayerDataCompressed & (1LLU << 62)) == (1LLU << 62);
+}
+
+inline void FPlayerInputPackage::setBit(const uint32 bSet, const int Position)
+{
+	if (bSet)
+	{
+		PlayerDataCompressed |= (1LLU << Position);
+	}
+	else
+	{
+		PlayerDataCompressed &= ~(1LLU << Position);
+	}
+}
+
+inline void FPlayerInputPackage::setSwitchTarget(const uint32 bSwitchTarget)
+{
+	setBit(bSwitchTarget, 61);
+}
+
+inline bool FPlayerInputPackage::getSwitchTarget() const
+{
+	return (PlayerDataCompressed & (1LLU << 61)) == (1LLU << 61);
+}
+
+inline void FPlayerInputPackage::setGunLock(const uint32 bGunLock)
+{
+	setBit(bGunLock, 60);
+}
+
+inline bool FPlayerInputPackage::getGunLock() const
+{
+	return (PlayerDataCompressed & (1LLU << 60)) == (1LLU << 60);
+}
+
+inline void FPlayerInputPackage::setMissileLock(const uint32 bMissileLock)
+{
+	setBit(bMissileLock, 59);
+}
+
+inline bool FPlayerInputPackage::getMissileLock() const
+{
+	return (PlayerDataCompressed & (1LLU << 59)) == (1LLU << 59);
+}
 
 /* Struct that stores the current Pawn-Transform with the corresponding Packet-Number of the Player-Input.
 Used to see how much the client has desynchronized when an accepted Player-Input is received from the server */

@@ -10,10 +10,11 @@
 #include "GameFramework/DamageType.h"
 #include "UnrealNetwork.h"
 #include "Target_Interface.h"
+#include "Target_Interface.h"
 #include "CalcFunctionLibrary.h"
 #include "MainPawn_Enums.h"
 #include "MainPawn_Structs.h"
-#define LOG_MSG 1
+#define LOG_MSG 0
 #include "CustomMacros.h"
 #include "MainPawn.generated.h"
 
@@ -159,6 +160,21 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 		float MovControlStrength = 1.0f;
 
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MainPawn|Controls")
+		FVector2D MovementInput;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MainPawn|Controls")
+		bool bFreeCameraActive = false;	
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MainPawn|Controls")
+		bool bBoostPressed;
+	/* TODO */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MainPawn|Controls")
+		FVector2D RawTurnInput;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MainPawn|Controls")
+		FVector2D TurnInput;
+
+	/* TODO */
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "MainPawn|Controls")
+		FVector2D MouseInput;
 
 
 protected:
@@ -184,12 +200,6 @@ protected:
 	void GetViewportSizeCenter(FVector2D& ViewPortSize, FVector2D& ViewPortCenter);
 
 
-	/* TODO */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-		FVector2D RawTurnInput;
-
-	/* TODO */
-	FVector2D MouseInput;
 
 	/* TODO */
 	void GetMouseInput(FVector2D& MouseInput, FVector2D& CursorLoc, FVector2D& ViewPortCenter);
@@ -212,19 +222,18 @@ protected:
 	float NewInputSize;
 	/* TODO */
 	float OldInputSize;
-	/* TODO */
-	FVector2D MovementInput;
+	
+
 	/* TODO */
 	FVector2D CameraInput;
 	/* TODO */
-	UPROPERTY(EditAnywhere, BlueprintReadWrite)
-		bool bFreeCameraActive = false;
+
 	/* TODO */
 	float ZoomFactor;
 	/* TODO */
 	uint32 bZoomingIn;
 	/* TODO */
-	uint32 bBoostPressed;
+
 	/* TODO */
 	float SpringArmLength;
 	/* TODO */
@@ -467,7 +476,7 @@ protected:
 	virtual void StopPlayerMovement();
 
 	/* TODO */
-	UPROPERTY(Replicated)
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "MainPawn|Controls")
 		bool bCanReceivePlayerInput;
 	/* TODO */
 	UFUNCTION()

@@ -320,6 +320,7 @@ private:
 	void StartGunFire();
 	void GunFireCycle();
 	void Salve();
+	FORCEINLINE void ClearGunFireAndSalveTimer();
 	void FireSalve();
 	void HandleRecoil();
 	FORCEINLINE void HandleSpread();
@@ -358,6 +359,13 @@ public:
 private:
 	// Settings
 	FGunProperties mGunProperties;
+
+public:
+	// return the current properties of the gun
+	UFUNCTION(BlueprintCallable, Category = "GunFireComponent|Properties")
+	void GetCurrentGunProperties(FGunProperties& Properties) const;
+
+private:
 	FRandomStream mRandomStream;
 
 	// requests
@@ -395,6 +403,17 @@ private:
 	bool mbReload;
 	float mReloadTime;
 	FTimerHandle mReloadTimer;
+
+public:
+	// returns the remaining reload time in seconds or zero if the Gun is not reloading
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "GunFireComponent|Status|Reloading")
+	float GetRemainingReloadTime() const;
+
+	// returns the current reload time in use in seconds or zero if the Gun is not reloading
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "GunFireComponent|Status|Reloading")
+		float GetReloadTime() const;
+
+private:
 	int32 mNumAddedProjectiles;
 	bool mbIsChamberRound;
 	bool mbFinishedReloading;
@@ -402,6 +421,13 @@ private:
 	// Overheating
 	float mTempIncreasePercentagePerShot;
 	float mGunOverheatingLevel;
+
+public:
+	// returns the guns overheating level clamped to 1.0
+	UFUNCTION(BlueprintCallable, BlueprintPure, Category = "GunFireComponent|Status")
+	float GetOverheatingLevel() const;
+
+private:
 	// Projectile
 	int32 mTracerIndex;
 	int32 mProjectileIndex;
@@ -411,7 +437,6 @@ public:
 	//Projectile class to spawn
 	UPROPERTY(EditDefaultsOnly, Category = Projectile)
 		TSubclassOf<class AProjectile> ProjectileClass;
-
 
 	void UpdateOwner() const;
 

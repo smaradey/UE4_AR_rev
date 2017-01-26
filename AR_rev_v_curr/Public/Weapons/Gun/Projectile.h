@@ -6,7 +6,7 @@
 #include "Damage.h"
 #include "Projectile_Enums.h"
 #include "Projectile_Structs.h"
-#define LOG_MSG 1
+#define LOG_MSG 0
 #include "CustomMacros.h"
 #include "CalcFunctionLibrary.h"
 #include "Projectile.generated.h"

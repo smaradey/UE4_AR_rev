@@ -3,7 +3,7 @@
 #include "AR_rev_v_curr.h"
 #include "Projectile.h"
 
-#define DEBUG 1
+#define DEBUG 0
 
 
 // Sets default values

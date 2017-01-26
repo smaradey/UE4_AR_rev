@@ -66,12 +66,9 @@ void ATurret::GetProjectileSpawnPointSockets()
 void ATurret::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
-	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, "Turret is Ticking...");
-
+	
 	CalcTurretWorldVelocityVector(DeltaTime);
-
-	if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 0.0f, FColor::Green, Velocity.ToString());
-
+	
 	switch (CurrentMode)
 	{
 	case ETurretOperationMode::Rest: {
