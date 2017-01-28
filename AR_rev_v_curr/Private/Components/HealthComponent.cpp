@@ -35,29 +35,32 @@ void UHealthComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	// ...
-	const float CurrentGameTime = { GetGameTime() };
-	if (CurrentGameTime > 0.0f && TimeTickEnabled > 0.0f)
+	// subtract the repair-/recharge delay from the DeltaTime after Tick has been reenabled
 	{
-		const float TimeSinceTickActivation = { CurrentGameTime - TimeTickEnabled };
-		if (TimeSinceTickActivation - DeltaTime < 0.0f)
+		const float CurrentGameTime = { GetGameTime() };
+		if (CurrentGameTime > 0.0f && TimeTickEnabled > 0.0f)
 		{
-			return;
+			const float TimeSinceTickActivation = { CurrentGameTime - TimeTickEnabled };
+			const float ActivationDeltaTime = { DeltaTime - TimeSinceTickActivation };
+			if (ActivationDeltaTime > 0.0f)
+			{
+				DeltaTime = ActivationDeltaTime;
+			}
 		}
 	}
 
-	bool IsChargedRepaired = { true };
+	bool IsCompletelyChargedRepaired = { true };
 	if (CanRepairHull())
 	{
-		IsChargedRepaired = false;
+		IsCompletelyChargedRepaired = false;
 		HullCurrent = FMath::FInterpConstantTo(HullCurrent, HullMax, HullRepairSpeed, DeltaTime);
 	}
 	if (CanRechargeShield())
 	{
-		IsChargedRepaired = false;
+		IsCompletelyChargedRepaired = false;
 		ShieldCurrent = FMath::FInterpConstantTo(ShieldCurrent, ShieldMax, ShieldRechargeSpeed, DeltaTime);
 	}
-	if (IsChargedRepaired)
+	if (IsCompletelyChargedRepaired)
 	{
 		SetComponentTickEnabled(false);
 	}
@@ -70,16 +73,18 @@ void UHealthComponent::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& Out
 	DOREPLIFETIME(UHealthComponent, ShieldCurrent);
 	DOREPLIFETIME(UHealthComponent, HullMax);
 	DOREPLIFETIME(UHealthComponent, HullCurrent);
+	DOREPLIFETIME(UHealthComponent, bRepairAllowed);
+	DOREPLIFETIME(UHealthComponent, bRechargeAllowed);
 }
 
 bool UHealthComponent::CanRechargeShield() const
 {
-	return ShieldRechargeSpeed != 0.0f && ShieldMax > 0.0f && ShieldMax > ShieldCurrent && !IsTimerActivByHandle(ShieldRechargeDelayTimer);
+	return bRechargeAllowed && ShieldRechargeSpeed != 0.0f && ShieldMax > 0.0f && ShieldMax > ShieldCurrent && !IsTimerActivByHandle(ShieldRechargeDelayTimer);
 }
 
 bool UHealthComponent::CanRepairHull() const
 {
-	return HullRepairSpeed != 0.0f && HullMax > 0.0f && HullMax > HullCurrent && !IsTimerActivByHandle(HullRepairDelayTimer);
+	return bRepairAllowed && HullRepairSpeed != 0.0f && HullMax > 0.0f && HullMax > HullCurrent && !IsTimerActivByHandle(HullRepairDelayTimer);
 }
 
 bool UHealthComponent::ShieldTakeInstantDamage(const float DamageAmount, const bool CanDamageHull)

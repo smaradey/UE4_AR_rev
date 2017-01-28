@@ -81,14 +81,25 @@ public:
 	UFUNCTION(BlueprintNativeEvent, Category = "HealthComponent|Hull")
 	void HullRepairDelayFinished();
 
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "HealthComponent|Hull")
+	bool bRepairAllowed = {true};
 
-private:
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "HealthComponent|Shield")
+		bool bRechargeAllowed = { true };
+
+
+protected:
 	FTimerHandle ShieldRechargeDelayTimer = {};
 	FTimerHandle HullRepairDelayTimer = {};
-	float TimeTickEnabled;
+
+
+	// returns true if a timer is pending or is activ
 	FORCEINLINE bool IsTimerActivByHandle(const FTimerHandle& Timer) const;
 
 	// get the current game time in seconds, returns -1 in case of error
 	FORCEINLINE float GetGameTime() const;
+
+	float TimeTickEnabled;
+	// enables Tick and stores the time of last call in TimeTickEnabled
 	FORCEINLINE void EnableTick();
 };
