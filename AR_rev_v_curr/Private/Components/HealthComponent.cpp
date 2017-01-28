@@ -22,11 +22,11 @@ UHealthComponent::UHealthComponent(const FObjectInitializer& ObjectInitializer) 
 void UHealthComponent::BeginPlay()
 {
 	Super::BeginPlay();
-	if(GetOwnerRole() != ROLE_Authority)
+
+	if (GetOwnerRole() != ROLE_Authority)
 	{
 		SetComponentTickEnabled(false);
 	}
-	// ...
 }
 
 
@@ -36,16 +36,13 @@ void UHealthComponent::TickComponent(float DeltaTime, ELevelTick TickType, FActo
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
 	// subtract the repair-/recharge delay from the DeltaTime after Tick has been reenabled
+	const float CurrentGameTime = { GetGameTime() };
+	if (CurrentGameTime > 0.0f && TimeTickEnabled > 0.0f)
 	{
-		const float CurrentGameTime = { GetGameTime() };
-		if (CurrentGameTime > 0.0f && TimeTickEnabled > 0.0f)
+		const float TimeSinceTickActivation = { CurrentGameTime - TimeTickEnabled };
+		if (TimeSinceTickActivation - DeltaTime < 0.0f)
 		{
-			const float TimeSinceTickActivation = { CurrentGameTime - TimeTickEnabled };
-			const float ActivationDeltaTime = { DeltaTime - TimeSinceTickActivation };
-			if (ActivationDeltaTime > 0.0f)
-			{
-				DeltaTime = ActivationDeltaTime;
-			}
+			DeltaTime = TimeSinceTickActivation;
 		}
 	}
 
@@ -114,7 +111,7 @@ bool UHealthComponent::HullTakeInstantDamage(const float DamageAmount)
 
 void UHealthComponent::ActivateShieldRechargeDelay(const float Delay)
 {
-	UWorld* const World{ GetWorld() };
+	UWorld* const World = { GetWorld() };
 	if (World)
 	{
 		World->GetTimerManager().SetTimer(ShieldRechargeDelayTimer, this, &UHealthComponent::ShieldRechargeDelayFinished, Delay);
@@ -142,13 +139,13 @@ void UHealthComponent::HullRepairDelayFinished_Implementation()
 
 bool UHealthComponent::IsTimerActivByHandle(const FTimerHandle& Timer) const
 {
-	const UWorld* const World{ GetWorld() };
+	const UWorld* const World = { GetWorld() };
 	return World && (World->GetTimerManager().IsTimerPending(Timer) || World->GetTimerManager().IsTimerActive(Timer));
 }
 
 float UHealthComponent::GetGameTime() const
 {
-	UWorld* const World{ GetWorld() };
+	UWorld* const World = { GetWorld() };
 	if (World)
 	{
 		return World->TimeSeconds;

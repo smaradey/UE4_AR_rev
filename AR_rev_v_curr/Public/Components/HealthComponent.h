@@ -75,23 +75,21 @@ public:
 
 	// make sure to call parent implementation as well in to make sure recharging/repairing is working
 	UFUNCTION(BlueprintNativeEvent, Category = "HealthComponent|Shield")
-	void ShieldRechargeDelayFinished();
+		void ShieldRechargeDelayFinished();
 
 	// make sure to call parent implementation as well in to make sure recharging/repairing is working
 	UFUNCTION(BlueprintNativeEvent, Category = "HealthComponent|Hull")
-	void HullRepairDelayFinished();
+		void HullRepairDelayFinished();
 
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "HealthComponent|Hull")
-	bool bRepairAllowed = {true};
+		bool bRepairAllowed = { true };
 
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "HealthComponent|Shield")
 		bool bRechargeAllowed = { true };
 
-
 protected:
 	FTimerHandle ShieldRechargeDelayTimer = {};
 	FTimerHandle HullRepairDelayTimer = {};
-
 
 	// returns true if a timer is pending or is activ
 	FORCEINLINE bool IsTimerActivByHandle(const FTimerHandle& Timer) const;
