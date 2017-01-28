@@ -109,9 +109,12 @@ bool UReservoirComponent::IncreaseByInstantly(const float Increase, float& NewVa
 void UReservoirComponent::ActivateRefillDelay(const float Delay)
 {
 	UWorld* const World = { GetWorld() };
-	if (World)
+	if (World && Delay > 0)
 	{
 		World->GetTimerManager().SetTimer(RefillDelayTimer, this, &UReservoirComponent::RefillDelayFinished, Delay);
+	} else
+	{
+		EnableTick();
 	}
 }
 
