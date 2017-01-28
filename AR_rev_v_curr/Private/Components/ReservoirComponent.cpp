@@ -41,7 +41,7 @@ void UReservoirComponent::TickComponent(float DeltaTime, ELevelTick TickType, FA
 	if (CurrentGameTime > 0.0f && TimeTickEnabled > 0.0f)
 	{
 		const float TimeSinceTickActivation = { CurrentGameTime - TimeTickEnabled };
-		if (TimeSinceTickActivation - DeltaTime < 0.0f)
+		if (TimeSinceTickActivation < DeltaTime)
 		{
 			DeltaTime = TimeSinceTickActivation;
 		}
@@ -112,7 +112,8 @@ void UReservoirComponent::ActivateRefillDelay(const float Delay)
 	if (World && Delay > 0)
 	{
 		World->GetTimerManager().SetTimer(RefillDelayTimer, this, &UReservoirComponent::RefillDelayFinished, Delay);
-	} else
+	}
+	else
 	{
 		EnableTick();
 	}
