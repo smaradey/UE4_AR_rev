@@ -127,7 +127,12 @@ void UReservoirComponent::RefillDelayFinished_Implementation()
 bool UReservoirComponent::IsTimerActivByHandle(const FTimerHandle& Timer) const
 {
 	const UWorld* const World = { GetWorld() };
-	return World && (World->GetTimerManager().IsTimerPending(Timer) || World->GetTimerManager().IsTimerActive(Timer));
+	if(World)
+	{
+		FTimerManager& WorldTimerManager = World->GetTimerManager();
+		return WorldTimerManager.IsTimerPending(Timer) || WorldTimerManager.IsTimerActive(Timer);
+	}
+	return false;	
 }
 
 float UReservoirComponent::GetGameTime() const
