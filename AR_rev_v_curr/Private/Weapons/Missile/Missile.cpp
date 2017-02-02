@@ -486,7 +486,7 @@ void AMissile::HitTarget_Implementation(class AActor* TargetedActor)
 		if (bDamageTarget && CurrentTarget)
 		{
 			//if (GEngine) GEngine->AddOnScreenDebugMessage(-1, 3.0f/*seconds*/, FColor::Green, "Auth: Target HIT");
-			CurrentTarget->GetOwner()->ReceiveAnyDamage(FMath::RandRange(mProperties.BaseDamage.MinDamage, mProperties.BaseDamage.MinDamage), nullptr, GetInstigatorController(), this);
+			//CurrentTarget->GetOwner()->ReceiveAnyDamage(FMath::RandRange(mProperties.BaseDamage.MinDamage, mProperties.BaseDamage.MinDamage), nullptr, GetInstigatorController(), this);
 			bDetonated = true;
 			DetonateMissile(GetActorTransform());
 		}

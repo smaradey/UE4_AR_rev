@@ -5,6 +5,8 @@
 #include "GameFramework/Actor.h"
 #define LOG_MSG 1
 #include "CustomMacros.h"
+#include "Explosive_Interface.h"
+#include "Damage.h"
 #include "Explosive.generated.h"
 
 UCLASS()
@@ -17,23 +19,43 @@ public:
 	AExplosive(const FObjectInitializer& ObjectInitializer);
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Explosive")
-	URadialForceComponent* RadialForce;
+		URadialForceComponent* RadialForce;
 
 	virtual void GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const override;
 
 	// Radius in which other Explosives are activated/other actors can be damaged
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Explosive")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Explosive", meta = (ClampMin = "1.0", ClampMax = "10000000000.0", UIMin = "1.0", UIMax = "100000.0"))
 		float Range = { 500.0f };
 
 	// Used to calculate the explosion delay of explosives (v in cm/s)
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Explosive")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Explosive", meta = (ClampMin = "0.1", ClampMax = "29979245800.0", UIMin = "0.1", UIMax = "29979245800.0"))
 		float ShockWaveVelocity = { 30000.0f };
+
+	// Damage that is being applied to actors in Range, randomly choosen between min/max
+	// if Radialforce has option Falloff set to Linear: Damage drops of to zero the further actors are away from Center of Explosion
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Explosive", Meta = (ExposeOnSpawn = true))
+	FBaseDamage Damage;
+
+	// if true will perform check if there are no obstacles between explosion center and actors in range (wip)
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Explosive|Damage")
+		bool bDamagesOnlyActorsInLineOfSight = { false };
+
+	// add actors or objects that want to be notified when this Actor detonates, they need to implement the Interface "Explosive_Interface" in order to bind functionality to the explosion
+	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Explosive", Meta = (ExposeOnSpawn = true))
+	TArray<UObject*> Observers;
 
 	UFUNCTION(BlueprintCallable, Category = "Explosive|Shockwave")
 		void ReceiveShockwave(UObject* InstigatingObject, const float Delay);
 
+	// returns false if Explosive already detonated or Explosive is already pending explosion with a shorter Delay
+	UFUNCTION(BlueprintCallable, Category = "Explosive|Detonation")
+		bool DetonateAfter(const float Delay);
+
 	UFUNCTION(BlueprintCallable, Category = "Explosive|Detonation")
 		void Detonate(const FTransform& Transform);
+
+	UFUNCTION(NetMulticast, Reliable)
+		void Detonated(const FTransform& Transform);
 
 
 protected:
@@ -47,7 +69,5 @@ private:
 
 	// returns true if a timer is pending or is activ
 	FORCEINLINE bool IsTimerActivByHandle(const FTimerHandle& Timer) const;
-
-
 
 };

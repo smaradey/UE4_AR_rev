@@ -21,22 +21,28 @@ AExplosive::AExplosive(const FObjectInitializer& ObjectInitializer) : Super(Obje
 	RadialForce->Falloff = ERadialImpulseFalloff::RIF_Linear;
 	RadialForce->ImpulseStrength = 100000.0f;
 	RadialForce->DestructibleDamage = 10000000000.0f;
+	RootComponent = RadialForce;
 }
 
 
 void AExplosive::GetLifetimeReplicatedProps(TArray<FLifetimeProperty>& OutLifetimeProps) const
 {
 	Super::GetLifetimeReplicatedProps(OutLifetimeProps);
-	//DOREPLIFETIME(AExplosive, Var);
+	DOREPLIFETIME(AExplosive, Observers);
 }
 
 void AExplosive::ReceiveShockwave(UObject* InstigatingObject, const float Delay)
 {
-	if (bExploded) return;
 	if (InstigatingObject)
 	{
 		LOGA2("Explosive: Received Explosion Command from \"%s\"; Explodes in %f seconds", *InstigatingObject->GetName(), Delay)
 	}
+	DetonateAfter(Delay);
+}
+
+bool AExplosive::DetonateAfter(const float Delay)
+{
+	if (bExploded) return false;
 	if (Delay > 0.0f)
 	{
 		FTimerManager& TimerManager = GetWorldTimerManager();
@@ -44,10 +50,12 @@ void AExplosive::ReceiveShockwave(UObject* InstigatingObject, const float Delay)
 			|| TimerManager.GetTimerRemaining(ShockWaveReceiveTimer) > Delay)
 		{
 			TimerManager.SetTimer(ShockWaveReceiveTimer, this, &AExplosive::DelayedDetonation, Delay, false);
+			return true;
 		}
-		return;
+		return false;
 	}
 	Detonate(GetActorTransform());
+	return true;
 }
 
 void AExplosive::Detonate(const FTransform& Transform)
@@ -56,41 +64,97 @@ void AExplosive::Detonate(const FTransform& Transform)
 	bExploded = true;
 
 	//TODO: Replicate Explosion to all clients
-	TSubclassOf<AActor> Class = AActor::GetClass();
+	Detonated(Transform);
+
 	int32 num = 0;
+	int32 totalNum = 0;
 	UWorld* World = GetWorld();
 	if (World) {
 
-		if (RadialForce) RadialForce->FireImpulse();
+		bool bDamageDropOff = { false };
+		if (RadialForce) {
+			bDamageDropOff = RadialForce->Falloff == RIF_Linear;
+			RadialForce->FireImpulse();
+		}
 
-		for (TActorIterator<AActor> It(World, Class); It; ++It)
+		for (TActorIterator<AActor> It(World, AActor::StaticClass()); It; ++It)
 		{
 			AActor* Actor = *It;
+			LOGA("AExplosive: Actor: \"%s\"", *Actor->GetName());
+			++totalNum;
 			if (Actor != nullptr && Actor != this)
 			{
 				const float DistToActor = (GetActorLocation() - Actor->GetActorLocation()).Size();
-				if (DistToActor > Range) continue;
+				if (DistToActor > Range)
+				{
+					//LOGA("AExplosive: Not in Explosion Radius No: \"%s\"", *Actor->GetName());
+					continue;
+				}
+				//LOGA2("AExplosive: In Explosion Radius No: %d: \"%s\"", ++num, *Actor->GetName());
 
 				// TODO: check line of sight
 
-				LOGA2("AExplosive: In Explosion Radius No: %d: \"%s\"", ++num, *Actor->GetName());
-
-				AExplosive* ExplosiveActor = Cast<AExplosive>(Actor);
 				// Trigger other explosives in Range
+				AExplosive* ExplosiveActor = Cast<AExplosive>(Actor);
+
 				// TODO: change triggering to damage based system
 				if (ExplosiveActor != nullptr && !ExplosiveActor->bExploded)
 				{
 					const float ShockwaveReceiveDelay = DistToActor / ShockWaveVelocity;
 					LOGA2("AExplosive: \"%s\" is child class of AExplosive and will explode in %lf seconds", *Actor->GetName(), ShockwaveReceiveDelay)
 						ExplosiveActor->ReceiveShockwave(this, ShockwaveReceiveDelay);
-					continue;
+					//continue;
 				}
 
-				// TODO: Damage other actors
+				if (Actor->bCanBeDamaged)
+				{
+					FDamageEvent DmgEvent;
+					DmgEvent.DamageTypeClass = Damage.DamageTypeClass;
+					float DamageToApply = FMath::RandRange(Damage.MinDamage, Damage.MaxDamage);
+					if (bDamageDropOff) {
+						const float RelativeDistanceToCenter = DistToActor / Range;
+						DamageToApply *= RelativeDistanceToCenter;
+					}
+					LOGA2("AExplosive: Damaging \"%s\": Damageamount = %f", *Actor->GetName(), DamageToApply);
+					Actor->TakeDamage(DamageToApply, DmgEvent, GetInstigatorController(), this);
+				}
+				//else
+				//{
+				//	LOGA("AExplosive: \"%s\" can not be damaged", *Actor->GetName());
+				//}
+			}
+		}
+		LOGA("AExplosive: Total Actors = %d", totalNum);
+	}
+	Destroy();
+}
+
+void AExplosive::Detonated_Implementation(const FTransform& Transform)
+{
+	SetActorTransform(Transform);
+	if (RadialForce) {
+		RadialForce->FireImpulse();
+		LOGA("Explosive: \"%s\": Client Received Detonation", *GetName())
+	}
+	int32 Count = { 0 };
+	for (UObject* Observer : Observers)
+	{
+		if (Observer) {
+			if (Observer->GetClass()->ImplementsInterface(UExplosive_Interface::StaticClass()))
+			{
+				++Count;
+				IExplosive_Interface::Execute_Detonated(Observer, Transform);
+			}
+			else
+			{
+				UE_LOG(LogTemp, Error, TEXT("Explosive: Explosive_Interface not implemented by Observer: \"%s\""), *Observer->GetName());
 			}
 		}
 	}
-	Destroy();
+	if (Count == 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Explosive: No Observers added or Explosive_Interface not implemented"));
+	}
 }
 
 void AExplosive::DelayedDetonation()
