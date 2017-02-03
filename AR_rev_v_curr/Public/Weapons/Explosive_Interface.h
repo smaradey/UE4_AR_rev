@@ -21,6 +21,6 @@ class AR_REV_V_CURR_API IExplosive_Interface
 	// Add interface functions to this class. This is the class that will be inherited to implement this interface.
 public:
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Explosive_Interface")
-		void Detonated(const FTransform& Transform);
+		void Detonated(AExplosive* ExplosiveActor, const FTransform& Transform);
 	
 };

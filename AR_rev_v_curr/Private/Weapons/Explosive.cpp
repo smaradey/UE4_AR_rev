@@ -143,7 +143,7 @@ void AExplosive::Detonated_Implementation(const FTransform& Transform)
 			if (Observer->GetClass()->ImplementsInterface(UExplosive_Interface::StaticClass()))
 			{
 				++Count;
-				IExplosive_Interface::Execute_Detonated(Observer, Transform);
+				IExplosive_Interface::Execute_Detonated(Observer, this, Transform);
 			}
 			else
 			{
