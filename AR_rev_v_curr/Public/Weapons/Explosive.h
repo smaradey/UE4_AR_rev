@@ -40,7 +40,9 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Explosive|Damage")
 		bool bDamagesOnlyActorsInLineOfSight = { false };
 
-	// add actors or objects that want to be notified when this Actor detonates, they need to implement the Interface "Explosive_Interface" in order to bind functionality to the explosion
+	// add actors or objects that want to be notified when this Actor detonates,
+	// they need to implement the Interface "Explosive_Interface" in order to bind functionality to the explosion
+	// if the list is empty: this actors ParentActor will be notified (the actor this actor is attached to, needs to implement the Interface)
 	UPROPERTY(Replicated, EditAnywhere, BlueprintReadWrite, Category = "Explosive", Meta = (ExposeOnSpawn = true))
 	TArray<UObject*> Observers;
 
@@ -69,5 +71,4 @@ private:
 
 	// returns true if a timer is pending or is activ
 	FORCEINLINE bool IsTimerActivByHandle(const FTimerHandle& Timer) const;
-
 };

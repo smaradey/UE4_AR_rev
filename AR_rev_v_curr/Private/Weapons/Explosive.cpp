@@ -12,6 +12,7 @@ AExplosive::AExplosive(const FObjectInitializer& ObjectInitializer) : Super(Obje
 	PrimaryActorTick.bStartWithTickEnabled = false;
 	PrimaryActorTick.bAllowTickOnDedicatedServer = false;
 	SetActorEnableCollision(false);
+	bNetUseOwnerRelevancy = true;
 	bReplicates = true;
 
 	RadialForce = ObjectInitializer.CreateDefaultSubobject<URadialForceComponent>(this, TEXT("DetonationImpuls"));
@@ -21,7 +22,7 @@ AExplosive::AExplosive(const FObjectInitializer& ObjectInitializer) : Super(Obje
 	RadialForce->Falloff = ERadialImpulseFalloff::RIF_Linear;
 	RadialForce->ImpulseStrength = 100000.0f;
 	RadialForce->DestructibleDamage = 10000000000.0f;
-	RootComponent = RadialForce;
+	RootComponent = RadialForce;	
 }
 
 
@@ -137,6 +138,7 @@ void AExplosive::Detonated_Implementation(const FTransform& Transform)
 		LOGA("Explosive: \"%s\": Client Received Detonation", *GetName())
 	}
 	int32 Count = { 0 };
+	// Notify all valid observer in list
 	for (UObject* Observer : Observers)
 	{
 		if (Observer) {
@@ -151,9 +153,24 @@ void AExplosive::Detonated_Implementation(const FTransform& Transform)
 			}
 		}
 	}
+	// fall back to this actors owner if list contained no valid observers
 	if (Count == 0)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Explosive: No Observers added or Explosive_Interface not implemented"));
+		AActor* owner = GetParentActor();
+		if (owner) {
+			if (owner->GetClass()->ImplementsInterface(UExplosive_Interface::StaticClass()))
+			{
+				++Count;
+				IExplosive_Interface::Execute_Detonated(owner, this, Transform);
+			}
+			else
+			{
+				UE_LOG(LogTemp, Error, TEXT("Explosive: Explosive_Interface not implemented by Owner: \"%s\""), *owner->GetName());
+			}
+		} else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("Explosive: No valid Observers or Explosive_Interface not implemented"));
+		}
 	}
 }
 
